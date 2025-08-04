@@ -23,24 +23,23 @@ nexspaces-api/
 ## 🚀 Quick Start
 
 ### Prerequisites
-- Go 1.23+
 - Docker & Docker Compose
+- Make (optional, for convenience commands)
 
 ### Development Setup
 
-1. **Start database services:**
 ```bash
-docker-compose up -d postgres redis
-```
+# Start development with hot reload
+make dev
 
-2. **Run the server:**
-```bash
-go run cmd/server/main.go
-```
+# Check health
+make health
 
-3. **Health check:**
-```bash
-curl http://localhost:8080/health
+# View logs
+make logs
+
+# Stop services
+make stop
 ```
 
 ## 🔧 Configuration
@@ -100,16 +99,30 @@ Key configuration options:
 - **pgAdmin:** http://localhost:8082 (admin@nexspaces.dev / admin)
 - **Redis Commander:** http://localhost:8081
 
-### Docker Services
+### Docker Commands
+
 ```bash
-# Start all services
-docker-compose up -d
+# Development (with hot reload)
+make dev                    # Start development environment
+make stop                   # Stop all services
+make restart                # Restart API service
+make logs                   # View all logs
+make api-logs              # View API logs only
 
-# View logs
-docker-compose logs -f
+# Production
+make prod                   # Start production environment
 
-# Stop services
-docker-compose down
+# Database
+make migrate               # Run migrations
+make db-reset              # Reset database (⚠️ destructive)
+make db-shell              # PostgreSQL shell
+make redis-shell           # Redis shell
+
+# Utilities  
+make health                # Check service health
+make urls                  # Show service URLs
+make clean                 # Clean up containers/volumes
+make test                  # Run tests
 ```
 
 ## 📡 API Endpoints

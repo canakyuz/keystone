@@ -13,8 +13,8 @@ type DB struct {
 	*sql.DB
 }
 
-func NewPostgreSQL(cfg *config.DatabaseConfig) (*DB, error) {
-	db, err := sql.Open("postgres", cfg.DSN())
+func NewPostgreSQL(cfg *config.Config) (*DB, error) {
+	db, err := sql.Open("postgres", cfg.GetDatabaseURL())
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database: %w", err)
 	}

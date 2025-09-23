@@ -6,7 +6,7 @@
 
 ### Clean Architecture + Domain-Driven Design
 ```
-nexspaces-api/
+./
 ├── cmd/server/                    # Application entry point
 ├── internal/
 │   ├── app/                      # Application wiring & DI
@@ -443,3 +443,309 @@ This backend is designed to work seamlessly with:
 - ✅ **JWT tenant context** (stateless auth)
 - ✅ **Audit logging** (compliance ready)
 - ✅ **Input sanitization** (XSS/injection prevention)
+
+---
+
+## 🔄 Development Roadmap
+
+### 🔌 External Service Adapters
+**Priority: High** - Core business functionality
+
+#### Stripe Payment Processing
+```go
+// Payment adapter for billing operations
+type StripeAdapter struct {
+    client *stripe.Client
+    config StripeConfig
+}
+
+// Core features to implement:
+- Customer management (tenant-based)
+- Subscription lifecycle (create, update, cancel)
+- Payment method handling
+- Webhook processing (payment events)
+- Invoice generation and management
+- Usage-based billing support
+```
+
+#### SendGrid Email Service
+```go
+// Email notification system
+type SendGridAdapter struct {
+    client *sendgrid.Client
+    templates EmailTemplates
+}
+
+// Email types:
+- User invitation emails
+- Password reset notifications
+- Billing alerts and receipts
+- Template publishing notifications
+- System status updates
+- Marketing campaigns (opt-in)
+```
+
+#### AWS S3 File Storage
+```go
+// File management for templates and assets
+type S3Adapter struct {
+    session *session.Session
+    bucket  string
+    region  string
+}
+
+// Storage operations:
+- Template file uploads/downloads
+- Asset management (images, documents)
+- Version control for template files
+- Presigned URLs for secure access
+- Tenant-isolated storage buckets
+- Automated cleanup and archiving
+```
+
+### 🚌 Event Bus Implementation
+**Priority: High** - Async processing and system decoupling
+
+#### Domain Events Architecture
+```go
+// Event-driven architecture for business processes
+type EventBus interface {
+    Publish(ctx context.Context, event DomainEvent) error
+    Subscribe(eventType string, handler EventHandler) error
+    PublishBatch(ctx context.Context, events []DomainEvent) error
+}
+
+// Core domain events:
+- TenantCreated → Setup default data, send welcome email
+- UserInvited → Send invitation email, setup permissions
+- TemplatePublished → Notify subscribers, update marketplace
+- SubscriptionUpdated → Adjust usage limits, send notifications
+- PaymentProcessed → Update subscription status, send receipt
+- UsageLimitExceeded → Send alerts, enforce restrictions
+```
+
+#### Event Processing Patterns
+- **Immediate processing** (in-memory bus for development)
+- **Async processing** (Redis pub/sub for production)
+- **Reliable delivery** (message queues with retry logic)
+- **Event sourcing** (optional, for audit and replay)
+- **Saga pattern** (for complex multi-step processes)
+
+### 📚 API Documentation (OpenAPI/Swagger)
+**Priority: Medium** - Developer experience and integration
+
+#### Interactive Documentation
+```yaml
+# Comprehensive API documentation
+openapi: 3.0.3
+info:
+  title: NexSpaces Multi-Tenant API
+  version: 1.0.0
+  description: |
+    Production-ready SaaS platform API with multi-tenant architecture
+
+# Key documentation sections:
+- Authentication flows (JWT, API keys)
+- Multi-tenant patterns and best practices
+- Error handling and status codes
+- Rate limiting and pagination
+- Webhook specifications
+- SDK generation targets
+```
+
+#### Developer Tools
+- **Postman collections** (ready-to-use API tests)
+- **TypeScript types** (auto-generated for frontend)
+- **Client SDKs** (Go, JavaScript, Python)
+- **Mock servers** (for frontend development)
+- **Code examples** (curl, SDK usage)
+
+### 🐳 Docker & Kubernetes
+**Priority: Medium** - Production deployment and scaling
+
+#### Container Strategy
+```dockerfile
+# Multi-stage optimized build
+FROM golang:1.24-alpine AS builder
+# Build stage with full toolchain
+
+FROM alpine:latest AS runtime
+# Minimal runtime with security hardening
+- Non-root user execution
+- Distroless base images
+- Security scanning integration
+- Multi-architecture support (AMD64/ARM64)
+```
+
+#### Kubernetes Deployment
+```yaml
+# Production-ready K8s manifests
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nexspaces-api
+
+# Key K8s resources:
+- Deployment (API pods with health checks)
+- Service (load balancing and discovery)
+- Ingress (SSL termination and routing)
+- ConfigMap (environment configuration)
+- Secret (sensitive credentials)
+- HPA (horizontal pod autoscaling)
+- NetworkPolicy (micro-segmentation)
+- PodDisruptionBudget (availability)
+```
+
+#### Production Features
+- **Auto-scaling** (CPU/memory based)
+- **Zero-downtime deployments**
+- **Database connection pooling**
+- **Redis cluster integration**
+- **SSL/TLS termination**
+- **Health check endpoints**
+
+### 🧪 Comprehensive Testing Suite
+**Priority: High** - Code quality and reliability
+
+#### Test Pyramid Implementation
+```go
+// Unit Tests (70% coverage target)
+func TestUserDomain(t *testing.T) {
+    // Domain logic validation
+    // Business rule enforcement
+    // Value object behavior
+}
+
+// Integration Tests (20% coverage)
+func TestUserRepository(t *testing.T) {
+    // Database integration
+    // Multi-tenant isolation
+    // Transaction behavior
+}
+
+// End-to-End Tests (10% coverage)
+func TestUserJourney(t *testing.T) {
+    // Complete user workflows
+    // API contract validation
+    // Performance benchmarks
+}
+```
+
+#### Testing Infrastructure
+- **Isolated test databases** (per test suite)
+- **Mock external services** (Stripe, SendGrid)
+- **Test data factories** (realistic test data)
+- **Parallel execution** (fast test runs)
+- **Coverage reporting** (minimum 80% threshold)
+- **Property-based testing** (edge case discovery)
+
+#### Test Categories
+- **Security tests** (injection, XSS, authorization)
+- **Performance tests** (load, stress, endurance)
+- **Multi-tenant tests** (isolation, cross-tenant prevention)
+- **API contract tests** (OpenAPI compliance)
+- **Database tests** (migrations, RLS policies)
+
+### 📊 Monitoring & Observability
+**Priority: Medium** - Production operations and SLA compliance
+
+#### Metrics & Monitoring (Prometheus)
+```go
+// Business metrics collection
+var (
+    ActiveTenants = prometheus.NewGaugeVec(...)
+    APIResponseTime = prometheus.NewHistogramVec(...)
+    TemplateDownloads = prometheus.NewCounterVec(...)
+    RevenueMetrics = prometheus.NewGaugeVec(...)
+)
+
+// System health metrics:
+- API response times (P50, P95, P99)
+- Database query performance
+- Redis cache hit rates
+- Error rates by endpoint
+- Concurrent connections
+- Memory and CPU usage
+```
+
+#### Visualization & Alerting (Grafana)
+- **Real-time dashboards** (business and technical metrics)
+- **SLA monitoring** (99.9% uptime tracking)
+- **Capacity planning** (growth trend analysis)
+- **Alert management** (PagerDuty integration)
+- **Custom business dashboards** (tenant analytics)
+
+#### Observability Stack
+- **Structured logging** (JSON format, correlation IDs)
+- **Distributed tracing** (Jaeger, request flow tracking)
+- **Error tracking** (Sentry, exception monitoring)
+- **Audit logging** (compliance and security)
+- **Performance profiling** (continuous profiling)
+
+### ⚙️ CI/CD Pipeline Automation
+**Priority: Medium** - Development velocity and quality gates
+
+#### Automated Pipeline
+```yaml
+# GitHub Actions / GitLab CI workflow
+name: NexSpaces API Pipeline
+
+stages:
+  lint:
+    - golangci-lint (code quality)
+    - security scanning (gosec)
+    - dependency auditing (nancy)
+
+  test:
+    - unit tests (parallel execution)
+    - integration tests (test database)
+    - security tests (OWASP checks)
+
+  build:
+    - Docker image build
+    - Multi-arch compilation
+    - Image security scanning
+
+  deploy:
+    - staging deployment (automatic)
+    - production deployment (manual approval)
+    - database migrations (automated)
+
+  monitor:
+    - health checks (post-deployment)
+    - performance validation
+    - rollback triggers (automatic)
+```
+
+#### Quality Gates
+- **Code coverage** (minimum 80%)
+- **Security scan** (no high/critical vulnerabilities)
+- **Performance tests** (response time thresholds)
+- **Database migration** (backward compatibility)
+- **API contract** (no breaking changes)
+
+#### Deployment Strategies
+- **Blue/Green deployments** (zero downtime)
+- **Canary releases** (gradual rollout)
+- **Feature flags** (controlled feature activation)
+- **Automated rollbacks** (failure detection)
+- **Database migrations** (online schema changes)
+
+---
+
+## 🎯 Implementation Priority
+
+### Phase 1: Core Infrastructure (4-6 weeks)
+1. **Event Bus Implementation** - Foundation for async processing
+2. **External Service Adapters** - Stripe billing, SendGrid emails
+3. **Comprehensive Testing** - Quality assurance foundation
+
+### Phase 2: Developer Experience (2-3 weeks)
+4. **API Documentation** - OpenAPI specs and SDKs
+5. **Docker & K8s Setup** - Production deployment ready
+
+### Phase 3: Production Operations (3-4 weeks)
+6. **Monitoring & Observability** - Production visibility
+7. **CI/CD Pipeline** - Automated deployment and quality gates
+
+Each phase builds upon the previous one, ensuring a solid foundation for the next development cycle.

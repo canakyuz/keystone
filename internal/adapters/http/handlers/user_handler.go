@@ -5,6 +5,7 @@ import (
 	"github.com/google/uuid"
 
 	"nexspaces-api/internal/core/domain/shared"
+	userdomain "nexspaces-api/internal/core/domain/user"
 	"nexspaces-api/internal/core/usecases/user"
 	"nexspaces-api/internal/shared/errors"
 	"nexspaces-api/internal/shared/validation"
@@ -86,7 +87,7 @@ func (h *UserHandler) CreateUser(c *fiber.Ctx) error {
 	}
 
 	// Parse role
-	role, err := user.ParseRole(req.Role)
+	role, err := userdomain.ParseRole(req.Role)
 	if err != nil {
 		return errors.NewHTTPError(fiber.StatusBadRequest, "Invalid role", err)
 	}
@@ -97,7 +98,7 @@ func (h *UserHandler) CreateUser(c *fiber.Ctx) error {
 		Email:     req.Email,
 		FirstName: req.FirstName,
 		LastName:  req.LastName,
-		Role:      role,
+		Role:      string(role),
 		CreatedBy: shared.UserID(currentUserID),
 	}
 
@@ -171,11 +172,12 @@ func (h *UserHandler) UpdateUser(c *fiber.Ctx) error {
 
 	// Parse role if provided
 	if req.Role != nil {
-		role, err := user.ParseRole(*req.Role)
+		role, err := userdomain.ParseRole(*req.Role)
 		if err != nil {
 			return errors.NewHTTPError(fiber.StatusBadRequest, "Invalid role", err)
 		}
-		ucReq.Role = &role
+		roleStr := string(role)
+		ucReq.Role = &roleStr
 	}
 
 	// Execute use case
@@ -277,10 +279,6 @@ func (h *UserHandler) GetUsers(c *fiber.Ctx) error {
 		pageSize = 20
 	}
 
-	status := c.Query("status")
-	role := c.Query("role")
-	search := c.Query("search")
-
 	// TODO: Implement GetUsersUseCase and execute here
 	// For now, return placeholder response
 	return c.JSON(fiber.Map{
@@ -307,7 +305,7 @@ func (h *UserHandler) GetUser(c *fiber.Ctx) error {
 
 	// Extract user ID from URL
 	userIDStr := c.Params("userId")
-	userUUID, err := uuid.Parse(userIDStr)
+	_, err = uuid.Parse(userIDStr)
 	if err != nil {
 		return errors.NewHTTPError(fiber.StatusBadRequest, "Invalid user ID format", err)
 	}

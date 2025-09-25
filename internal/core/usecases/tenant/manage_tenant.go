@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"github.com/google/uuid"
 	"nexspaces-api/internal/core/domain/shared"
+	"nexspaces-api/internal/core/domain/subscription"
+	"nexspaces-api/internal/core/domain/user"
 	"strings"
 	"time"
 
@@ -17,23 +19,29 @@ import (
 
 // TenantUseCase handles tenant-related business logic
 type TenantUseCase struct {
-	tenantRepo repositories.TenantRepository
-	eventBus   events.EventBus
+	tenantRepo       repositories.TenantRepository
+	userRepo         repositories.UserRepository
+	subscriptionRepo repositories.SubscriptionRepository
+	eventBus         events.EventBus
 }
 
 // NewTenantUseCase creates a new tenant use case
 func NewTenantUseCase(
 	tenantRepo repositories.TenantRepository,
+	userRepo repositories.UserRepository,
+	subscriptionRepo repositories.SubscriptionRepository,
 	eventBus events.EventBus,
 ) *TenantUseCase {
 	return &TenantUseCase{
-		tenantRepo: tenantRepo,
-		eventBus:   eventBus,
+		tenantRepo:       tenantRepo,
+		userRepo:         userRepo,
+		subscriptionRepo: subscriptionRepo,
+		eventBus:         eventBus,
 	}
 }
 
 // CreateTenant creates a new tenant
-func (uc *TenantUseCase) CreateTenant(ctx context.Context, req tenantdomain.CreateTenantRequest) (*tenantdomain.Tenant, error) {
+func (uc *TenantUseCase) CreateTenant(ctx context.Context, req tenantdomain.CreateTenantRequest) (*tenantdomain.CreateTenantResult, error) {
 	// Validate slug uniqueness
 	available, err := uc.tenantRepo.IsSlugAvailable(ctx, req.Slug)
 	if err != nil {
@@ -44,13 +52,13 @@ func (uc *TenantUseCase) CreateTenant(ctx context.Context, req tenantdomain.Crea
 	}
 
 	// Validate custom domain if provided
-	if req.CustomDomain != nil {
-		available, err := uc.tenantRepo.IsDomainAvailable(ctx, *req.CustomDomain)
+	if req.CustomDomain != "" {
+		available, err := uc.tenantRepo.IsDomainAvailable(ctx, req.CustomDomain)
 		if err != nil {
 			return nil, fmt.Errorf("failed to check domain availability: %w", err)
 		}
 		if !available {
-			return nil, errors.NewValidationError("Custom domain is already taken", fmt.Errorf("domain: %s", *req.CustomDomain))
+			return nil, errors.NewValidationError("Custom domain is already taken", fmt.Errorf("domain: %s", req.CustomDomain))
 		}
 	}
 
@@ -59,6 +67,39 @@ func (uc *TenantUseCase) CreateTenant(ctx context.Context, req tenantdomain.Crea
 
 	if err := uc.tenantRepo.Create(ctx, newTenant); err != nil {
 		return nil, fmt.Errorf("failed to create tenant: %w", err)
+	}
+
+	// Create owner
+	createUserReq := user.CreateUserRequest{
+		TenantID:  uuid.UUID(newTenant.ID),
+		Email:     req.OwnerEmail,
+		FirstName: req.OwnerFirstName,
+		LastName:  req.OwnerLastName,
+		Password:  "", // Implement password hashing
+		Role:      string(user.RoleOwner),
+	}
+	newUser := user.NewUser(createUserReq, "") // Implement password hashing
+
+	if err := uc.userRepo.Create(ctx, newUser); err != nil {
+		return nil, fmt.Errorf("failed to save user: %w", err)
+	}
+
+	// Create subscription
+	newSubscription := subscription.NewSubscription(subscription.CreateSubscriptionRequest{
+		TenantID:     uuid.UUID(newTenant.ID),
+		PlanID:       req.PlanID,
+		BillingCycle: subscription.BillingCycle(req.BillingCycle),
+	}, subscription.Plan{ // This should be fetched from a plan repository
+		ID:           req.PlanID,
+		MonthlyPrice: 10,
+		YearlyPrice:  100,
+		Currency:     "USD",
+		Limits: subscription.UsageLimits{
+			Users: 1,
+		},
+	})
+	if err := uc.subscriptionRepo.Create(ctx, newSubscription); err != nil {
+		return nil, fmt.Errorf("failed to create subscription: %w", err)
 	}
 
 	// Publish domain event
@@ -84,7 +125,12 @@ func (uc *TenantUseCase) CreateTenant(ctx context.Context, req tenantdomain.Crea
 		fmt.Printf("Failed to publish tenant created event: %v\n", err)
 	}
 
-	return newTenant, nil
+	return &tenantdomain.CreateTenantResult{
+		Tenant:       newTenant,
+		Owner:        newUser,
+		Subscription: newSubscription,
+		InviteToken:  "dummy-invite-token", // Generate a real token
+	}, nil
 }
 
 // GetTenant retrieves a tenant by ID

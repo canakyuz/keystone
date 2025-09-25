@@ -204,7 +204,7 @@ func (m *AuthMiddleware) checkPermission(user *user.User, permission string) boo
 		},
 	}
 
-	rolePermissions, exists := permissions[user.Role]
+	rolePermissions, exists := permissions[string(user.Role)]
 	if !exists {
 		return false
 	}

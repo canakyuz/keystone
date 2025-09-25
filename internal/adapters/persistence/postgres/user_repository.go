@@ -245,12 +245,6 @@ func (r *UserRepository) ListByTenant(ctx context.Context, tenantID shared.Tenan
 		args = append(args, string(*criteria.Status))
 	}
 
-	if criteria.Role != nil {
-		argCount++
-		whereClause += fmt.Sprintf(" AND role = $%d", argCount)
-		args = append(args, string(*criteria.Role))
-	}
-
 	if criteria.Search != "" {
 		argCount++
 		whereClause += fmt.Sprintf(" AND (first_name ILIKE $%d OR last_name ILIKE $%d OR email ILIKE $%d)", argCount, argCount, argCount)
@@ -298,6 +292,24 @@ func (r *UserRepository) ListByTenant(ctx context.Context, tenantID shared.Tenan
 	}
 
 	return users, totalCount, nil
+}
+
+// Count returns the total number of users for a tenant
+func (r *UserRepository) Count(ctx context.Context, tenantID uuid.UUID) (int, error) {
+	// Set tenant context for RLS
+	if err := r.setTenantContext(ctx, shared.TenantID(tenantID)); err != nil {
+		return 0, fmt.Errorf("failed to set tenant context: %w", err)
+	}
+
+	query := "SELECT COUNT(*) FROM users WHERE tenant_id = $1"
+
+	var count int
+	err := r.db.QueryRowContext(ctx, query, tenantID).Scan(&count)
+	if err != nil {
+		return 0, fmt.Errorf("failed to count users by tenant: %w", err)
+	}
+
+	return count, nil
 }
 
 // CountByTenant counts users in a tenant
@@ -404,6 +416,179 @@ func (r *UserRepository) ActivateUser(ctx context.Context, tenantID, userID uuid
 	}
 
 	return nil
+}
+
+// DeactivateUser deactivates a user account
+func (r *UserRepository) DeactivateUser(ctx context.Context, tenantID, userID uuid.UUID) error {
+	if err := r.setTenantContext(ctx, shared.TenantID(tenantID)); err != nil {
+		return fmt.Errorf("failed to set tenant context: %w", err)
+	}
+	query := `
+		UPDATE users
+		SET status = 'inactive', updated_at = CURRENT_TIMESTAMP
+		WHERE tenant_id = $1 AND id = $2 AND status != 'inactive'`
+
+	result, err := r.db.ExecContext(ctx, query, tenantID, userID)
+	if err != nil {
+		return fmt.Errorf("failed to deactivate user: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get rows affected: %w", err)
+	}
+
+	if rowsAffected == 0 {
+		return shared.ErrUserNotFound
+	}
+
+	return nil
+}
+
+// GetActiveUsers retrieves only active users for a tenant
+func (r *UserRepository) GetActiveUsers(ctx context.Context, tenantID uuid.UUID) ([]*user.User, error) {
+	// Set tenant context for RLS
+	if err := r.setTenantContext(ctx, shared.TenantID(tenantID)); err != nil {
+		return nil, fmt.Errorf("failed to set tenant context: %w", err)
+	}
+
+	query := `
+		SELECT id, tenant_id, email, first_name, last_name, password_hash,
+			   role, status, email_verified, last_login_at, settings, metadata,
+			   created_at, updated_at
+		FROM users
+		WHERE tenant_id = $1 AND status = 'active'
+		ORDER BY created_at DESC`
+
+	rows, err := r.db.QueryContext(ctx, query, tenantID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get active users: %w", err)
+	}
+	defer rows.Close()
+
+	var users []*user.User
+	for rows.Next() {
+		user, err := r.scanUser(rows)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan user: %w", err)
+		}
+		users = append(users, user)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("row iteration error: %w", err)
+	}
+
+	return users, nil
+}
+
+// GetByRole retrieves users by role within a tenant
+func (r *UserRepository) GetByRole(ctx context.Context, tenantID uuid.UUID, role string) ([]*user.User, error) {
+	// Set tenant context for RLS
+	if err := r.setTenantContext(ctx, shared.TenantID(tenantID)); err != nil {
+		return nil, fmt.Errorf("failed to set tenant context: %w", err)
+	}
+
+	query := `
+		SELECT id, tenant_id, email, first_name, last_name, password_hash,
+			   role, status, email_verified, last_login_at, settings, metadata,
+			   created_at, updated_at
+		FROM users
+		WHERE tenant_id = $1 AND role = $2
+		ORDER BY created_at DESC`
+
+	rows, err := r.db.QueryContext(ctx, query, tenantID, role)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get users by role: %w", err)
+	}
+	defer rows.Close()
+
+	var users []*user.User
+	for rows.Next() {
+		user, err := r.scanUser(rows)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan user: %w", err)
+		}
+		users = append(users, user)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("row iteration error: %w", err)
+	}
+
+	return users, nil
+}
+
+// UpdatePassword updates a user's password
+func (r *UserRepository) UpdatePassword(ctx context.Context, tenantID, userID uuid.UUID, hashedPassword string) error {
+	// Set tenant context for RLS
+	if err := r.setTenantContext(ctx, shared.TenantID(tenantID)); err != nil {
+		return fmt.Errorf("failed to set tenant context: %w", err)
+	}
+
+	query := `
+		UPDATE users
+		SET password_hash = $3, updated_at = CURRENT_TIMESTAMP
+		WHERE tenant_id = $1 AND id = $2`
+
+	result, err := r.db.ExecContext(ctx, query, tenantID, userID, hashedPassword)
+	if err != nil {
+		return fmt.Errorf("failed to update password: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get rows affected: %w", err)
+	}
+
+	if rowsAffected == 0 {
+		return shared.ErrUserNotFound
+	}
+
+	return nil
+}
+
+// Search searches users by name or email within a tenant
+func (r *UserRepository) Search(ctx context.Context, tenantID uuid.UUID, searchQuery string, limit, offset int) ([]*user.User, error) {
+	// Set tenant context for RLS
+	if err := r.setTenantContext(ctx, shared.TenantID(tenantID)); err != nil {
+		return nil, fmt.Errorf("failed to set tenant context: %w", err)
+	}
+
+	query := `
+		SELECT id, tenant_id, email, first_name, last_name, password_hash,
+			   role, status, email_verified, last_login_at, settings, metadata,
+			   created_at, updated_at
+		FROM users
+		WHERE tenant_id = $1 AND (first_name ILIKE $2 OR last_name ILIKE $2 OR email ILIKE $2)
+		ORDER BY created_at DESC
+		LIMIT $3 OFFSET $4`
+
+	rows, err := r.db.QueryContext(ctx, query, tenantID, "%"+searchQuery+"%", limit, offset)
+	if err != nil {
+		return nil, fmt.Errorf("failed to search users: %w", err)
+	}
+	defer rows.Close()
+
+	var users []*user.User
+	for rows.Next() {
+		user, err := r.scanUser(rows)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan user: %w", err)
+		}
+		users = append(users, user)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("row iteration error: %w", err)
+	}
+
+	return users, nil
+}
+
+// List retrieves users for a tenant with pagination
+func (r *UserRepository) List(ctx context.Context, criteria repositories.UserListCriteria) ([]*user.User, int, error) {
+	return r.ListByTenant(ctx, shared.TenantID(criteria.TenantID), criteria)
 }
 
 // setTenantContext sets the tenant context for Row Level Security

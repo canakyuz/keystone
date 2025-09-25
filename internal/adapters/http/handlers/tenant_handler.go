@@ -2,23 +2,24 @@ package handlers
 
 import (
 	"github.com/gofiber/fiber/v2"
-	"github.com/google/uuid"
-
-	"nexspaces-api/internal/core/domain/shared"
-	"nexspaces-api/internal/core/usecases/tenant"
+	"nexspaces-api/internal/core/domain/subscription"
+	"nexspaces-api/internal/core/domain/tenant"
+	"nexspaces-api/internal/core/domain/user"
+	uc "nexspaces-api/internal/core/usecases/tenant"
 	"nexspaces-api/internal/shared/errors"
 	"nexspaces-api/internal/shared/validation"
+	"time"
 )
 
 // TenantHandler handles tenant-related HTTP requests
 type TenantHandler struct {
-	createTenantUC *tenant.CreateTenantUseCase
+	createTenantUC *uc.TenantUseCase
 	validator      *validation.Validator
 }
 
 // NewTenantHandler creates a new tenant handler
 func NewTenantHandler(
-	createTenantUC *tenant.CreateTenantUseCase,
+	createTenantUC *uc.TenantUseCase,
 	validator *validation.Validator,
 ) *TenantHandler {
 	return &TenantHandler{
@@ -108,20 +109,13 @@ func (h *TenantHandler) CreateTenant(c *fiber.Ctx) error {
 
 	// Convert to use case request
 	ucReq := tenant.CreateTenantRequest{
-		Name:            req.Name,
-		Slug:            req.Slug,
-		CustomDomain:    req.CustomDomain,
-		Settings:        req.Settings,
-		OwnerEmail:      req.OwnerEmail,
-		OwnerFirstName:  req.OwnerFirstName,
-		OwnerLastName:   req.OwnerLastName,
-		PlanID:          shared.PlanID(req.PlanID),
-		BillingCycle:    req.BillingCycle,
-		PaymentMethodID: req.PaymentMethodID,
+		Name:         req.Name,
+		Slug:         req.Slug,
+		CustomDomain: req.CustomDomain,
 	}
 
 	// Execute use case
-	result, err := h.createTenantUC.Execute(c.Context(), ucReq)
+	result, err := h.createTenantUC.CreateTenant(c.Context(), ucReq)
 	if err != nil {
 		return errors.HandleDomainError(err)
 	}
@@ -166,18 +160,18 @@ func convertUserToDTO(u *user.User) UserDTO {
 	dto := UserDTO{
 		ID:            u.ID.String(),
 		TenantID:      u.TenantID.String(),
-		Email:         u.Email.String(),
+		Email:         u.Email,
 		FirstName:     u.FirstName,
 		LastName:      u.LastName,
 		Role:          string(u.Role),
 		Status:        string(u.Status),
 		EmailVerified: u.EmailVerified,
-		CreatedAt:     u.CreatedAt.Time().Format("2006-01-02T15:04:05Z07:00"),
-		UpdatedAt:     u.UpdatedAt.Time().Format("2006-01-02T15:04:05Z07:00"),
+		CreatedAt:     u.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
+		UpdatedAt:     u.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
 	}
 
 	if u.LastLoginAt != nil {
-		lastLogin := u.LastLoginAt.Time().Format("2006-01-02T15:04:05Z07:00")
+		lastLogin := u.LastLoginAt.Format("2006-01-02T15:04:05Z07:00")
 		dto.LastLoginAt = &lastLogin
 	}
 
@@ -189,25 +183,37 @@ func convertSubscriptionToDTO(s *subscription.Subscription) SubscriptionDTO {
 	dto := SubscriptionDTO{
 		ID:            s.ID.String(),
 		TenantID:      s.TenantID.String(),
-		PlanID:        s.PlanID.String(),
+		PlanID:        s.PlanID,
 		Status:        string(s.Status),
 		BillingCycle:  string(s.BillingCycle),
-		PriceAmount:   s.PriceAmount.Amount(),
-		PriceCurrency: s.PriceAmount.Currency(),
-		Features:      s.Features,
-		UsageLimits:   s.UsageLimits,
-		CurrentUsage:  s.CurrentUsage,
-		CreatedAt:     s.CreatedAt.Time().Format("2006-01-02T15:04:05Z07:00"),
-		UpdatedAt:     s.UpdatedAt.Time().Format("2006-01-02T15:04:05Z07:00"),
+		PriceAmount:   int64(s.Amount),
+		PriceCurrency: s.Currency,
+		Features:      make(map[string]interface{}), // Features are on the plan, not subscription
+		UsageLimits: map[string]interface{}{
+			"templates":      s.UsageLimits.Templates,
+			"users":          s.UsageLimits.Users,
+			"storage_gb":     s.UsageLimits.Storage,
+			"api_requests":   s.UsageLimits.APIRequests,
+			"custom_domains": s.UsageLimits.CustomDomains,
+		},
+		CurrentUsage: map[string]interface{}{
+			"templates":      s.CurrentUsage.Templates,
+			"users":          s.CurrentUsage.Users,
+			"storage_gb":     s.CurrentUsage.Storage,
+			"api_requests":   s.CurrentUsage.APIRequests,
+			"custom_domains": s.CurrentUsage.CustomDomains,
+		},
+		CreatedAt: s.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
+		UpdatedAt: s.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
 	}
 
-	if s.CurrentPeriodStart != nil {
-		start := s.CurrentPeriodStart.Time().Format("2006-01-02T15:04:05Z07:00")
+	if s.StartDate != (time.Time{}) {
+		start := s.StartDate.Format("2006-01-02T15:04:05Z07:00")
 		dto.CurrentPeriodStart = &start
 	}
 
-	if s.CurrentPeriodEnd != nil {
-		end := s.CurrentPeriodEnd.Time().Format("2006-01-02T15:04:05Z07:00")
+	if s.EndDate != nil {
+		end := s.EndDate.Format("2006-01-02T15:04:05Z07:00")
 		dto.CurrentPeriodEnd = &end
 	}
 

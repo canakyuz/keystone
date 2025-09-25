@@ -2,6 +2,8 @@ package tenant
 
 import (
 	"fmt"
+	"nexspaces-api/internal/core/domain/subscription"
+	"nexspaces-api/internal/core/domain/user"
 	"time"
 
 	"github.com/google/uuid"
@@ -44,9 +46,24 @@ type Settings struct {
 
 // CreateTenantRequest represents the data needed to create a new tenant
 type CreateTenantRequest struct {
-	Name         string  `json:"name" validate:"required,min=2,max=100"`
-	Slug         string  `json:"slug" validate:"required,min=2,max=50,alphanum"`
-	CustomDomain *string `json:"custom_domain,omitempty" validate:"omitempty,url"`
+	Name            string                 `json:"name" validate:"required,min=2,max=100"`
+	Slug            string                 `json:"slug" validate:"required,min=3,max=50,slug"`
+	CustomDomain    string                 `json:"custom_domain,omitempty" validate:"omitempty,fqdn"`
+	Settings        map[string]interface{} `json:"settings,omitempty"`
+	OwnerEmail      string                 `json:"owner_email" validate:"required,email"`
+	OwnerFirstName  string                 `json:"owner_first_name" validate:"required,min=1,max=100"`
+	OwnerLastName   string                 `json:"owner_last_name" validate:"required,min=1,max=100"`
+	PlanID          string                 `json:"plan_id" validate:"required"`
+	BillingCycle    string                 `json:"billing_cycle" validate:"required,oneof=monthly yearly"`
+	PaymentMethodID string                 `json:"payment_method_id" validate:"required"`
+}
+
+// CreateTenantResult represents the result of creating a new tenant
+type CreateTenantResult struct {
+	Tenant       *Tenant
+	Owner        *user.User
+	Subscription *subscription.Subscription
+	InviteToken  string
 }
 
 // UpdateTenantRequest represents the data that can be updated for a tenant
@@ -136,8 +153,8 @@ func NewTenant(req CreateTenantRequest) *Tenant {
 		UpdatedAt: NewTimestamp(),
 	}
 
-	if req.CustomDomain != nil {
-		domain, _ := NewDomain(*req.CustomDomain)
+	if req.CustomDomain != "" {
+		domain, _ := NewDomain(req.CustomDomain)
 		tenant.CustomDomain = domain
 	}
 

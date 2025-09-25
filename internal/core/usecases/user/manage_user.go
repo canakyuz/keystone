@@ -229,7 +229,11 @@ func (uc *UpdateUserUseCase) Execute(ctx context.Context, req UpdateUserRequest)
 		if !updater.CanManageUsers() {
 			return nil, shared.ErrInsufficientPermissions
 		}
-		userEntity.Role = *req.Role
+		role, err := user.ParseRole(*req.Role)
+		if err != nil {
+			return nil, fmt.Errorf("invalid role: %w", err)
+		}
+		userEntity.Role = role
 	}
 
 	userEntity.UpdatedAt = time.Now()

@@ -16,6 +16,15 @@ const (
 	StatusInactive Status = "inactive"
 )
 
+// Role represents a user role
+type Role string
+
+const (
+	RoleOwner Role = "owner"
+	RoleAdmin Role = "admin"
+	RoleUser  Role = "user"
+)
+
 // Exported status constants for external packages
 var (
 	UserStatusActive = StatusActive
@@ -29,7 +38,7 @@ type User struct {
 	FirstName     string                 `json:"first_name" db:"first_name"`
 	LastName      string                 `json:"last_name" db:"last_name"`
 	PasswordHash  *string                `json:"-" db:"password_hash"`
-	Role          string                 `json:"role" db:"role"`
+	Role          Role                   `json:"role" db:"role"`
 	Status        Status                 `json:"status" db:"status"`
 	EmailVerified bool                   `json:"email_verified" db:"email_verified"`
 	LastLoginAt   *time.Time             `json:"last_login_at,omitempty" db:"last_login_at"`
@@ -78,7 +87,7 @@ func (u *User) ToResponse() *UserResponse {
 		Email:     u.Email,
 		FirstName: u.FirstName,
 		LastName:  u.LastName,
-		Role:      u.Role,
+		Role:      string(u.Role),
 		Status:    u.Status,
 		CreatedAt: u.CreatedAt,
 		UpdatedAt: u.UpdatedAt,
@@ -97,7 +106,7 @@ func (u *User) FullName() string {
 
 // IsAdmin checks if the user has admin role
 func (u *User) IsAdmin() bool {
-	return u.Role == "admin"
+	return u.Role == RoleAdmin
 }
 
 // Deactivate marks a user as inactive.
@@ -141,7 +150,7 @@ func NewUser(req CreateUserRequest, hashedPassword string) *User {
 		FirstName:    req.FirstName,
 		LastName:     req.LastName,
 		PasswordHash: &hashedPassword,
-		Role:         req.Role,
+		Role:         Role(req.Role),
 		Status:       StatusPending,
 		CreatedAt:    time.Now(),
 		UpdatedAt:    time.Now(),
@@ -149,9 +158,14 @@ func NewUser(req CreateUserRequest, hashedPassword string) *User {
 }
 
 // ParseRole parses a string into a Role.
-func ParseRole(s string) (string, error) {
-	// In a real app, you might have a Role type and constants.
-	return s, nil
+func ParseRole(s string) (Role, error) {
+	role := Role(s)
+	switch role {
+	case RoleOwner, RoleAdmin, RoleUser:
+		return role, nil
+	default:
+		return "", fmt.Errorf("invalid user role: %s", s)
+	}
 }
 
 // ParseStatus parses a string into a Status.

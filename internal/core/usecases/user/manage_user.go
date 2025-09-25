@@ -4,14 +4,16 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
-	"github.com/google/uuid"
 	"nexspaces-api/internal/core/domain/shared"
 	"nexspaces-api/internal/core/domain/tenant"
 	"nexspaces-api/internal/core/domain/user"
 	"nexspaces-api/internal/core/ports/events"
 	"nexspaces-api/internal/core/ports/repositories"
 	"nexspaces-api/internal/core/ports/services"
+
+	"github.com/google/uuid"
 )
 
 // CreateUserUseCase handles user creation with proper tenant isolation
@@ -53,9 +55,11 @@ type CreateUserResponse struct {
 	InviteToken string     `json:"invite_token,omitempty"`
 }
 
+// Parse role validation can be added here or in the user entity
+
 func (uc *CreateUserUseCase) Execute(ctx context.Context, req CreateUserRequest) (*CreateUserResponse, error) {
 	// Validate tenant exists and is active
-	tenantEntity, err := uc.tenantRepo.GetByID(ctx, uuid.UUID(req.TenantID))
+	tenantEntity, err := uc.tenantRepo.GetByID(ctx, req.TenantID.UUID())
 	if err != nil {
 		return nil, fmt.Errorf("failed to get tenant: %w", err)
 	}
@@ -65,12 +69,12 @@ func (uc *CreateUserUseCase) Execute(ctx context.Context, req CreateUserRequest)
 	}
 
 	// Check if creator has permission to create users
-	creator, err := uc.userRepo.GetByID(ctx, uuid.UUID(req.TenantID), uuid.UUID(req.CreatedBy))
+	creator, err := uc.userRepo.GetByID(ctx, req.TenantID.UUID(), req.CreatedBy.UUID())
 	if err != nil {
 		return nil, fmt.Errorf("failed to get creator: %w", err)
 	}
 
-	if creator.TenantID != uuid.UUID(req.TenantID) {
+	if creator.TenantID != req.TenantID.UUID() {
 		return nil, shared.ErrCrossTenantAccess
 	}
 
@@ -96,7 +100,7 @@ func (uc *CreateUserUseCase) Execute(ctx context.Context, req CreateUserRequest)
 
 	// Create user
 	userEntity := user.NewUser(user.CreateUserRequest{
-		TenantID:  uuid.UUID(req.TenantID),
+		TenantID:  req.TenantID.UUID(),
 		Email:     email.String(),
 		FirstName: req.FirstName,
 		LastName:  req.LastName,
@@ -127,14 +131,24 @@ func (uc *CreateUserUseCase) Execute(ctx context.Context, req CreateUserRequest)
 	}
 
 	// Publish domain event
-	if err := uc.eventBus.Publish(ctx, events.UserCreatedEvent{
-		UserID:    userEntity.ID,
-		TenantID:  req.TenantID,
-		Email:     req.Email,
-		Role:      req.Role,
-		CreatedBy: req.CreatedBy,
-		CreatedAt: userEntity.CreatedAt,
-	}); err != nil {
+	event := &events.UserCreatedEvent{
+		BaseEvent: events.BaseEvent{
+			ID:          uuid.New().String(),
+			Type:        events.EventTypeUserCreated,
+			AggregateID: userEntity.ID.String(),
+			TenantID:    userEntity.TenantID.String(),
+			OccurredAt:  time.Now(),
+			Payload: map[string]interface{}{
+				"user_email": req.Email,
+				"user_role":  req.Role,
+			},
+		},
+		UserID:    userEntity.ID.String(),
+		UserEmail: req.Email,
+		UserRole:  req.Role,
+	}
+
+	if err := uc.eventBus.Publish(ctx, event); err != nil {
 		// Log error but don't fail
 		// TODO: Add proper logging
 	}
@@ -175,29 +189,29 @@ type UpdateUserRequest struct {
 
 func (uc *UpdateUserUseCase) Execute(ctx context.Context, req UpdateUserRequest) (*user.User, error) {
 	// Get the user to update
-	userEntity, err := uc.userRepo.GetByID(ctx, req.TenantID, req.UserID)
+	userEntity, err := uc.userRepo.GetByID(ctx, req.TenantID.UUID(), req.UserID.UUID())
 	if err != nil {
 		return nil, fmt.Errorf("failed to get user: %w", err)
 	}
 
 	// Verify tenant isolation
-	if userEntity.TenantID != req.TenantID {
+	if userEntity.TenantID != req.TenantID.UUID() {
 		return nil, shared.ErrCrossTenantAccess
 	}
 
 	// Get the updater
-	updater, err := uc.userRepo.GetByID(ctx, req.TenantID, req.UpdatedBy)
+	updater, err := uc.userRepo.GetByID(ctx, req.TenantID.UUID(), req.UpdatedBy.UUID())
 	if err != nil {
 		return nil, fmt.Errorf("failed to get updater: %w", err)
 	}
 
 	// Verify updater belongs to same tenant
-	if updater.TenantID != req.TenantID {
+	if updater.TenantID != req.TenantID.UUID() {
 		return nil, shared.ErrCrossTenantAccess
 	}
 
 	// Check permissions
-	if !updater.CanManageUsers() && updater.ID != req.UserID {
+	if !updater.CanManageUsers() && updater.ID != req.UserID.UUID() {
 		return nil, shared.ErrInsufficientPermissions
 	}
 
@@ -218,7 +232,7 @@ func (uc *UpdateUserUseCase) Execute(ctx context.Context, req UpdateUserRequest)
 		userEntity.Role = *req.Role
 	}
 
-	userEntity.UpdatedAt = shared.NewTimestamp()
+	userEntity.UpdatedAt = time.Now()
 
 	// Save changes
 	if err := uc.userRepo.Update(ctx, userEntity); err != nil {
@@ -226,11 +240,18 @@ func (uc *UpdateUserUseCase) Execute(ctx context.Context, req UpdateUserRequest)
 	}
 
 	// Publish event
-	if err := uc.eventBus.Publish(ctx, events.UserUpdatedEvent{
-		UserID:    userEntity.ID,
-		TenantID:  req.TenantID,
+	if err := uc.eventBus.Publish(ctx, &events.UserUpdatedEvent{
+		BaseEvent: events.BaseEvent{
+			ID:          uuid.New().String(),
+			Type:        events.EventTypeUserUpdated,
+			AggregateID: userEntity.ID.String(),
+			TenantID:    req.TenantID.String(),
+			OccurredAt:  time.Now(),
+			Payload:     buildChangeMap(req),
+		},
+		UserID:    userEntity.ID.String(),
 		Changes:   buildChangeMap(req),
-		UpdatedBy: req.UpdatedBy,
+		UpdatedBy: req.UpdatedBy.String(),
 		UpdatedAt: userEntity.UpdatedAt,
 	}); err != nil {
 		// Log error but don't fail
@@ -264,24 +285,24 @@ type DeactivateUserRequest struct {
 
 func (uc *DeactivateUserUseCase) Execute(ctx context.Context, req DeactivateUserRequest) error {
 	// Get the user to deactivate
-	userEntity, err := uc.userRepo.GetByID(ctx, req.TenantID, req.UserID)
+	userEntity, err := uc.userRepo.GetByID(ctx, req.TenantID.UUID(), req.UserID.UUID())
 	if err != nil {
 		return fmt.Errorf("failed to get user: %w", err)
 	}
 
 	// Verify tenant isolation
-	if userEntity.TenantID != req.TenantID {
+	if userEntity.TenantID != req.TenantID.UUID() {
 		return shared.ErrCrossTenantAccess
 	}
 
 	// Get the deactivator
-	deactivator, err := uc.userRepo.GetByID(ctx, req.TenantID, req.DeactivatedBy)
+	deactivator, err := uc.userRepo.GetByID(ctx, req.TenantID.UUID(), req.DeactivatedBy.UUID())
 	if err != nil {
 		return fmt.Errorf("failed to get deactivator: %w", err)
 	}
 
 	// Verify deactivator belongs to same tenant
-	if deactivator.TenantID != req.TenantID {
+	if deactivator.TenantID != req.TenantID.UUID() {
 		return shared.ErrCrossTenantAccess
 	}
 
@@ -291,7 +312,7 @@ func (uc *DeactivateUserUseCase) Execute(ctx context.Context, req DeactivateUser
 	}
 
 	// Can't deactivate yourself
-	if userEntity.ID == req.DeactivatedBy {
+	if userEntity.ID == req.DeactivatedBy.UUID() {
 		return shared.ErrCannotDeactivateSelf
 	}
 
@@ -306,10 +327,19 @@ func (uc *DeactivateUserUseCase) Execute(ctx context.Context, req DeactivateUser
 	}
 
 	// Publish event
-	if err := uc.eventBus.Publish(ctx, events.UserDeactivatedEvent{
-		UserID:        userEntity.ID,
-		TenantID:      req.TenantID,
-		DeactivatedBy: req.DeactivatedBy,
+	if err := uc.eventBus.Publish(ctx, &events.UserDeactivatedEvent{
+		BaseEvent: events.BaseEvent{
+			ID:          uuid.New().String(),
+			Type:        events.EventTypeUserDeactivated,
+			AggregateID: userEntity.ID.String(),
+			TenantID:    req.TenantID.String(),
+			OccurredAt:  time.Now(),
+			Payload: map[string]interface{}{
+				"reason": req.Reason,
+			},
+		},
+		UserID:        userEntity.ID.String(),
+		DeactivatedBy: req.DeactivatedBy.String(),
 		Reason:        req.Reason,
 		DeactivatedAt: userEntity.UpdatedAt,
 	}); err != nil {

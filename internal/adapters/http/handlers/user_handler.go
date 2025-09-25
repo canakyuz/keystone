@@ -5,7 +5,6 @@ import (
 	"github.com/google/uuid"
 
 	"nexspaces-api/internal/core/domain/shared"
-	"nexspaces-api/internal/core/domain/user"
 	"nexspaces-api/internal/core/usecases/user"
 	"nexspaces-api/internal/shared/errors"
 	"nexspaces-api/internal/shared/validation"

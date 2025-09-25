@@ -37,11 +37,10 @@ func (r *TenantRepository) Create(ctx context.Context, tenant *tenant.Tenant) er
 		)`
 
 	var customDomain *string
-	if tenant.CustomDomain != nil {
+	if tenant.CustomDomain != nil && tenant.CustomDomain.String() != "" {
 		domain := tenant.CustomDomain.String()
 		customDomain = &domain
 	}
-
 	var subscriptionID *uuid.UUID
 	if tenant.SubscriptionID != nil {
 		id := uuid.UUID(*tenant.SubscriptionID)
@@ -80,40 +79,40 @@ func (r *TenantRepository) Create(ctx context.Context, tenant *tenant.Tenant) er
 }
 
 // GetByID retrieves a tenant by ID
-func (r *TenantRepository) GetByID(ctx context.Context, id TenantID) (*tenant.Tenant, error) {
+func (r *TenantRepository) GetByID(ctx context.Context, id uuid.UUID) (*tenant.Tenant, error) {
 	query := `
 		SELECT id, name, slug, custom_domain, status, subscription_id,
 			   settings, metadata, created_at, updated_at
 		FROM tenants
 		WHERE id = $1`
 
-	row := r.db.QueryRowContext(ctx, query, uuid.UUID(id))
+	row := r.db.QueryRowContext(ctx, query, id)
 
 	return r.scanTenant(row)
 }
 
 // GetBySlug retrieves a tenant by slug
-func (r *TenantRepository) GetBySlug(ctx context.Context, slug TenantSlug) (*tenant.Tenant, error) {
+func (r *TenantRepository) GetBySlug(ctx context.Context, slug string) (*tenant.Tenant, error) {
 	query := `
 		SELECT id, name, slug, custom_domain, status, subscription_id,
 			   settings, metadata, created_at, updated_at
 		FROM tenants
 		WHERE slug = $1`
 
-	row := r.db.QueryRowContext(ctx, query, slug.String())
+	row := r.db.QueryRowContext(ctx, query, slug)
 
 	return r.scanTenant(row)
 }
 
 // GetByCustomDomain retrieves a tenant by custom domain
-func (r *TenantRepository) GetByCustomDomain(ctx context.Context, domain Domain) (*tenant.Tenant, error) {
+func (r *TenantRepository) GetByCustomDomain(ctx context.Context, domain string) (*tenant.Tenant, error) {
 	query := `
 		SELECT id, name, slug, custom_domain, status, subscription_id,
 			   settings, metadata, created_at, updated_at
 		FROM tenants
 		WHERE custom_domain = $1`
 
-	row := r.db.QueryRowContext(ctx, query, domain.String())
+	row := r.db.QueryRowContext(ctx, query, domain)
 
 	return r.scanTenant(row)
 }
@@ -127,7 +126,7 @@ func (r *TenantRepository) Update(ctx context.Context, tenant *tenant.Tenant) er
 		WHERE id = $1`
 
 	var customDomain *string
-	if tenant.CustomDomain != nil {
+	if tenant.CustomDomain != nil && tenant.CustomDomain.String() != "" {
 		domain := tenant.CustomDomain.String()
 		customDomain = &domain
 	}
@@ -178,13 +177,13 @@ func (r *TenantRepository) Update(ctx context.Context, tenant *tenant.Tenant) er
 }
 
 // Delete soft deletes a tenant (sets status to cancelled)
-func (r *TenantRepository) Delete(ctx context.Context, id TenantID) error {
+func (r *TenantRepository) Delete(ctx context.Context, id uuid.UUID) error {
 	query := `
 		UPDATE tenants
 		SET status = 'cancelled', updated_at = CURRENT_TIMESTAMP
 		WHERE id = $1 AND status != 'cancelled'`
 
-	result, err := r.db.ExecContext(ctx, query, uuid.UUID(id))
+	result, err := r.db.ExecContext(ctx, query, id)
 	if err != nil {
 		return fmt.Errorf("failed to delete tenant: %w", err)
 	}
@@ -263,14 +262,9 @@ func (r *TenantRepository) List(ctx context.Context, criteria repositories.Tenan
 }
 
 // IsSlugAvailable checks if a tenant slug is available
-func (r *TenantRepository) IsSlugAvailable(ctx context.Context, slug TenantSlug, excludeID *TenantID) (bool, error) {
+func (r *TenantRepository) IsSlugAvailable(ctx context.Context, slug string) (bool, error) {
 	query := "SELECT COUNT(*) FROM tenants WHERE slug = $1"
-	args := []interface{}{slug.String()}
-
-	if excludeID != nil {
-		query += " AND id != $2"
-		args = append(args, uuid.UUID(*excludeID))
-	}
+	args := []interface{}{slug}
 
 	var count int
 	err := r.db.QueryRowContext(ctx, query, args...).Scan(&count)
@@ -281,15 +275,10 @@ func (r *TenantRepository) IsSlugAvailable(ctx context.Context, slug TenantSlug,
 	return count == 0, nil
 }
 
-// IsCustomDomainAvailable checks if a custom domain is available
-func (r *TenantRepository) IsCustomDomainAvailable(ctx context.Context, domain Domain, excludeID *TenantID) (bool, error) {
+// IsDomainAvailable checks if a custom domain is available
+func (r *TenantRepository) IsDomainAvailable(ctx context.Context, domain string) (bool, error) {
 	query := "SELECT COUNT(*) FROM tenants WHERE custom_domain = $1"
-	args := []interface{}{domain.String()}
-
-	if excludeID != nil {
-		query += " AND id != $2"
-		args = append(args, uuid.UUID(*excludeID))
-	}
+	args := []interface{}{domain}
 
 	var count int
 	err := r.db.QueryRowContext(ctx, query, args...).Scan(&count)
@@ -341,7 +330,7 @@ func (r *TenantRepository) scanTenant(scanner interface {
 		if err != nil {
 			return nil, fmt.Errorf("invalid custom domain in database: %w", err)
 		}
-		domain = &d
+		domain = d
 	}
 
 	tenantStatus, err := tenant.ParseStatus(status)
@@ -369,4 +358,141 @@ func (r *TenantRepository) scanTenant(scanner interface {
 	}
 
 	return t, nil
+}
+
+func (r *TenantRepository) ActivateTenant(ctx context.Context, id uuid.UUID) error {
+	query := `UPDATE tenants SET status = 'active', updated_at = CURRENT_TIMESTAMP WHERE id = $1`
+	_, err := r.db.ExecContext(ctx, query, id)
+	if err != nil {
+		return fmt.Errorf("failed to activate tenant: %w", err)
+	}
+	return nil
+}
+
+func (r *TenantRepository) DeactivateTenant(ctx context.Context, id uuid.UUID) error {
+	query := `UPDATE tenants SET status = 'inactive', updated_at = CURRENT_TIMESTAMP WHERE id = $1`
+	_, err := r.db.ExecContext(ctx, query, id)
+	if err != nil {
+		return fmt.Errorf("failed to deactivate tenant: %w", err)
+	}
+	return nil
+}
+
+func (r *TenantRepository) UpdateSettings(ctx context.Context, tenantID uuid.UUID, settings tenant.Settings) error {
+	query := `UPDATE tenants SET settings = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $1`
+	_, err := r.db.ExecContext(ctx, query, tenantID, settings)
+	if err != nil {
+		return fmt.Errorf("failed to update tenant settings: %w", err)
+	}
+	return nil
+}
+
+func (r *TenantRepository) Search(ctx context.Context, query string, limit, offset int) ([]*tenant.Tenant, error) {
+	sqlQuery := `
+		SELECT id, name, slug, custom_domain, status, subscription_id,
+			   settings, metadata, created_at, updated_at
+		FROM tenants
+		WHERE name ILIKE $1 OR slug ILIKE $1
+		ORDER BY created_at DESC
+		LIMIT $2 OFFSET $3`
+
+	searchPattern := "%" + query + "%"
+	rows, err := r.db.QueryContext(ctx, sqlQuery, searchPattern, limit, offset)
+	if err != nil {
+		return nil, fmt.Errorf("failed to search tenants: %w", err)
+	}
+	defer rows.Close()
+
+	var tenants []*tenant.Tenant
+	for rows.Next() {
+		tenant, err := r.scanTenant(rows)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan tenant: %w", err)
+		}
+		tenants = append(tenants, tenant)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("row iteration error: %w", err)
+	}
+
+	return tenants, nil
+}
+
+func (r *TenantRepository) GetTenantsByCreatedDate(ctx context.Context, startDate, endDate string) ([]*tenant.Tenant, error) {
+	query := `
+		SELECT id, name, slug, custom_domain, status, subscription_id,
+			   settings, metadata, created_at, updated_at
+		FROM tenants
+		WHERE created_at >= $1 AND created_at <= $2
+		ORDER BY created_at DESC`
+
+	rows, err := r.db.QueryContext(ctx, query, startDate, endDate)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get tenants by date: %w", err)
+	}
+	defer rows.Close()
+
+	var tenants []*tenant.Tenant
+	for rows.Next() {
+		tenant, err := r.scanTenant(rows)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan tenant: %w", err)
+		}
+		tenants = append(tenants, tenant)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("row iteration error: %w", err)
+	}
+
+	return tenants, nil
+}
+
+func (r *TenantRepository) ListSimple(ctx context.Context, limit, offset int) ([]*tenant.Tenant, error) {
+	query := `
+		SELECT id, name, slug, custom_domain, status, subscription_id,
+			   settings, metadata, created_at, updated_at
+		FROM tenants
+		ORDER BY created_at DESC
+		LIMIT $1 OFFSET $2`
+
+	rows, err := r.db.QueryContext(ctx, query, limit, offset)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list tenants: %w", err)
+	}
+	defer rows.Close()
+
+	var tenants []*tenant.Tenant
+	for rows.Next() {
+		tenant, err := r.scanTenant(rows)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan tenant: %w", err)
+		}
+		tenants = append(tenants, tenant)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("row iteration error: %w", err)
+	}
+
+	return tenants, nil
+}
+
+func (r *TenantRepository) Count(ctx context.Context) (int, error) {
+	var count int
+	err := r.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM tenants").Scan(&count)
+	if err != nil {
+		return 0, fmt.Errorf("failed to count tenants: %w", err)
+	}
+	return count, nil
+}
+
+func (r *TenantRepository) GetActiveTenantsCount(ctx context.Context) (int, error) {
+	var count int
+	err := r.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM tenants WHERE status = 'active'").Scan(&count)
+	if err != nil {
+		return 0, fmt.Errorf("failed to count active tenants: %w", err)
+	}
+	return count, nil
 }

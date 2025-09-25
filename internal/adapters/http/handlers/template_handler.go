@@ -1,7 +1,7 @@
 package handlers
 
 import (
-	"strconv"
+	_ "strconv"
 	"strings"
 
 	"github.com/gofiber/fiber/v2"

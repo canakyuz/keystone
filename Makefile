@@ -11,6 +11,7 @@ help:
 	@echo "  logs    - Show logs"
 	@echo "  clean   - Clean containers"
 	@echo "  health  - Check health"
+	@echo "  build   - Build Go"
 
 dev:
 	@echo "🔧 Starting development..."
@@ -34,3 +35,8 @@ clean:
 
 health:
 	@curl -s http://localhost:8080/health | jq . || echo "API not responding"
+
+dist:
+	@echo "📦 Building Go binary..."
+	@GOOS=linux GOARCH=amd64 go build -o bin/nexspaces-api ./cmd/api
+	@echo "✅ Built at ./bin/nexspaces-api"

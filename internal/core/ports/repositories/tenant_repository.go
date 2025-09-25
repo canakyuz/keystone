@@ -27,7 +27,10 @@ type TenantRepository interface {
 	Delete(ctx context.Context, tenantID uuid.UUID) error
 
 	// List retrieves all tenants with pagination
-	List(ctx context.Context, limit, offset int) ([]*tenant.Tenant, error)
+	List(ctx context.Context, criteria TenantListCriteria) ([]*tenant.Tenant, int, error)
+
+	// Simple List for basic pagination (backward compatibility)
+	ListSimple(ctx context.Context, limit, offset int) ([]*tenant.Tenant, error)
 
 	// Count returns the total number of tenants
 	Count(ctx context.Context) (int, error)
@@ -55,4 +58,12 @@ type TenantRepository interface {
 
 	// GetTenantsByCreatedDate retrieves tenants created within a date range
 	GetTenantsByCreatedDate(ctx context.Context, startDate, endDate string) ([]*tenant.Tenant, error)
+}
+
+// TenantListCriteria represents the criteria for listing tenants
+type TenantListCriteria struct {
+	Page     int
+	PageSize int
+	Status   *tenant.Status
+	Search   string
 }

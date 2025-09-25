@@ -46,7 +46,7 @@ services:
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - REDIS_PASSWORD=
-      - JWT_SECRET=your-super-secret-jwt-key-change-this-in-production
+      - JWT_SECRET=328fc650fc6362a4deb767193d2f62a7e28e6bfe7307e8296bb3f3f46d5e4eda
       - JWT_EXPIRES_IN=24h
       - ALLOWED_ORIGINS=http://localhost:3000,http://localhost:3001
     ports:

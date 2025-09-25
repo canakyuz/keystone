@@ -8,6 +8,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
+	"nexspaces-api/internal/core/domain/shared"
 	"nexspaces-api/internal/core/ports/services"
 )
 
@@ -254,7 +256,7 @@ func (m *MockBillingService) ProcessWebhook(ctx context.Context, payload []byte,
 }
 
 // GetPlan retrieves plan details (dummy implementation)
-func (m *MockBillingService) GetPlan(ctx context.Context, planID services.PlanID) (*services.Plan, error) {
+func (m *MockBillingService) GetPlan(ctx context.Context, planID shared.PlanID) (*services.Plan, error) {
 	log.Printf("MOCK BILLING: GetPlan called for plan %s", planID)
 	return &services.Plan{
 		ID:       planID,
@@ -267,10 +269,10 @@ func (m *MockBillingService) GetPlan(ctx context.Context, planID services.PlanID
 
 // ProcessSubscriptionPayment processes a subscription payment (dummy implementation)
 func (m *MockBillingService) ProcessSubscriptionPayment(ctx context.Context, req services.SubscriptionPaymentRequest) (*services.SubscriptionPaymentResult, error) {
-	log.Printf("MOCK BILLING: ProcessSubscriptionPayment called for subscription %s", req.SubscriptionID)
+	log.Printf("MOCK BILLING: ProcessSubscriptionPayment called for subscription %s", uuid.UUID(req.SubscriptionID).String())
 	return &services.SubscriptionPaymentResult{
-		SubscriptionID:  string(req.SubscriptionID),
-		PaymentIntentID: "pi_mock_" + string(req.SubscriptionID),
+		SubscriptionID:  uuid.UUID(req.SubscriptionID).String(),
+		PaymentIntentID: "pi_mock_" + uuid.UUID(req.SubscriptionID).String(),
 		Status:          "active",
 	}, nil
 }

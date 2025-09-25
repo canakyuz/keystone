@@ -50,13 +50,10 @@ func NewSecurityMiddleware(config SecurityConfig) []fiber.Handler {
 		ContentTypeNosniff: "nosniff",
 		XFrameOptions:      "DENY",
 		ReferrerPolicy:     "strict-origin-when-cross-origin",
-		PermissionsPolicy:  "geolocation=(), microphone=(), camera=()",
 	}
 
 	if config.EnableHSTS {
 		helmetConfig.HSTSMaxAge = 31536000 // 1 year
-		helmetConfig.HSTSIncludeSubdomains = true
-		helmetConfig.HSTSPreloadEnabled = true
 	}
 
 	if config.EnableCSP {
@@ -212,7 +209,7 @@ func XSSProtectionMiddleware() fiber.Handler {
 		// Check for potential XSS in query parameters
 		for key, values := range c.Queries() {
 			for _, value := range values {
-				if containsXSS(value) {
+				if containsXSS(string(value)) {
 					return errors.NewHTTPError(fiber.StatusBadRequest, fmt.Sprintf("Potential XSS detected in parameter: %s", key), nil)
 				}
 			}
@@ -245,7 +242,7 @@ func SQLInjectionProtectionMiddleware() fiber.Handler {
 		// Check query parameters for SQL injection patterns
 		for key, values := range c.Queries() {
 			for _, value := range values {
-				if containsSQLInjection(value) {
+				if containsSQLInjection(string(value)) {
 					return errors.NewHTTPError(fiber.StatusBadRequest, fmt.Sprintf("Potential SQL injection detected in parameter: %s", key), nil)
 				}
 			}

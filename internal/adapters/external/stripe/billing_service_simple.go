@@ -8,6 +8,7 @@ import (
 	"github.com/stripe/stripe-go/v76"
 	"github.com/stripe/stripe-go/v76/client"
 
+	"nexspaces-api/internal/core/domain/shared"
 	"nexspaces-api/internal/core/ports/services"
 )
 
@@ -277,7 +278,7 @@ func (s *SimpleBillingService) ProcessWebhook(ctx context.Context, payload []byt
 }
 
 // GetPlan retrieves plan details (dummy implementation)
-func (s *SimpleBillingService) GetPlan(ctx context.Context, planID services.PlanID) (*services.Plan, error) {
+func (s *SimpleBillingService) GetPlan(ctx context.Context, planID shared.PlanID) (*services.Plan, error) {
 	// This is a dummy implementation. In a real application, you would fetch plan details from Stripe.
 	return &services.Plan{
 		ID:       planID,

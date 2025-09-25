@@ -2,14 +2,16 @@ package middleware
 
 import (
 	"context"
+	"errors"
 	"strings"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 
 	"nexspaces-api/internal/core/domain/shared"
+	tenantdomain "nexspaces-api/internal/core/domain/tenant"
 	"nexspaces-api/internal/core/ports/repositories"
-	"nexspaces-api/internal/shared/errors"
+	apperrors "nexspaces-api/internal/shared/errors"
 )
 
 // TenantMiddleware handles tenant context resolution and isolation
@@ -28,7 +30,7 @@ func NewTenantMiddleware(tenantRepo repositories.TenantRepository) *TenantMiddle
 func (m *TenantMiddleware) ResolveTenant(c *fiber.Ctx) error {
 	host := c.Get("Host")
 	if host == "" {
-		return errors.NewHTTPError(fiber.StatusBadRequest, "Host header required", nil)
+		return apperrors.NewHTTPError(fiber.StatusBadRequest, "Host header required", nil)
 	}
 
 	// Remove port if present
@@ -36,7 +38,7 @@ func (m *TenantMiddleware) ResolveTenant(c *fiber.Ctx) error {
 		host = host[:colonPos]
 	}
 
-	var tenant *tenant.Tenant
+	var tenant *tenantdomain.Tenant
 	var err error
 
 	// Try to resolve by custom domain first
@@ -44,9 +46,9 @@ func (m *TenantMiddleware) ResolveTenant(c *fiber.Ctx) error {
 		// This might be a custom domain
 		domain, domainErr := shared.NewDomain(host)
 		if domainErr == nil {
-			tenant, err = m.tenantRepo.GetByCustomDomain(c.Context(), domain)
+			tenant, err = m.tenantRepo.GetByCustomDomain(c.Context(), domain.String())
 			if err != nil && !errors.Is(err, shared.ErrTenantNotFound) {
-				return errors.NewHTTPError(fiber.StatusInternalServerError, "Failed to resolve tenant by domain", err)
+				return apperrors.NewHTTPError(fiber.StatusInternalServerError, "Failed to resolve tenant by domain", err)
 			}
 		}
 	}
@@ -55,26 +57,26 @@ func (m *TenantMiddleware) ResolveTenant(c *fiber.Ctx) error {
 	if tenant == nil {
 		subdomain := m.extractSubdomain(host)
 		if subdomain == "" {
-			return errors.NewHTTPError(fiber.StatusBadRequest, "Unable to determine tenant from host", nil)
+			return apperrors.NewHTTPError(fiber.StatusBadRequest, "Unable to determine tenant from host", nil)
 		}
 
 		tenantSlug, err := shared.NewTenantSlug(subdomain)
 		if err != nil {
-			return errors.NewHTTPError(fiber.StatusBadRequest, "Invalid tenant slug format", err)
+			return apperrors.NewHTTPError(fiber.StatusBadRequest, "Invalid tenant slug format", err)
 		}
 
-		tenant, err = m.tenantRepo.GetBySlug(c.Context(), *tenantSlug)
+		tenant, err = m.tenantRepo.GetBySlug(c.Context(), tenantSlug.String())
 		if err != nil {
 			if errors.Is(err, shared.ErrTenantNotFound) {
-				return errors.NewHTTPError(fiber.StatusNotFound, "Tenant not found", err)
+				return apperrors.NewHTTPError(fiber.StatusNotFound, "Tenant not found", err)
 			}
-			return errors.NewHTTPError(fiber.StatusInternalServerError, "Failed to resolve tenant", err)
+			return apperrors.NewHTTPError(fiber.StatusInternalServerError, "Failed to resolve tenant", err)
 		}
 	}
 
 	// Verify tenant is active
-	if !tenant.IsActive() {
-		return errors.NewHTTPError(fiber.StatusForbidden, "Tenant is not active", nil)
+	if tenant.Status != tenantdomain.StatusActive {
+		return apperrors.NewHTTPError(fiber.StatusForbidden, "Tenant is not active", nil)
 	}
 
 	// Set tenant context
@@ -83,9 +85,9 @@ func (m *TenantMiddleware) ResolveTenant(c *fiber.Ctx) error {
 	c.Locals("tenant", tenant)
 
 	// Set tenant context for database RLS
-	err = m.setDatabaseTenantContext(c.Context(), tenant.ID)
+	err = m.setDatabaseTenantContext(c.Context(), shared.TenantID(tenant.ID))
 	if err != nil {
-		return errors.NewHTTPError(fiber.StatusInternalServerError, "Failed to set tenant context", err)
+		return apperrors.NewHTTPError(fiber.StatusInternalServerError, "Failed to set tenant context", err)
 	}
 
 	return c.Next()
@@ -95,13 +97,13 @@ func (m *TenantMiddleware) ResolveTenant(c *fiber.Ctx) error {
 func (m *TenantMiddleware) RequireTenant(c *fiber.Ctx) error {
 	tenantID, ok := c.Locals("tenant_id").(uuid.UUID)
 	if !ok {
-		return errors.NewHTTPError(fiber.StatusBadRequest, "Tenant context required", nil)
+		return apperrors.NewHTTPError(fiber.StatusBadRequest, "Tenant context required", nil)
 	}
 
 	// Verify user belongs to this tenant (if authenticated)
 	if userTenantID, exists := c.Locals("tenant_id").(uuid.UUID); exists {
 		if userTenantID != tenantID {
-			return errors.NewHTTPError(fiber.StatusForbidden, "Cross-tenant access denied", nil)
+			return apperrors.NewHTTPError(fiber.StatusForbidden, "Cross-tenant access denied", nil)
 		}
 	}
 
@@ -113,18 +115,18 @@ func (m *TenantMiddleware) ValidateTenantAccess(c *fiber.Ctx) error {
 	// Get tenant ID from context (set by ResolveTenant middleware)
 	tenantID, ok := c.Locals("tenant_id").(uuid.UUID)
 	if !ok {
-		return errors.NewHTTPError(fiber.StatusBadRequest, "Tenant context not found", nil)
+		return apperrors.NewHTTPError(fiber.StatusBadRequest, "Tenant context not found", nil)
 	}
 
 	// Get user's tenant ID from auth context
 	userTenantID, ok := c.Locals("tenant_id").(uuid.UUID)
 	if !ok {
-		return errors.NewHTTPError(fiber.StatusUnauthorized, "User not authenticated", nil)
+		return apperrors.NewHTTPError(fiber.StatusUnauthorized, "User not authenticated", nil)
 	}
 
 	// Verify tenant IDs match
 	if tenantID != userTenantID {
-		return errors.NewHTTPError(fiber.StatusForbidden, "Access denied: user does not belong to this tenant", nil)
+		return apperrors.NewHTTPError(fiber.StatusForbidden, "Access denied: user does not belong to this tenant", nil)
 	}
 
 	return c.Next()
@@ -135,28 +137,28 @@ func (m *TenantMiddleware) ResolveTenantFromParam(paramName string) fiber.Handle
 	return func(c *fiber.Ctx) error {
 		tenantIDStr := c.Params(paramName)
 		if tenantIDStr == "" {
-			return errors.NewHTTPError(fiber.StatusBadRequest, "Tenant ID parameter required", nil)
+			return apperrors.NewHTTPError(fiber.StatusBadRequest, "Tenant ID parameter required", nil)
 		}
 
 		tenantUUID, err := uuid.Parse(tenantIDStr)
 		if err != nil {
-			return errors.NewHTTPError(fiber.StatusBadRequest, "Invalid tenant ID format", err)
+			return apperrors.NewHTTPError(fiber.StatusBadRequest, "Invalid tenant ID format", err)
 		}
 
 		tenantID := shared.TenantID(tenantUUID)
 
 		// Get tenant from repository
-		tenant, err := m.tenantRepo.GetByID(c.Context(), tenantID)
+		tenant, err := m.tenantRepo.GetByID(c.Context(), uuid.UUID(tenantID))
 		if err != nil {
 			if errors.Is(err, shared.ErrTenantNotFound) {
-				return errors.NewHTTPError(fiber.StatusNotFound, "Tenant not found", err)
+				return apperrors.NewHTTPError(fiber.StatusNotFound, "Tenant not found", err)
 			}
-			return errors.NewHTTPError(fiber.StatusInternalServerError, "Failed to get tenant", err)
+			return apperrors.NewHTTPError(fiber.StatusInternalServerError, "Failed to get tenant", err)
 		}
 
 		// Verify tenant is active
-		if !tenant.IsActive() {
-			return errors.NewHTTPError(fiber.StatusForbidden, "Tenant is not active", nil)
+		if tenant.Status != tenantdomain.StatusActive {
+			return apperrors.NewHTTPError(fiber.StatusForbidden, "Tenant is not active", nil)
 		}
 
 		// Set tenant context
@@ -167,7 +169,7 @@ func (m *TenantMiddleware) ResolveTenantFromParam(paramName string) fiber.Handle
 		// Set database tenant context
 		err = m.setDatabaseTenantContext(c.Context(), tenant.ID)
 		if err != nil {
-			return errors.NewHTTPError(fiber.StatusInternalServerError, "Failed to set tenant context", err)
+			return apperrors.NewHTTPError(fiber.StatusInternalServerError, "Failed to set tenant context", err)
 		}
 
 		return c.Next()
@@ -205,15 +207,15 @@ func (m *TenantMiddleware) setDatabaseTenantContext(ctx context.Context, tenantI
 }
 
 // GetTenantFromContext retrieves tenant from Fiber context
-func GetTenantFromContext(c *fiber.Ctx) (*tenant.Tenant, error) {
+func GetTenantFromContext(c *fiber.Ctx) (*tenantdomain.Tenant, error) {
 	tenant, ok := c.Locals("tenant").(interface{})
 	if !ok {
-		return nil, errors.NewHTTPError(fiber.StatusBadRequest, "Tenant context not found", nil)
+		return nil, apperrors.NewHTTPError(fiber.StatusBadRequest, "Tenant context not found", nil)
 	}
 
-	tenantEntity, ok := tenant.(*tenant.Tenant)
+	tenantEntity, ok := tenant.(*tenantdomain.Tenant)
 	if !ok {
-		return nil, errors.NewHTTPError(fiber.StatusInternalServerError, "Invalid tenant context", nil)
+		return nil, apperrors.NewHTTPError(fiber.StatusInternalServerError, "Invalid tenant context", nil)
 	}
 
 	return tenantEntity, nil
@@ -223,7 +225,7 @@ func GetTenantFromContext(c *fiber.Ctx) (*tenant.Tenant, error) {
 func GetTenantIDFromContext(c *fiber.Ctx) (shared.TenantID, error) {
 	tenantUUID, ok := c.Locals("tenant_id").(uuid.UUID)
 	if !ok {
-		return shared.TenantID{}, errors.NewHTTPError(fiber.StatusBadRequest, "Tenant ID not found in context", nil)
+		return shared.TenantID{}, apperrors.NewHTTPError(fiber.StatusBadRequest, "Tenant ID not found in context", nil)
 	}
 
 	return shared.TenantID(tenantUUID), nil
@@ -239,7 +241,7 @@ func (m *TenantMiddleware) TenantIsolationGuard(c *fiber.Ctx) error {
 	if ok1 && ok2 && resolvedTenantID != userTenantID {
 		// Log this as a potential security violation
 		// TODO: Add proper logging
-		return errors.NewHTTPError(fiber.StatusForbidden, "Tenant isolation violation detected", nil)
+		return apperrors.NewHTTPError(fiber.StatusForbidden, "Tenant isolation violation detected", nil)
 	}
 
 	return c.Next()
@@ -261,7 +263,7 @@ func (m *TenantMiddleware) CheckSubscriptionStatus(c *fiber.Ctx) error {
 
 	// Check if tenant has an active subscription
 	if tenant.SubscriptionID == nil {
-		return errors.NewHTTPError(fiber.StatusPaymentRequired, "No active subscription", nil)
+		return apperrors.NewHTTPError(fiber.StatusPaymentRequired, "No active subscription", nil)
 	}
 
 	// Additional subscription validation would go here

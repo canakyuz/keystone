@@ -1,8 +1,10 @@
 package user
 
 import (
-	"github.com/google/uuid"
+	"fmt"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 // User represents a user in the system
@@ -14,18 +16,27 @@ const (
 	StatusInactive Status = "inactive"
 )
 
+// Exported status constants for external packages
+var (
+	UserStatusActive = StatusActive
+)
+
 // User represents a user in the system
 type User struct {
-	ID        uuid.UUID `json:"id" db:"id"`
-	TenantID  uuid.UUID `json:"tenant_id" db:"tenant_id"`
-	Email     string    `json:"email" db:"email"`
-	FirstName string    `json:"first_name" db:"first_name"`
-	LastName  string    `json:"last_name" db:"last_name"`
-	Password  string    `json:"-" db:"password_hash"` // Never expose in JSON
-	Role      string    `json:"role" db:"role"`
-	Status    Status    `json:"status" db:"status"`
-	CreatedAt time.Time `json:"created_at" db:"created_at"`
-	UpdatedAt time.Time `json:"updated_at" db:"updated_at"`
+	ID            uuid.UUID              `json:"id" db:"id"`
+	TenantID      uuid.UUID              `json:"tenant_id" db:"tenant_id"`
+	Email         string                 `json:"email" db:"email"`
+	FirstName     string                 `json:"first_name" db:"first_name"`
+	LastName      string                 `json:"last_name" db:"last_name"`
+	PasswordHash  *string                `json:"-" db:"password_hash"`
+	Role          string                 `json:"role" db:"role"`
+	Status        Status                 `json:"status" db:"status"`
+	EmailVerified bool                   `json:"email_verified" db:"email_verified"`
+	LastLoginAt   *time.Time             `json:"last_login_at,omitempty" db:"last_login_at"`
+	Settings      map[string]interface{} `json:"settings" db:"settings"`
+	Metadata      map[string]interface{} `json:"metadata" db:"metadata"`
+	CreatedAt     time.Time              `json:"created_at" db:"created_at"`
+	UpdatedAt     time.Time              `json:"updated_at" db:"updated_at"`
 }
 
 // CreateUserRequest represents the data needed to create a new user
@@ -79,6 +90,11 @@ func (u *User) GetFullName() string {
 	return u.FirstName + " " + u.LastName
 }
 
+// FullName returns the user's full name (alias for GetFullName)
+func (u *User) FullName() string {
+	return u.GetFullName()
+}
+
 // IsAdmin checks if the user has admin role
 func (u *User) IsAdmin() bool {
 	return u.Role == "admin"
@@ -119,15 +135,32 @@ func (u *User) CanInstallTemplates() bool {
 // NewUser creates a new User instance
 func NewUser(req CreateUserRequest, hashedPassword string) *User {
 	return &User{
-		ID:        uuid.New(),
-		TenantID:  req.TenantID,
-		Email:     req.Email,
-		FirstName: req.FirstName,
-		LastName:  req.LastName,
-		Password:  hashedPassword,
-		Role:      req.Role,
-		Status:    StatusPending,
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
+		ID:           uuid.New(),
+		TenantID:     req.TenantID,
+		Email:        req.Email,
+		FirstName:    req.FirstName,
+		LastName:     req.LastName,
+		PasswordHash: &hashedPassword,
+		Role:         req.Role,
+		Status:       StatusPending,
+		CreatedAt:    time.Now(),
+		UpdatedAt:    time.Now(),
+	}
+}
+
+// ParseRole parses a string into a Role.
+func ParseRole(s string) (string, error) {
+	// In a real app, you might have a Role type and constants.
+	return s, nil
+}
+
+// ParseStatus parses a string into a Status.
+func ParseStatus(s string) (Status, error) {
+	st := Status(s)
+	switch st {
+	case StatusPending, StatusActive, StatusInactive:
+		return st, nil
+	default:
+		return "", fmt.Errorf("invalid user status: %s", s)
 	}
 }

@@ -2,8 +2,10 @@ package tenant
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"github.com/google/uuid"
+	"nexspaces-api/internal/core/domain/shared"
 	"strings"
 	"time"
 
@@ -73,7 +75,7 @@ func (uc *TenantUseCase) CreateTenant(ctx context.Context, req tenantdomain.Crea
 			},
 		},
 		TenantName: newTenant.Name,
-		TenantSlug: newTenant.Slug,
+		TenantSlug: newTenant.Slug.String(),
 	}
 
 	if err := uc.eventBus.Publish(ctx, event); err != nil {
@@ -87,8 +89,13 @@ func (uc *TenantUseCase) CreateTenant(ctx context.Context, req tenantdomain.Crea
 
 // GetTenant retrieves a tenant by ID
 func (uc *TenantUseCase) GetTenant(ctx context.Context, tenantID uuid.UUID) (*tenantdomain.Tenant, error) {
+	tenant, err := uc.tenantRepo.GetByID(ctx, tenantID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get tenant: %w", err)
+	}
+
 	if tenant == nil {
-		return nil, shared.ErrTenantNotFound
+		return nil, fmt.Errorf("tenant not found")
 	}
 
 	return tenant, nil
@@ -102,7 +109,7 @@ func (uc *TenantUseCase) GetTenantBySlug(ctx context.Context, slug string) (*ten
 	}
 
 	if tenant == nil {
-		return nil, shared.ErrTenantNotFound
+		return nil, fmt.Errorf("tenant not found")
 	}
 
 	return tenant, nil
@@ -116,7 +123,7 @@ func (uc *TenantUseCase) GetTenantByDomain(ctx context.Context, domain string) (
 	}
 
 	if tenant == nil {
-		return nil, shared.ErrTenantNotFound
+		return nil, fmt.Errorf("tenant not found")
 	}
 
 	return tenant, nil
@@ -131,7 +138,7 @@ func (uc *TenantUseCase) UpdateTenant(ctx context.Context, tenantID uuid.UUID, r
 	}
 
 	if existingTenant == nil {
-		return nil, shared.ErrTenantNotFound
+		return nil, fmt.Errorf("tenant not found")
 	}
 
 	// Track changes for event
@@ -146,21 +153,34 @@ func (uc *TenantUseCase) UpdateTenant(ctx context.Context, tenantID uuid.UUID, r
 		existingTenant.Name = *req.Name
 	}
 
-	if req.CustomDomain != nil && *req.CustomDomain != existingTenant.CustomDomain {
-		// Validate domain availability
-		available, err := uc.tenantRepo.IsDomainAvailable(ctx, *req.CustomDomain)
-		if err != nil {
-			return nil, fmt.Errorf("failed to check domain availability: %w", err)
-		}
-		if !available {
-			return nil, errors.NewValidationError("Custom domain is already taken", fmt.Errorf("domain: %s", *req.CustomDomain))
+	if req.CustomDomain != nil {
+		oldDomain := ""
+		if existingTenant.CustomDomain != nil {
+			oldDomain = existingTenant.CustomDomain.String()
 		}
 
-		changes["custom_domain"] = map[string]string{
-			"old": existingTenant.CustomDomain,
-			"new": *req.CustomDomain,
+		if *req.CustomDomain != oldDomain {
+			// Validate domain availability
+			available, err := uc.tenantRepo.IsDomainAvailable(ctx, *req.CustomDomain)
+			if err != nil {
+				return nil, fmt.Errorf("failed to check domain availability: %w", err)
+			}
+			if !available {
+				return nil, errors.NewValidationError("Custom domain is already taken", fmt.Errorf("domain: %s", *req.CustomDomain))
+			}
+
+			changes["custom_domain"] = map[string]string{
+				"old": oldDomain,
+				"new": *req.CustomDomain,
+			}
+
+			// Create new domain value object
+			newDomain, err := shared.NewDomain(*req.CustomDomain)
+			if err != nil {
+				return nil, fmt.Errorf("invalid domain: %w", err)
+			}
+			existingTenant.CustomDomain = newDomain
 		}
-		existingTenant.CustomDomain = *req.CustomDomain
 	}
 
 	if req.Status != nil && *req.Status != existingTenant.Status {
@@ -172,14 +192,24 @@ func (uc *TenantUseCase) UpdateTenant(ctx context.Context, tenantID uuid.UUID, r
 	}
 
 	if req.Settings != nil {
+		// Convert settings struct to map
+		var newSettings map[string]interface{}
+		settingsJSON, err := json.Marshal(req.Settings)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal settings: %w", err)
+		}
+		if err := json.Unmarshal(settingsJSON, &newSettings); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal settings: %w", err)
+		}
+
 		changes["settings"] = map[string]interface{}{
 			"old": existingTenant.Settings,
-			"new": *req.Settings,
+			"new": newSettings,
 		}
-		existingTenant.Settings = *req.Settings
+		existingTenant.Settings = newSettings
 	}
 
-	existingTenant.UpdatedAt = time.Now()
+	existingTenant.UpdatedAt = shared.NewTimestamp()
 
 	// Save changes
 	if err := uc.tenantRepo.Update(ctx, existingTenant); err != nil {
@@ -212,14 +242,14 @@ func (uc *TenantUseCase) UpdateTenant(ctx context.Context, tenantID uuid.UUID, r
 
 // ListTenants retrieves tenants with pagination
 func (uc *TenantUseCase) ListTenants(ctx context.Context, limit, offset int) ([]*tenantdomain.Tenant, int, error) {
-	tenants, err := uc.tenantRepo.List(ctx, limit, offset)
-	if err != nil {
-		return nil, 0, fmt.Errorf("failed to list tenants: %w", err)
+	criteria := repositories.TenantListCriteria{
+		Page:     offset/limit + 1,
+		PageSize: limit,
 	}
 
-	total, err := uc.tenantRepo.Count(ctx)
+	tenants, total, err := uc.tenantRepo.List(ctx, criteria)
 	if err != nil {
-		return nil, 0, fmt.Errorf("failed to count tenants: %w", err)
+		return nil, 0, fmt.Errorf("failed to list tenants: %w", err)
 	}
 
 	return tenants, total, nil
@@ -229,7 +259,7 @@ func (uc *TenantUseCase) ListTenants(ctx context.Context, limit, offset int) ([]
 func (uc *TenantUseCase) SearchTenants(ctx context.Context, query string, limit, offset int) ([]*tenantdomain.Tenant, error) {
 	query = strings.TrimSpace(query)
 	if query == "" {
-		return []*tenant.Tenant{}, nil
+		return []*tenantdomain.Tenant{}, nil
 	}
 
 	tenants, err := uc.tenantRepo.Search(ctx, query, limit, offset)
@@ -269,7 +299,7 @@ func (uc *TenantUseCase) DeleteTenant(ctx context.Context, tenantID uuid.UUID) e
 	}
 
 	if existingTenant == nil {
-		return nil, shared.ErrTenantNotFound
+		return fmt.Errorf("tenant not found")
 	}
 
 	// Soft delete the tenant

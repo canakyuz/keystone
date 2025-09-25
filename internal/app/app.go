@@ -12,6 +12,7 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/helmet"
 	"github.com/gofiber/fiber/v2/middleware/limiter"
 	"github.com/gofiber/fiber/v2/middleware/recover"
+	swagger "github.com/gofiber/swagger"
 
 	"nexspaces-api/internal/config"
 )
@@ -84,7 +85,17 @@ func (a *Application) Start() error {
 }
 
 func setupRoutes(app *fiber.App) {
+	// Swagger docs
+	app.Get("/swagger/*", swagger.HandlerDefault)
+
 	// Health check
+	// @Summary Show the status of server.
+	// @Description get the status of server.
+	// @Tags root
+	// @Accept */*
+	// @Produce json
+	// @Success 200 {object} map[string]interface{}
+	// @Router /health [get]
 	app.Get("/health", func(c *fiber.Ctx) error {
 		return c.JSON(fiber.Map{
 			"status":  "ok",

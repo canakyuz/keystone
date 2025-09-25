@@ -1,7 +1,6 @@
 package middleware
 
 import (
-	"context"
 	"errors"
 	"strings"
 	"time"
@@ -102,7 +101,7 @@ func (m *AuthMiddleware) Authenticate(c *fiber.Ctx) error {
 	}
 
 	// Check user status
-	if user.Status != user.StatusActive {
+	if user.Status != "active" {
 		return apperrors.NewHTTPError(fiber.StatusForbidden, "User account is not active", nil)
 	}
 
@@ -145,13 +144,13 @@ func (m *AuthMiddleware) RequireRole(allowedRoles ...string) fiber.Handler {
 // RequirePermission creates a middleware that checks specific permissions
 func (m *AuthMiddleware) RequirePermission(permission string) fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		user, ok := c.Locals("user").(interface{})
+		userObj, ok := c.Locals("user").(interface{})
 		if !ok {
 			return apperrors.NewHTTPError(fiber.StatusUnauthorized, "User context not found", nil)
 		}
 
 		// Type assertion to get user entity
-		userEntity, ok := user.(*user.User)
+		userEntity, ok := userObj.(*user.User)
 		if !ok {
 			return apperrors.NewHTTPError(fiber.StatusInternalServerError, "Invalid user context", nil)
 		}
@@ -273,7 +272,7 @@ func (m *AuthMiddleware) RefreshToken(tokenString string) (string, error) {
 	}
 
 	// Check if token is close to expiry (within 15 minutes)
-	if claims.ExpiresAt != nil && time.Until(claims.Expiresat.Time) > 15*time.Minute {
+	if claims.ExpiresAt != nil && time.Until(claims.ExpiresAt.Time) > 15*time.Minute {
 		return tokenString, nil // Token is still valid for a while
 	}
 

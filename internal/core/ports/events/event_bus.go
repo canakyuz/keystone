@@ -92,8 +92,10 @@ type UserCreatedEvent struct {
 // UserUpdatedEvent represents a user update event
 type UserUpdatedEvent struct {
 	BaseEvent
-	UserID  string                 `json:"user_id"`
-	Changes map[string]interface{} `json:"changes"`
+	UserID    string                 `json:"user_id"`
+	Changes   map[string]interface{} `json:"changes"`
+	UpdatedBy string                 `json:"updated_by"`
+	UpdatedAt time.Time              `json:"updated_at"`
 }
 
 // UserDeletedEvent represents a user deletion event
@@ -162,11 +164,21 @@ type TemplatePublishedEvent struct {
 	ReleaseNotes string `json:"release_notes"`
 }
 
+// UserDeactivatedEvent represents a user deactivation event
+type UserDeactivatedEvent struct {
+	BaseEvent
+	UserID        string    `json:"user_id"`
+	DeactivatedBy string    `json:"deactivated_by"`
+	Reason        string    `json:"reason"`
+	DeactivatedAt time.Time `json:"deactivated_at"`
+}
+
 // Event Types Constants
 const (
 	EventTypeUserCreated           = "user.created"
 	EventTypeUserUpdated           = "user.updated"
 	EventTypeUserDeleted           = "user.deleted"
+	EventTypeUserDeactivated       = "user.deactivated"
 	EventTypeTenantCreated         = "tenant.created"
 	EventTypeTenantUpdated         = "tenant.updated"
 	EventTypeTemplateCreated       = "template.created"

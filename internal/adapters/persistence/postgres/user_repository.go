@@ -5,13 +5,13 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-
-	"github.com/google/uuid"
-	"github.com/lib/pq"
-
 	"nexspaces-api/internal/core/domain/shared"
 	"nexspaces-api/internal/core/domain/user"
 	"nexspaces-api/internal/core/ports/repositories"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/lib/pq"
 )
 
 // UserRepository implements the user repository interface for PostgreSQL
@@ -29,7 +29,7 @@ func NewUserRepository(db *sql.DB) repositories.UserRepository {
 // Create creates a new user in the database
 func (r *UserRepository) Create(ctx context.Context, user *user.User) error {
 	// Set tenant context for RLS
-	if err := r.setTenantContext(ctx, user.TenantID); err != nil {
+	if err := r.setTenantContext(ctx, shared.TenantID(user.TenantID)); err != nil {
 		return fmt.Errorf("failed to set tenant context: %w", err)
 	}
 
@@ -45,15 +45,15 @@ func (r *UserRepository) Create(ctx context.Context, user *user.User) error {
 	var lastLoginAt *sql.NullTime
 	if user.LastLoginAt != nil {
 		lastLoginAt = &sql.NullTime{
-			Time:  user.LastLoginAt.Time(),
+			Time:  *user.LastLoginAt,
 			Valid: true,
 		}
 	}
 
 	_, err := r.db.ExecContext(ctx, query,
-		uuid.UUID(user.ID),
-		uuid.UUID(user.TenantID),
-		user.Email.String(),
+		user.ID,
+		user.TenantID,
+		user.Email,
 		user.FirstName,
 		user.LastName,
 		user.PasswordHash,
@@ -63,8 +63,8 @@ func (r *UserRepository) Create(ctx context.Context, user *user.User) error {
 		lastLoginAt,
 		user.Settings,
 		user.Metadata,
-		user.CreatedAt.Time(),
-		user.UpdatedAt.Time(),
+		user.CreatedAt,
+		user.UpdatedAt,
 	)
 
 	if err != nil {
@@ -83,35 +83,43 @@ func (r *UserRepository) Create(ctx context.Context, user *user.User) error {
 }
 
 // GetByID retrieves a user by ID
-func (r *UserRepository) GetByID(ctx context.Context, id shared.UserID) (*user.User, error) {
+func (r *UserRepository) GetByID(ctx context.Context, tenantID, userID uuid.UUID) (*user.User, error) {
+	// Set tenant context for RLS
+	if err := r.setTenantContext(ctx, shared.TenantID(tenantID)); err != nil {
+		return nil, fmt.Errorf("failed to set tenant context: %w", err)
+	}
 	query := `
 		SELECT id, tenant_id, email, first_name, last_name, password_hash,
 			   role, status, email_verified, last_login_at, settings, metadata,
 			   created_at, updated_at
 		FROM users
-		WHERE id = $1`
+		WHERE tenant_id = $1 AND id = $2`
 
-	row := r.db.QueryRowContext(ctx, query, uuid.UUID(id))
+	row := r.db.QueryRowContext(ctx, query, tenantID, userID)
 
 	return r.scanUser(row)
 }
 
-// GetByEmail retrieves a user by email (global lookup for authentication)
-func (r *UserRepository) GetByEmail(ctx context.Context, email shared.Email) (*user.User, error) {
+// GetByEmail retrieves a user by email within a tenant
+func (r *UserRepository) GetByEmail(ctx context.Context, tenantID uuid.UUID, email string) (*user.User, error) {
+	// Set tenant context for RLS
+	if err := r.setTenantContext(ctx, shared.TenantID(tenantID)); err != nil {
+		return nil, fmt.Errorf("failed to set tenant context: %w", err)
+	}
 	query := `
 		SELECT id, tenant_id, email, first_name, last_name, password_hash,
 			   role, status, email_verified, last_login_at, settings, metadata,
 			   created_at, updated_at
 		FROM users
-		WHERE email = $1`
+		WHERE tenant_id = $1 AND email = $2`
 
-	row := r.db.QueryRowContext(ctx, query, email.String())
+	row := r.db.QueryRowContext(ctx, query, tenantID, email)
 
 	return r.scanUser(row)
 }
 
 // GetByEmailAndTenant retrieves a user by email within a specific tenant
-func (r *UserRepository) GetByEmailAndTenant(ctx context.Context, email shared.Email, tenantID shared.TenantID) (*user.User, error) {
+func (r *UserRepository) GetByEmailAndTenant(ctx context.Context, email string, tenantID shared.TenantID) (*user.User, error) {
 	// Set tenant context for RLS
 	if err := r.setTenantContext(ctx, tenantID); err != nil {
 		return nil, fmt.Errorf("failed to set tenant context: %w", err)
@@ -124,7 +132,7 @@ func (r *UserRepository) GetByEmailAndTenant(ctx context.Context, email shared.E
 		FROM users
 		WHERE email = $1 AND tenant_id = $2`
 
-	row := r.db.QueryRowContext(ctx, query, email.String(), uuid.UUID(tenantID))
+	row := r.db.QueryRowContext(ctx, query, email, uuid.UUID(tenantID))
 
 	return r.scanUser(row)
 }
@@ -132,7 +140,7 @@ func (r *UserRepository) GetByEmailAndTenant(ctx context.Context, email shared.E
 // Update updates an existing user
 func (r *UserRepository) Update(ctx context.Context, user *user.User) error {
 	// Set tenant context for RLS
-	if err := r.setTenantContext(ctx, user.TenantID); err != nil {
+	if err := r.setTenantContext(ctx, shared.TenantID(user.TenantID)); err != nil {
 		return fmt.Errorf("failed to set tenant context: %w", err)
 	}
 
@@ -146,14 +154,14 @@ func (r *UserRepository) Update(ctx context.Context, user *user.User) error {
 	var lastLoginAt *sql.NullTime
 	if user.LastLoginAt != nil {
 		lastLoginAt = &sql.NullTime{
-			Time:  user.LastLoginAt.Time(),
+			Time:  *user.LastLoginAt,
 			Valid: true,
 		}
 	}
 
 	result, err := r.db.ExecContext(ctx, query,
-		uuid.UUID(user.ID),
-		user.Email.String(),
+		user.ID,
+		user.Email,
 		user.FirstName,
 		user.LastName,
 		user.PasswordHash,
@@ -163,7 +171,7 @@ func (r *UserRepository) Update(ctx context.Context, user *user.User) error {
 		lastLoginAt,
 		user.Settings,
 		user.Metadata,
-		user.UpdatedAt.Time(),
+		user.UpdatedAt,
 	)
 
 	if err != nil {
@@ -191,18 +199,18 @@ func (r *UserRepository) Update(ctx context.Context, user *user.User) error {
 }
 
 // Delete soft deletes a user (sets status to inactive)
-func (r *UserRepository) Delete(ctx context.Context, id shared.UserID, tenantID shared.TenantID) error {
+func (r *UserRepository) Delete(ctx context.Context, tenantID, userID uuid.UUID) error {
 	// Set tenant context for RLS
-	if err := r.setTenantContext(ctx, tenantID); err != nil {
+	if err := r.setTenantContext(ctx, shared.TenantID(tenantID)); err != nil {
 		return fmt.Errorf("failed to set tenant context: %w", err)
 	}
 
 	query := `
 		UPDATE users
 		SET status = 'inactive', updated_at = CURRENT_TIMESTAMP
-		WHERE id = $1 AND status != 'inactive'`
+		WHERE tenant_id = $1 AND id = $2 AND status != 'inactive'`
 
-	result, err := r.db.ExecContext(ctx, query, uuid.UUID(id))
+	result, err := r.db.ExecContext(ctx, query, tenantID, userID)
 	if err != nil {
 		return fmt.Errorf("failed to delete user: %w", err)
 	}
@@ -371,6 +379,33 @@ func (r *UserRepository) UpdateLastLogin(ctx context.Context, id shared.UserID, 
 	return nil
 }
 
+// ActivateUser activates a user account
+func (r *UserRepository) ActivateUser(ctx context.Context, tenantID, userID uuid.UUID) error {
+	if err := r.setTenantContext(ctx, shared.TenantID(tenantID)); err != nil {
+		return fmt.Errorf("failed to set tenant context: %w", err)
+	}
+	query := `
+		UPDATE users
+		SET status = 'active', updated_at = CURRENT_TIMESTAMP
+		WHERE tenant_id = $1 AND id = $2 AND status != 'active'`
+
+	result, err := r.db.ExecContext(ctx, query, tenantID, userID)
+	if err != nil {
+		return fmt.Errorf("failed to activate user: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get rows affected: %w", err)
+	}
+
+	if rowsAffected == 0 {
+		return shared.ErrUserNotFound
+	}
+
+	return nil
+}
+
 // setTenantContext sets the tenant context for Row Level Security
 func (r *UserRepository) setTenantContext(ctx context.Context, tenantID shared.TenantID) error {
 	query := "SELECT set_tenant_context($1)"
@@ -388,13 +423,13 @@ func (r *UserRepository) scanUser(scanner interface {
 		email         string
 		firstName     string
 		lastName      string
-		passwordHash  *string
+		passwordHash  sql.NullString
 		role          string
 		status        string
 		emailVerified bool
 		lastLoginAt   sql.NullTime
-		settings      map[string]interface{}
-		metadata      map[string]interface{}
+		settings      []byte
+		metadata      []byte
 		createdAt     sql.NullTime
 		updatedAt     sql.NullTime
 	)
@@ -412,12 +447,6 @@ func (r *UserRepository) scanUser(scanner interface {
 		return nil, fmt.Errorf("failed to scan user: %w", err)
 	}
 
-	// Create value objects
-	userEmail, err := shared.NewEmail(email)
-	if err != nil {
-		return nil, fmt.Errorf("invalid email in database: %w", err)
-	}
-
 	userRole, err := user.ParseRole(role)
 	if err != nil {
 		return nil, fmt.Errorf("invalid user role in database: %w", err)
@@ -428,27 +457,31 @@ func (r *UserRepository) scanUser(scanner interface {
 		return nil, fmt.Errorf("invalid user status in database: %w", err)
 	}
 
-	var lastLogin *shared.Timestamp
+	var lastLogin *time.Time
 	if lastLoginAt.Valid {
-		lastLogin = shared.NewTimestampFromTime(lastLoginAt.Time)
+		lastLogin = &lastLoginAt.Time
 	}
 
-	// Create user entity
+	var passwordHashPtr *string
+	if passwordHash.Valid {
+		passwordHashPtr = &passwordHash.String
+	}
+
 	u := &user.User{
-		ID:            shared.UserID(id),
-		TenantID:      shared.TenantID(tenantID),
-		Email:         *userEmail,
+		ID:            id,
+		TenantID:      tenantID,
+		Email:         email,
 		FirstName:     firstName,
 		LastName:      lastName,
-		PasswordHash:  passwordHash,
+		PasswordHash:  passwordHashPtr,
 		Role:          userRole,
 		Status:        userStatus,
 		EmailVerified: emailVerified,
 		LastLoginAt:   lastLogin,
-		Settings:      settings,
-		Metadata:      metadata,
-		CreatedAt:     shared.NewTimestampFromTime(createdAt.Time),
-		UpdatedAt:     shared.NewTimestampFromTime(updatedAt.Time),
+		Settings:      make(map[string]interface{}),
+		Metadata:      make(map[string]interface{}),
+		CreatedAt:     createdAt.Time,
+		UpdatedAt:     updatedAt.Time,
 	}
 
 	return u, nil

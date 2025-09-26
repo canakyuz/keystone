@@ -96,6 +96,16 @@ type SubscriptionDTO struct {
 }
 
 // CreateTenant handles POST /api/tenants
+// @Summary Create a new tenant
+// @Description Creates a new tenant along with an owner user and a subscription.
+// @Tags Tenants
+// @Accept json
+// @Produce json
+// @Param tenant body CreateTenantRequest true "Tenant Creation Request"
+// @Success 201 {object} CreateTenantResponse
+// @Failure 400 {object} errors.HTTPError "Invalid request body or validation error"
+// @Failure 500 {object} errors.HTTPError "Internal server error"
+// @Router /api/tenants [post]
 func (h *TenantHandler) CreateTenant(c *fiber.Ctx) error {
 	var req CreateTenantRequest
 	if err := c.BodyParser(&req); err != nil {

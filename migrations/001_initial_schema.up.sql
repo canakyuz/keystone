@@ -20,6 +20,29 @@ CREATE TYPE subscription_status AS ENUM ('active', 'cancelled', 'suspended', 'pa
 CREATE TYPE billing_cycle AS ENUM ('monthly', 'yearly');
 
 -- ================================
+-- DATABASE ROLES AND PERMISSIONS
+-- These roles must be created before tables that use them in RLS policies.
+-- ================================
+
+-- Create application role for API connections
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'application_user') THEN
+        CREATE ROLE application_user;
+    END IF;
+END
+$$;
+
+-- Create read-only role for analytics/reporting
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'readonly_user') THEN
+        CREATE ROLE readonly_user;
+    END IF;
+END
+$$;
+
+-- ================================
 -- TENANTS TABLE
 -- ================================
 CREATE TABLE tenants (
@@ -265,20 +288,12 @@ CREATE INDEX idx_audit_logs_resource ON audit_logs(resource_type, resource_id);
 CREATE INDEX idx_audit_logs_created_at ON audit_logs(created_at);
 CREATE INDEX idx_audit_logs_success ON audit_logs(success);
 
--- ================================
--- DATABASE ROLES AND PERMISSIONS
--- ================================
-
--- Create application role for API connections
-CREATE ROLE application_user;
-
 -- Grant necessary permissions to application_user
 GRANT USAGE ON SCHEMA public TO application_user;
 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO application_user;
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO application_user;
 
--- Create read-only role for analytics/reporting
-CREATE ROLE readonly_user;
+-- Grant necessary permissions to readonly_user
 GRANT USAGE ON SCHEMA public TO readonly_user;
 GRANT SELECT ON ALL TABLES IN SCHEMA public TO readonly_user;
 

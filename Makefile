@@ -93,3 +93,12 @@ build:
 	@echo "📦 Building Go binary for production..."
 	@GOOS=linux GOARCH=amd64 go build -o bin/nexspaces-api ./cmd/server/main.go
 	@echo "✅ Built at ./bin/nexspaces-api"
+
+reset:
+	@echo "Resetting the development environment..."
+	@make stop
+	@make clean
+	@make dev
+	@make db-create
+	@make migrate-up
+	@echo "✅ Development environment reset and running."

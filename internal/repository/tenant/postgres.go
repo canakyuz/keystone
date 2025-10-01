@@ -470,6 +470,103 @@ func (r *PostgresRepository) CountByPlan(ctx context.Context, plan tenant.Subscr
 	return count, nil
 }
 
+// SetCustomDomain sets a custom domain for a tenant
+func (r *PostgresRepository) SetCustomDomain(ctx context.Context, tenantID, domain string) error {
+	query := `
+		UPDATE tenants
+		SET custom_domain = $2,
+		    custom_domain_verified = FALSE,
+		    custom_domain_verified_at = NULL,
+		    updated_at = $3
+		WHERE id = $1 AND deleted_at IS NULL
+	`
+
+	result, err := r.db.ExecContext(ctx, query, tenantID, domain, time.Now())
+	if err != nil {
+		return fmt.Errorf("failed to set custom domain: %w", err)
+	}
+
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get rows affected: %w", err)
+	}
+
+	if rows == 0 {
+		return tenant.ErrTenantNotFound
+	}
+
+	return nil
+}
+
+// VerifyCustomDomain marks a tenant's custom domain as verified
+func (r *PostgresRepository) VerifyCustomDomain(ctx context.Context, tenantID string) error {
+	query := `
+		UPDATE tenants
+		SET custom_domain_verified = TRUE,
+		    custom_domain_verified_at = $2,
+		    updated_at = $2
+		WHERE id = $1 AND deleted_at IS NULL
+	`
+
+	now := time.Now()
+	result, err := r.db.ExecContext(ctx, query, tenantID, now)
+	if err != nil {
+		return fmt.Errorf("failed to verify custom domain: %w", err)
+	}
+
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get rows affected: %w", err)
+	}
+
+	if rows == 0 {
+		return tenant.ErrTenantNotFound
+	}
+
+	return nil
+}
+
+// GetStats returns tenant statistics
+func (r *PostgresRepository) GetStats(ctx context.Context) (map[string]interface{}, error) {
+	query := `
+		SELECT
+			COUNT(*) as total,
+			COUNT(*) FILTER (WHERE status = 'active') as active,
+			COUNT(*) FILTER (WHERE status = 'suspended') as suspended,
+			COUNT(*) FILTER (WHERE status = 'trial') as trial,
+			COUNT(*) FILTER (WHERE plan = 'free') as free_plan,
+			COUNT(*) FILTER (WHERE plan = 'starter') as starter_plan,
+			COUNT(*) FILTER (WHERE plan = 'pro') as pro_plan,
+			COUNT(*) FILTER (WHERE plan = 'enterprise') as enterprise_plan
+		FROM tenants
+		WHERE deleted_at IS NULL
+	`
+
+	var total, active, suspended, trial int64
+	var freePlan, starterPlan, proPlan, enterprisePlan int64
+
+	err := r.db.QueryRowContext(ctx, query).Scan(
+		&total, &active, &suspended, &trial,
+		&freePlan, &starterPlan, &proPlan, &enterprisePlan,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get stats: %w", err)
+	}
+
+	stats := map[string]interface{}{
+		"total":      total,
+		"active":     active,
+		"suspended":  suspended,
+		"trial":      trial,
+		"free":       freePlan,
+		"starter":    starterPlan,
+		"pro":        proPlan,
+		"enterprise": enterprisePlan,
+	}
+
+	return stats, nil
+}
+
 // buildWhereClause builds WHERE clause for list queries
 func buildWhereClause(filters ListFilters) (string, []interface{}) {
 	conditions := []string{"deleted_at IS NULL"}

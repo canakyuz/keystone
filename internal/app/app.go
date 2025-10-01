@@ -15,29 +15,32 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/logger"
 	"github.com/gofiber/fiber/v2/middleware/recover"
 
-	"nexspaces-api/internal/config"
-	authHandler "nexspaces-api/internal/handler/auth"
-	bookingHandler "nexspaces-api/internal/handler/booking"
-	serviceHandler "nexspaces-api/internal/handler/service"
-	lessonHandler "nexspaces-api/internal/handler/lesson"
-	tenantHandler "nexspaces-api/internal/handler/tenant"
-	userHandler "nexspaces-api/internal/handler/user"
-	websiteHandler "nexspaces-api/internal/handler/website"
-	bookingRepo "nexspaces-api/internal/repository/booking"
-	serviceRepo "nexspaces-api/internal/repository/service"
-	lessonRepo "nexspaces-api/internal/repository/lesson"
-	tenantRepo "nexspaces-api/internal/repository/tenant"
-	userRepo "nexspaces-api/internal/repository/user"
-	websiteRepo "nexspaces-api/internal/repository/website"
-	bookingUsecase "nexspaces-api/internal/usecase/booking"
-	serviceUsecase "nexspaces-api/internal/usecase/service"
-	lessonUsecase "nexspaces-api/internal/usecase/lesson"
-	tenantUsecase "nexspaces-api/internal/usecase/tenant"
-	userUsecase "nexspaces-api/internal/usecase/user"
-	websiteUsecase "nexspaces-api/internal/usecase/website"
-	"nexspaces-api/pkg/database"
-	pkgLogger "nexspaces-api/pkg/logger"
-	"nexspaces-api/pkg/validator"
+	"nexpaces-api/internal/config"
+	authHandler "nexpaces-api/internal/handler/auth"
+	blogHandler "nexpaces-api/internal/handler/blog"
+	bookingHandler "nexpaces-api/internal/handler/booking"
+	serviceHandler "nexpaces-api/internal/handler/service"
+	lessonHandler "nexpaces-api/internal/handler/lesson"
+	tenantHandler "nexpaces-api/internal/handler/tenant"
+	userHandler "nexpaces-api/internal/handler/user"
+	websiteHandler "nexpaces-api/internal/handler/website"
+	blogRepo "nexpaces-api/internal/repository/blog"
+	bookingRepo "nexpaces-api/internal/repository/booking"
+	serviceRepo "nexpaces-api/internal/repository/service"
+	lessonRepo "nexpaces-api/internal/repository/lesson"
+	tenantRepo "nexpaces-api/internal/repository/tenant"
+	userRepo "nexpaces-api/internal/repository/user"
+	websiteRepo "nexpaces-api/internal/repository/website"
+	blogUsecase "nexpaces-api/internal/usecase/blog"
+	bookingUsecase "nexpaces-api/internal/usecase/booking"
+	serviceUsecase "nexpaces-api/internal/usecase/service"
+	lessonUsecase "nexpaces-api/internal/usecase/lesson"
+	tenantUsecase "nexpaces-api/internal/usecase/tenant"
+	userUsecase "nexpaces-api/internal/usecase/user"
+	websiteUsecase "nexpaces-api/internal/usecase/website"
+	"nexpaces-api/pkg/database"
+	pkgLogger "nexpaces-api/pkg/logger"
+	"nexpaces-api/pkg/validator"
 )
 
 // Application holds the application dependencies
@@ -102,6 +105,10 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 	// Service module repositories
 	serviceRepository := serviceRepo.NewServicePostgresRepository(db)
 
+	// Blog module repositories
+	postRepository := blogRepo.NewPostRepository(db)
+	categoryRepository := blogRepo.NewCategoryRepository(db)
+
 	// Initialize services
 	tenantService := tenantUsecase.NewService(tenantRepository, appValidator, appLogger)
 	userService := userUsecase.NewService(userRepository, appValidator, appLogger, cfg.Auth.JWTSecret)
@@ -118,6 +125,10 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 
 	// Service module services
 	serviceService := serviceUsecase.NewServiceService(serviceRepository, *appLogger)
+
+	// Blog module services
+	postService := blogUsecase.NewPostService(postRepository, *appLogger)
+	categoryService := blogUsecase.NewCategoryService(categoryRepository, *appLogger)
 
 	// Initialize HTTP handlers
 	authHTTPHandler := authHandler.NewHandler(userService)
@@ -137,11 +148,16 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 	// Service module handlers
 	serviceHTTPHandler := serviceHandler.NewServiceHandler(serviceService)
 
+	// Blog module handlers
+	postHTTPHandler := blogHandler.NewPostHandler(postService, *appLogger)
+	categoryHTTPHandler := blogHandler.NewCategoryHandler(categoryService, *appLogger)
+
 	// Setup routes
 	setupRoutes(app, cfg, authHTTPHandler, tenantHTTPHandler, userHTTPHandler, websiteHTTPHandler,
 		studentHTTPHandler, lessonHTTPHandler, assignmentHTTPHandler,
 		availabilityHTTPHandler, appointmentHTTPHandler,
-		serviceHTTPHandler)
+		serviceHTTPHandler,
+		postHTTPHandler, categoryHTTPHandler)
 
 	return &Application{
 		config: cfg,

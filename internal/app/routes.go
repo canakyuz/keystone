@@ -2,15 +2,16 @@ package app
 
 import (
 	"github.com/gofiber/fiber/v2"
-	"nexspaces-api/internal/config"
-	authHandler "nexspaces-api/internal/handler/auth"
-	bookingHandler "nexspaces-api/internal/handler/booking"
-	serviceHandler "nexspaces-api/internal/handler/service"
-	lessonHandler "nexspaces-api/internal/handler/lesson"
-	tenantHandler "nexspaces-api/internal/handler/tenant"
-	userHandler "nexspaces-api/internal/handler/user"
-	websiteHandler "nexspaces-api/internal/handler/website"
-	"nexspaces-api/internal/middleware"
+	"nexpaces-api/internal/config"
+	authHandler "nexpaces-api/internal/handler/auth"
+	blogHandler "nexpaces-api/internal/handler/blog"
+	bookingHandler "nexpaces-api/internal/handler/booking"
+	serviceHandler "nexpaces-api/internal/handler/service"
+	lessonHandler "nexpaces-api/internal/handler/lesson"
+	tenantHandler "nexpaces-api/internal/handler/tenant"
+	userHandler "nexpaces-api/internal/handler/user"
+	websiteHandler "nexpaces-api/internal/handler/website"
+	"nexpaces-api/internal/middleware"
 )
 
 // setupRoutes configures all application routes
@@ -27,6 +28,8 @@ func setupRoutes(
 	availabilityH *bookingHandler.AvailabilityHandler,
 	appointmentH *bookingHandler.AppointmentHandler,
 	serviceH *serviceHandler.ServiceHandler,
+	postH *blogHandler.PostHandler,
+	categoryH *blogHandler.CategoryHandler,
 ) {
 	// Health check
 	app.Get("/health", func(c *fiber.Ctx) error {
@@ -171,4 +174,29 @@ func setupRoutes(
 	services.Put("/:id", serviceH.Update)                // Update service
 	services.Delete("/:id", serviceH.Delete)             // Delete service
 	appointments.Get("/user/:user_id", appointmentH.GetByUser) // Get appointments by user
+
+	// Blog Category routes (tenant-scoped)
+	categories := v1.Group("/blog/categories", middleware.AuthMiddleware(cfg.Auth.JWTSecret))
+	categories.Post("/", categoryH.Create)                  // Create category
+	categories.Get("/slug/:slug", categoryH.GetBySlug)      // Get by slug
+	categories.Get("/:id", categoryH.GetByID)               // Get category by ID
+	categories.Get("/", categoryH.List)                     // List categories
+	categories.Put("/:id", categoryH.Update)                // Update category
+	categories.Delete("/:id", categoryH.Delete)             // Delete category
+
+	// Blog Post routes (tenant-scoped)
+	posts := v1.Group("/blog/posts", middleware.AuthMiddleware(cfg.Auth.JWTSecret))
+	posts.Post("/", postH.Create)                           // Create post
+	posts.Get("/featured", postH.GetFeatured)               // Get featured posts
+	posts.Get("/slug/:slug", postH.GetBySlug)               // Get by slug
+	posts.Get("/tag/:tag", postH.GetByTag)                  // Get by tag
+	posts.Get("/:id", postH.GetByID)                        // Get post by ID
+	posts.Get("/", postH.List)                              // List posts
+	posts.Put("/:id", postH.Update)                         // Update post
+	posts.Post("/:id/publish", postH.Publish)               // Publish post
+	posts.Post("/:id/archive", postH.Archive)               // Archive post
+	posts.Delete("/:id", postH.Delete)                      // Delete post
+
+	// Category-specific post routes
+	categories.Get("/:category_id/posts", postH.GetByCategoryID) // Get posts by category
 }

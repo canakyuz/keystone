@@ -1,0 +1,95 @@
+package auth
+
+import (
+	"github.com/gofiber/fiber/v2"
+	"nexspaces-api/internal/middleware"
+	"nexspaces-api/internal/usecase/user"
+)
+
+// Handler handles authentication HTTP requests
+type Handler struct {
+	userService *user.Service
+}
+
+// NewHandler creates a new auth handler
+func NewHandler(userService *user.Service) *Handler {
+	return &Handler{
+		userService: userService,
+	}
+}
+
+// Register handles user registration
+// POST /api/v1/auth/register
+func (h *Handler) Register(c *fiber.Ctx) error {
+	var req user.RegisterRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid request body",
+		})
+	}
+
+	result, err := h.userService.Register(c.Context(), &req)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": err.Error(),
+		})
+	}
+
+	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
+		"data": result,
+	})
+}
+
+// Login handles user login
+// POST /api/v1/auth/login
+func (h *Handler) Login(c *fiber.Ctx) error {
+	var req user.LoginRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid request body",
+		})
+	}
+
+	result, err := h.userService.Login(c.Context(), &req)
+	if err != nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": err.Error(),
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"data": result,
+	})
+}
+
+// GetMe returns current authenticated user
+// GET /api/v1/auth/me
+func (h *Handler) GetMe(c *fiber.Ctx) error {
+	tenantID := middleware.GetTenantID(c)
+	userID := middleware.GetUserID(c)
+
+	if tenantID == "" || userID == "" {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "Unauthorized",
+		})
+	}
+
+	result, err := h.userService.GetByID(c.Context(), tenantID, userID)
+	if err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			"error": err.Error(),
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"data": result,
+	})
+}
+
+// Logout handles user logout (client-side token removal)
+// POST /api/v1/auth/logout
+func (h *Handler) Logout(c *fiber.Ctx) error {
+	return c.JSON(fiber.Map{
+		"message": "Logged out successfully",
+	})
+}

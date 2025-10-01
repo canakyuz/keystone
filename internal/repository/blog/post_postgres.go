@@ -3,6 +3,7 @@ package blog
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"time"
 
 	"github.com/lib/pq"
@@ -45,21 +46,21 @@ func (r *PostPostgresRepository) GetBySlug(ctx context.Context, slug string) (*b
 
 func (r *PostPostgresRepository) List(ctx context.Context, filters blog.PostListFilters) ([]*blog.Post, int64, error) {
 	query := `SELECT id, tenant_id, category_id, title, slug, content, excerpt, status, featured, view_count, image, tags, published_at, metadata, created_at, updated_at, created_by, updated_by FROM blog_posts WHERE deleted_at IS NULL`
-	args := []interface{}{}
+	var args []interface{}
 	argPos := 1
 
 	if filters.Status != nil {
-		query += ` AND status = $` + string(rune(argPos))
+		query += fmt.Sprintf(" AND status = $%d", argPos)
 		args = append(args, *filters.Status)
 		argPos++
 	}
 	if filters.CategoryID != nil {
-		query += ` AND category_id = $` + string(rune(argPos))
+		query += fmt.Sprintf(" AND category_id = $%d", argPos)
 		args = append(args, *filters.CategoryID)
 		argPos++
 	}
 	if filters.Featured != nil {
-		query += ` AND featured = $` + string(rune(argPos))
+		query += fmt.Sprintf(" AND featured = $%d", argPos)
 		args = append(args, *filters.Featured)
 		argPos++
 	}
@@ -70,7 +71,8 @@ func (r *PostPostgresRepository) List(ctx context.Context, filters blog.PostList
 		return nil, 0, err
 	}
 
-	query += ` ORDER BY created_at DESC LIMIT ` + string(rune(filters.Limit)) + ` OFFSET ` + string(rune(filters.Offset))
+	query += fmt.Sprintf(" ORDER BY created_at DESC LIMIT $%d OFFSET $%d", argPos, argPos+1)
+	args = append(args, filters.Limit, filters.Offset)
 
 	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {

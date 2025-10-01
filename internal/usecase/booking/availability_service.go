@@ -6,8 +6,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"nexspaces-api/internal/domain/booking"
-	"nexspaces-api/pkg/logger"
+	"nexpaces-api/internal/domain/booking"
+	"nexpaces-api/pkg/logger"
 )
 
 type AvailabilityService struct {

@@ -4,8 +4,8 @@ import (
 	"strconv"
 
 	"github.com/gofiber/fiber/v2"
-	"nexspaces-api/internal/domain/booking"
-	bookingUsecase "nexspaces-api/internal/usecase/booking"
+	"nexpaces-api/internal/domain/booking"
+	bookingUsecase "nexpaces-api/internal/usecase/booking"
 )
 
 type AvailabilityHandler struct {

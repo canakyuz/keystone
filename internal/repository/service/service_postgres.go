@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/lib/pq"
-	"nexspaces-api/internal/domain/service"
+	"nexpaces-api/internal/domain/service"
 )
 
 type ServicePostgresRepository struct {

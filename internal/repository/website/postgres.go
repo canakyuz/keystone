@@ -8,7 +8,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/lib/pq"
-	"nexspaces-api/internal/domain/website"
+	"nexpaces-api/internal/domain/website"
 )
 
 type postgresRepo struct {

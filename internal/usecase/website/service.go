@@ -6,8 +6,8 @@ import (
 
 	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
-	"nexspaces-api/internal/domain/website"
-	websiteRepo "nexspaces-api/internal/repository/website"
+	"nexpaces-api/internal/domain/website"
+	websiteRepo "nexpaces-api/internal/repository/website"
 )
 
 // Service handles website business logic

@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 
-	"nexspaces-api/internal/domain/tenant"
-	tenantRepo "nexspaces-api/internal/repository/tenant"
-	"nexspaces-api/pkg/logger"
-	"nexspaces-api/pkg/validator"
+	"nexpaces-api/internal/domain/tenant"
+	tenantRepo "nexpaces-api/internal/repository/tenant"
+	"nexpaces-api/pkg/logger"
+	"nexpaces-api/pkg/validator"
 )
 
 // Service handles tenant business logic

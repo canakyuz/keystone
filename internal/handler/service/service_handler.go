@@ -4,8 +4,8 @@ import (
 	"strconv"
 
 	"github.com/gofiber/fiber/v2"
-	"nexspaces-api/internal/domain/service"
-	serviceUsecase "nexspaces-api/internal/usecase/service"
+	"nexpaces-api/internal/domain/service"
+	serviceUsecase "nexpaces-api/internal/usecase/service"
 )
 
 type ServiceHandler struct {

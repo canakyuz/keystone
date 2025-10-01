@@ -4,8 +4,8 @@ import (
 	"log"
 
 	"github.com/joho/godotenv"
-	"nexspaces-api/internal/app"
-	"nexspaces-api/internal/config"
+	"nexpaces-api/internal/app"
+	"nexpaces-api/internal/config"
 )
 
 func main() {

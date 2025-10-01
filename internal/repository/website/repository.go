@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/google/uuid"
-	"nexspaces-api/internal/domain/website"
+	"nexpaces-api/internal/domain/website"
 )
 
 // Repository defines the interface for website data access

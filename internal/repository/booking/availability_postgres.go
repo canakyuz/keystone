@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/lib/pq"
-	"nexspaces-api/internal/domain/booking"
+	"nexpaces-api/internal/domain/booking"
 )
 
 type AvailabilityPostgresRepository struct {

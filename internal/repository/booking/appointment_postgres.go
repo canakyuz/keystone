@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"nexspaces-api/internal/domain/booking"
+	"nexpaces-api/internal/domain/booking"
 )
 
 type AppointmentPostgresRepository struct {

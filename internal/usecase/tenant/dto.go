@@ -3,7 +3,7 @@ package tenant
 import (
 	"time"
 
-	"nexspaces-api/internal/domain/tenant"
+	"nexpaces-api/internal/domain/tenant"
 )
 
 // CreateTenantRequest represents request to create a tenant

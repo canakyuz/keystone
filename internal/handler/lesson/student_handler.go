@@ -4,8 +4,8 @@ import (
 	"strconv"
 
 	"github.com/gofiber/fiber/v2"
-	"nexspaces-api/internal/domain/lesson"
-	lessonUsecase "nexspaces-api/internal/usecase/lesson"
+	"nexpaces-api/internal/domain/lesson"
+	lessonUsecase "nexpaces-api/internal/usecase/lesson"
 )
 
 type StudentHandler struct {

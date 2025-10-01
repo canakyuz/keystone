@@ -4,8 +4,8 @@ import (
 	"strconv"
 
 	"github.com/gofiber/fiber/v2"
-	"nexspaces-api/internal/middleware"
-	"nexspaces-api/internal/usecase/tenant"
+	"nexpaces-api/internal/middleware"
+	"nexpaces-api/internal/usecase/tenant"
 )
 
 // Handler handles tenant HTTP requests

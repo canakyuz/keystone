@@ -6,8 +6,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"nexspaces-api/internal/domain/service"
-	"nexspaces-api/pkg/logger"
+	"nexpaces-api/internal/domain/service"
+	"nexpaces-api/pkg/logger"
 )
 
 type ServiceService struct {

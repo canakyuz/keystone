@@ -6,8 +6,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"nexspaces-api/internal/domain/lesson"
-	"nexspaces-api/pkg/logger"
+	"nexpaces-api/internal/domain/lesson"
+	"nexpaces-api/pkg/logger"
 )
 
 type LessonService struct {

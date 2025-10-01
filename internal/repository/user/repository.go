@@ -3,7 +3,7 @@ package user
 import (
 	"context"
 
-	"nexspaces-api/internal/domain/user"
+	"nexpaces-api/internal/domain/user"
 )
 
 // Repository defines the interface for user data operations

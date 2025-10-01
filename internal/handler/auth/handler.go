@@ -2,8 +2,8 @@ package auth
 
 import (
 	"github.com/gofiber/fiber/v2"
-	"nexspaces-api/internal/middleware"
-	"nexspaces-api/internal/usecase/user"
+	"nexpaces-api/internal/middleware"
+	"nexpaces-api/internal/usecase/user"
 )
 
 // Handler handles authentication HTTP requests

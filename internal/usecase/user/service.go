@@ -6,10 +6,10 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
-	"nexspaces-api/internal/domain/user"
-	userRepo "nexspaces-api/internal/repository/user"
-	"nexspaces-api/pkg/logger"
-	"nexspaces-api/pkg/validator"
+	"nexpaces-api/internal/domain/user"
+	userRepo "nexpaces-api/internal/repository/user"
+	"nexpaces-api/pkg/logger"
+	"nexpaces-api/pkg/validator"
 )
 
 // Service handles user business logic

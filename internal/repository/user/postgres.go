@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"nexspaces-api/internal/domain/user"
+	"nexpaces-api/internal/domain/user"
 )
 
 // PostgresRepository implements Repository using PostgreSQL

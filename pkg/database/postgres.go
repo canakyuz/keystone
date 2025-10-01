@@ -7,7 +7,7 @@ import (
 	"time"
 
 	_ "github.com/lib/pq"
-	"nexspaces-api/internal/config"
+	"nexpaces-api/internal/config"
 )
 
 // DB wraps sql.DB with additional functionality

@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"nexspaces-api/internal/domain/project"
-	"nexspaces-api/pkg/logger"
-	"nexspaces-api/pkg/validator"
+	"nexpaces-api/internal/domain/project"
+	"nexpaces-api/pkg/logger"
+	"nexpaces-api/pkg/validator"
 )
 
 // Service implements project business logic

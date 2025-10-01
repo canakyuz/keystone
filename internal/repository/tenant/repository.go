@@ -3,7 +3,7 @@ package tenant
 import (
 	"context"
 
-	"nexspaces-api/internal/domain/tenant"
+	"nexpaces-api/internal/domain/tenant"
 )
 
 // Repository defines the interface for tenant data operations

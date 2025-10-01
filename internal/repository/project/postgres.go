@@ -10,7 +10,7 @@ import (
 
 	"github.com/lib/pq"
 
-	"nexspaces-api/internal/domain/project"
+	"nexpaces-api/internal/domain/project"
 )
 
 // PostgresRepository implements Repository using PostgreSQL

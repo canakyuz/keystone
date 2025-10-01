@@ -5,8 +5,8 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
-	"nexspaces-api/internal/domain/website"
-	websiteUsecase "nexspaces-api/internal/usecase/website"
+	"nexpaces-api/internal/domain/website"
+	websiteUsecase "nexpaces-api/internal/usecase/website"
 )
 
 // Handler handles HTTP requests for websites

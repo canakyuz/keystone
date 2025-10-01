@@ -388,7 +388,7 @@ CREATE POLICY tenant_isolation ON users
 ### Build Production Image
 
 ```bash
-docker build -f docker/Dockerfile -t nexspaces-api:latest .
+docker build -f docker/Dockerfile -t nexpaces-api:latest .
 ```
 
 ### Multi-Stage Build Benefits

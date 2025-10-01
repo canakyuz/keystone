@@ -1,4 +1,4 @@
-module nexspaces-api
+module nexpaces-api
 
 go 1.21
 

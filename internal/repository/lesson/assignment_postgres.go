@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/lib/pq"
-	"nexspaces-api/internal/domain/lesson"
+	"nexpaces-api/internal/domain/lesson"
 )
 
 type AssignmentPostgresRepository struct {

@@ -5,7 +5,7 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
-	"nexspaces-api/pkg/logger"
+	"nexpaces-api/pkg/logger"
 )
 
 // Logger creates a request logging middleware

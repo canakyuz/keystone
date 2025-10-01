@@ -3,7 +3,7 @@ package user
 import (
 	"time"
 
-	"nexspaces-api/internal/domain/user"
+	"nexpaces-api/internal/domain/user"
 )
 
 // RegisterRequest represents user registration request

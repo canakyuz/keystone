@@ -8,8 +8,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"nexspaces-api/internal/domain/user"
-	"nexspaces-api/test/helpers"
+	"nexpaces-api/internal/domain/user"
+	"nexpaces-api/test/helpers"
 )
 
 func TestPostgresRepository_Create(t *testing.T) {

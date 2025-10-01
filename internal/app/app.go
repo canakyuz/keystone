@@ -17,12 +17,15 @@ import (
 
 	"nexspaces-api/internal/config"
 	authHandler "nexspaces-api/internal/handler/auth"
+	lessonHandler "nexspaces-api/internal/handler/lesson"
 	tenantHandler "nexspaces-api/internal/handler/tenant"
 	userHandler "nexspaces-api/internal/handler/user"
 	websiteHandler "nexspaces-api/internal/handler/website"
+	lessonRepo "nexspaces-api/internal/repository/lesson"
 	tenantRepo "nexspaces-api/internal/repository/tenant"
 	userRepo "nexspaces-api/internal/repository/user"
 	websiteRepo "nexspaces-api/internal/repository/website"
+	lessonUsecase "nexspaces-api/internal/usecase/lesson"
 	tenantUsecase "nexspaces-api/internal/usecase/tenant"
 	userUsecase "nexspaces-api/internal/usecase/user"
 	websiteUsecase "nexspaces-api/internal/usecase/website"
@@ -81,10 +84,20 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 	userRepository := userRepo.NewPostgresRepository(db)
 	websiteRepository := websiteRepo.NewPostgresRepository(db)
 
+	// Lesson module repositories
+	studentRepository := lessonRepo.NewStudentPostgresRepository(db)
+	lessonRepository := lessonRepo.NewLessonPostgresRepository(db)
+	assignmentRepository := lessonRepo.NewAssignmentPostgresRepository(db)
+
 	// Initialize services
 	tenantService := tenantUsecase.NewService(tenantRepository, appValidator, appLogger)
 	userService := userUsecase.NewService(userRepository, appValidator, appLogger, cfg.Auth.JWTSecret)
 	websiteService := websiteUsecase.NewService(websiteRepository)
+
+	// Lesson module services
+	studentService := lessonUsecase.NewStudentService(studentRepository, *appLogger)
+	lessonService := lessonUsecase.NewLessonService(lessonRepository, *appLogger)
+	assignmentService := lessonUsecase.NewAssignmentService(assignmentRepository, *appLogger)
 
 	// Initialize HTTP handlers
 	authHTTPHandler := authHandler.NewHandler(userService)
@@ -92,8 +105,14 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 	userHTTPHandler := userHandler.NewHandler(userService)
 	websiteHTTPHandler := websiteHandler.NewHandler(websiteService)
 
+	// Lesson module handlers
+	studentHTTPHandler := lessonHandler.NewStudentHandler(studentService)
+	lessonHTTPHandler := lessonHandler.NewLessonHandler(lessonService)
+	assignmentHTTPHandler := lessonHandler.NewAssignmentHandler(assignmentService)
+
 	// Setup routes
-	setupRoutes(app, cfg, authHTTPHandler, tenantHTTPHandler, userHTTPHandler, websiteHTTPHandler)
+	setupRoutes(app, cfg, authHTTPHandler, tenantHTTPHandler, userHTTPHandler, websiteHTTPHandler,
+		studentHTTPHandler, lessonHTTPHandler, assignmentHTTPHandler)
 
 	return &Application{
 		config: cfg,

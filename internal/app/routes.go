@@ -4,6 +4,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"nexspaces-api/internal/config"
 	authHandler "nexspaces-api/internal/handler/auth"
+	lessonHandler "nexspaces-api/internal/handler/lesson"
 	tenantHandler "nexspaces-api/internal/handler/tenant"
 	userHandler "nexspaces-api/internal/handler/user"
 	websiteHandler "nexspaces-api/internal/handler/website"
@@ -18,6 +19,9 @@ func setupRoutes(
 	tenantH *tenantHandler.Handler,
 	userH *userHandler.Handler,
 	websiteH *websiteHandler.Handler,
+	studentH *lessonHandler.StudentHandler,
+	lessonH *lessonHandler.LessonHandler,
+	assignmentH *lessonHandler.AssignmentHandler,
 ) {
 	// Health check
 	app.Get("/health", func(c *fiber.Ctx) error {
@@ -84,4 +88,40 @@ func setupRoutes(
 	websites.Delete("/:id", websiteH.Delete)
 	websites.Post("/:id/publish", websiteH.Publish)
 	websites.Post("/:id/archive", websiteH.Archive)
+
+	// Student routes (Lessons module - tenant-scoped)
+	students := v1.Group("/students", middleware.AuthMiddleware(cfg.Auth.JWTSecret))
+	students.Post("/", studentH.Create)                      // Create student
+	students.Get("/stats", studentH.GetStats)                // Student statistics
+	students.Get("/email", studentH.GetByEmail)              // Get by email
+	students.Get("/:id", studentH.GetByID)                   // Get student by ID
+	students.Get("/", studentH.List)                         // List students
+	students.Put("/:id", studentH.Update)                    // Update student
+	students.Delete("/:id", studentH.Delete)                 // Delete student
+
+	// Lesson routes (Lessons module - tenant-scoped)
+	lessons := v1.Group("/lessons", middleware.AuthMiddleware(cfg.Auth.JWTSecret))
+	lessons.Post("/", lessonH.Create)                        // Create lesson
+	lessons.Get("/stats", lessonH.GetStats)                  // Lesson statistics
+	lessons.Get("/upcoming", lessonH.GetUpcoming)            // Get upcoming lessons
+	lessons.Get("/:id", lessonH.GetByID)                     // Get lesson by ID
+	lessons.Get("/", lessonH.List)                           // List lessons
+	lessons.Put("/:id", lessonH.Update)                      // Update lesson
+	lessons.Delete("/:id", lessonH.Delete)                   // Delete lesson
+
+	// Student-specific lesson routes
+	students.Get("/:student_id/lessons", lessonH.GetByStudent) // Get lessons by student
+
+	// Assignment routes (Lessons module - tenant-scoped)
+	assignments := v1.Group("/assignments", middleware.AuthMiddleware(cfg.Auth.JWTSecret))
+	assignments.Post("/", assignmentH.Create)                // Create assignment
+	assignments.Get("/stats", assignmentH.GetStats)          // Assignment statistics
+	assignments.Get("/overdue", assignmentH.GetOverdue)      // Get overdue assignments
+	assignments.Get("/:id", assignmentH.GetByID)             // Get assignment by ID
+	assignments.Get("/", assignmentH.List)                   // List assignments
+	assignments.Put("/:id", assignmentH.Update)              // Update assignment
+	assignments.Delete("/:id", assignmentH.Delete)           // Delete assignment
+
+	// Student-specific assignment routes
+	students.Get("/:student_id/assignments", assignmentH.GetByStudent) // Get assignments by student
 }

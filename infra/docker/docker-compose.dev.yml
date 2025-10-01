@@ -1,9 +1,0 @@
-services:
-  api:
-    build:
-      context: ../..
-      dockerfile: infra/docker/Dockerfile.dev
-    volumes:
-      - ../..:/app
-      - /app/tmp
-    command: ["air", "-c", ".air.toml"]

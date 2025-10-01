@@ -1,4 +1,52 @@
-.idea
-.env
+# Binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+bin/
+dist/
 
-*.DS_Store
+# Test binary
+*.test
+
+# Coverage
+*.out
+coverage.html
+
+# Dependencies
+vendor/
+
+# Go workspace
+go.work
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Temp
+tmp/
+temp/
+
+# Database
+*.db
+*.sqlite
+
+# Docker
+docker-compose.override.yml

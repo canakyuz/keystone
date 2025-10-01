@@ -5,6 +5,7 @@ import (
 	"nexspaces-api/internal/config"
 	authHandler "nexspaces-api/internal/handler/auth"
 	bookingHandler "nexspaces-api/internal/handler/booking"
+	serviceHandler "nexspaces-api/internal/handler/service"
 	lessonHandler "nexspaces-api/internal/handler/lesson"
 	tenantHandler "nexspaces-api/internal/handler/tenant"
 	userHandler "nexspaces-api/internal/handler/user"
@@ -25,6 +26,7 @@ func setupRoutes(
 	assignmentH *lessonHandler.AssignmentHandler,
 	availabilityH *bookingHandler.AvailabilityHandler,
 	appointmentH *bookingHandler.AppointmentHandler,
+	serviceH *serviceHandler.ServiceHandler,
 ) {
 	// Health check
 	app.Get("/health", func(c *fiber.Ctx) error {
@@ -157,5 +159,16 @@ func setupRoutes(
 	appointments.Delete("/:id", appointmentH.Delete)              // Delete appointment
 
 	// User-specific appointment routes
+
+	// Service routes (tenant-scoped)
+	services := v1.Group("/services", middleware.AuthMiddleware(cfg.Auth.JWTSecret))
+	services.Post("/", serviceH.Create)                  // Create service
+	services.Get("/stats", serviceH.GetStats)            // Service statistics
+	services.Get("/featured", serviceH.GetFeatured)      // Get featured services
+	services.Get("/slug/:slug", serviceH.GetBySlug)      // Get by slug
+	services.Get("/:id", serviceH.GetByID)               // Get service by ID
+	services.Get("/", serviceH.List)                     // List services
+	services.Put("/:id", serviceH.Update)                // Update service
+	services.Delete("/:id", serviceH.Delete)             // Delete service
 	appointments.Get("/user/:user_id", appointmentH.GetByUser) // Get appointments by user
 }

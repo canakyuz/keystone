@@ -18,16 +18,19 @@ import (
 	"nexspaces-api/internal/config"
 	authHandler "nexspaces-api/internal/handler/auth"
 	bookingHandler "nexspaces-api/internal/handler/booking"
+	serviceHandler "nexspaces-api/internal/handler/service"
 	lessonHandler "nexspaces-api/internal/handler/lesson"
 	tenantHandler "nexspaces-api/internal/handler/tenant"
 	userHandler "nexspaces-api/internal/handler/user"
 	websiteHandler "nexspaces-api/internal/handler/website"
 	bookingRepo "nexspaces-api/internal/repository/booking"
+	serviceRepo "nexspaces-api/internal/repository/service"
 	lessonRepo "nexspaces-api/internal/repository/lesson"
 	tenantRepo "nexspaces-api/internal/repository/tenant"
 	userRepo "nexspaces-api/internal/repository/user"
 	websiteRepo "nexspaces-api/internal/repository/website"
 	bookingUsecase "nexspaces-api/internal/usecase/booking"
+	serviceUsecase "nexspaces-api/internal/usecase/service"
 	lessonUsecase "nexspaces-api/internal/usecase/lesson"
 	tenantUsecase "nexspaces-api/internal/usecase/tenant"
 	userUsecase "nexspaces-api/internal/usecase/user"
@@ -96,6 +99,9 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 	availabilityRepository := bookingRepo.NewAvailabilityPostgresRepository(db)
 	appointmentRepository := bookingRepo.NewAppointmentPostgresRepository(db)
 
+	// Service module repositories
+	serviceRepository := serviceRepo.NewServicePostgresRepository(db)
+
 	// Initialize services
 	tenantService := tenantUsecase.NewService(tenantRepository, appValidator, appLogger)
 	userService := userUsecase.NewService(userRepository, appValidator, appLogger, cfg.Auth.JWTSecret)
@@ -109,6 +115,9 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 	// Booking module services
 	availabilityService := bookingUsecase.NewAvailabilityService(availabilityRepository, *appLogger)
 	appointmentService := bookingUsecase.NewAppointmentService(appointmentRepository, *appLogger)
+
+	// Service module services
+	serviceService := serviceUsecase.NewServiceService(serviceRepository, *appLogger)
 
 	// Initialize HTTP handlers
 	authHTTPHandler := authHandler.NewHandler(userService)
@@ -125,10 +134,14 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 	availabilityHTTPHandler := bookingHandler.NewAvailabilityHandler(availabilityService)
 	appointmentHTTPHandler := bookingHandler.NewAppointmentHandler(appointmentService)
 
+	// Service module handlers
+	serviceHTTPHandler := serviceHandler.NewServiceHandler(serviceService)
+
 	// Setup routes
 	setupRoutes(app, cfg, authHTTPHandler, tenantHTTPHandler, userHTTPHandler, websiteHTTPHandler,
 		studentHTTPHandler, lessonHTTPHandler, assignmentHTTPHandler,
-		availabilityHTTPHandler, appointmentHTTPHandler)
+		availabilityHTTPHandler, appointmentHTTPHandler,
+		serviceHTTPHandler)
 
 	return &Application{
 		config: cfg,

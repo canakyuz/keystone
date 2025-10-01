@@ -4,6 +4,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"nexspaces-api/internal/config"
 	authHandler "nexspaces-api/internal/handler/auth"
+	bookingHandler "nexspaces-api/internal/handler/booking"
 	lessonHandler "nexspaces-api/internal/handler/lesson"
 	tenantHandler "nexspaces-api/internal/handler/tenant"
 	userHandler "nexspaces-api/internal/handler/user"
@@ -22,6 +23,8 @@ func setupRoutes(
 	studentH *lessonHandler.StudentHandler,
 	lessonH *lessonHandler.LessonHandler,
 	assignmentH *lessonHandler.AssignmentHandler,
+	availabilityH *bookingHandler.AvailabilityHandler,
+	appointmentH *bookingHandler.AppointmentHandler,
 ) {
 	// Health check
 	app.Get("/health", func(c *fiber.Ctx) error {
@@ -124,4 +127,35 @@ func setupRoutes(
 
 	// Student-specific assignment routes
 	students.Get("/:student_id/assignments", assignmentH.GetByStudent) // Get assignments by student
+
+	// Availability routes (Booking module - tenant-scoped)
+	availabilities := v1.Group("/availabilities", middleware.AuthMiddleware(cfg.Auth.JWTSecret))
+	availabilities.Post("/", availabilityH.Create)                  // Create availability
+	availabilities.Get("/stats", availabilityH.GetStats)            // Availability statistics
+	availabilities.Get("/date-range", availabilityH.GetByDateRange) // Get by date range
+	availabilities.Get("/:id", availabilityH.GetByID)               // Get availability by ID
+	availabilities.Get("/", availabilityH.List)                     // List availabilities
+	availabilities.Put("/:id", availabilityH.Update)                // Update availability
+	availabilities.Delete("/:id", availabilityH.Delete)             // Delete availability
+
+	// User-specific availability routes
+	availabilities.Get("/user/:user_id", availabilityH.GetByUser) // Get availabilities by user
+
+	// Appointment routes (Booking module - tenant-scoped)
+	appointments := v1.Group("/appointments", middleware.AuthMiddleware(cfg.Auth.JWTSecret))
+	appointments.Post("/", appointmentH.Create)                   // Create appointment
+	appointments.Get("/stats", appointmentH.GetStats)             // Appointment statistics
+	appointments.Get("/upcoming", appointmentH.GetUpcoming)       // Get upcoming appointments
+	appointments.Get("/date-range", appointmentH.GetByDateRange)  // Get by date range
+	appointments.Get("/client", appointmentH.GetByClient)         // Get by client email
+	appointments.Get("/:id", appointmentH.GetByID)                // Get appointment by ID
+	appointments.Get("/", appointmentH.List)                      // List appointments
+	appointments.Put("/:id", appointmentH.Update)                 // Update appointment
+	appointments.Post("/:id/confirm", appointmentH.Confirm)       // Confirm appointment
+	appointments.Post("/:id/cancel", appointmentH.Cancel)         // Cancel appointment
+	appointments.Post("/:id/complete", appointmentH.Complete)     // Complete appointment
+	appointments.Delete("/:id", appointmentH.Delete)              // Delete appointment
+
+	// User-specific appointment routes
+	appointments.Get("/user/:user_id", appointmentH.GetByUser) // Get appointments by user
 }

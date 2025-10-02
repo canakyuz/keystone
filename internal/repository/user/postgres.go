@@ -25,7 +25,7 @@ func NewPostgresRepository(db *sql.DB) *PostgresRepository {
 func (r *PostgresRepository) Create(ctx context.Context, u *user.User) error {
 	query := `
 		INSERT INTO users (
-			id, tenant_id, email, password, first_name, last_name, role, status,
+			id, tenant_id, email, password_hash, first_name, last_name, role, status,
 			email_verified, email_verified_at, last_login_at,
 			avatar, phone, timezone, locale,
 			two_factor_enabled, password_changed_at,
@@ -51,13 +51,21 @@ func (r *PostgresRepository) Create(ctx context.Context, u *user.User) error {
 		return fmt.Errorf("failed to marshal metadata: %w", err)
 	}
 
+	var createdBy, updatedBy interface{}
+	if u.CreatedBy != "" {
+		createdBy = u.CreatedBy
+	}
+	if u.UpdatedBy != "" {
+		updatedBy = u.UpdatedBy
+	}
+
 	_, err = r.db.ExecContext(ctx, query,
 		u.ID, u.TenantID, u.Email, u.Password, u.FirstName, u.LastName, u.Role, u.Status,
 		u.EmailVerified, u.EmailVerifiedAt, u.LastLoginAt,
 		u.Avatar, u.Phone, u.Timezone, u.Locale,
 		u.TwoFactorEnabled, u.PasswordChangedAt,
 		preferencesJSON, metadataJSON,
-		u.CreatedAt, u.UpdatedAt, u.CreatedBy, u.UpdatedBy,
+		u.CreatedAt, u.UpdatedAt, createdBy, updatedBy,
 	)
 
 	if err != nil {
@@ -71,14 +79,14 @@ func (r *PostgresRepository) Create(ctx context.Context, u *user.User) error {
 func (r *PostgresRepository) GetByID(ctx context.Context, tenantID, userID string) (*user.User, error) {
 	query := `
 		SELECT
-			id, tenant_id, email, password, first_name, last_name, role, status,
+			id, tenant_id, email, password_hash, first_name, last_name, role, status,
 			email_verified, email_verified_at, last_login_at,
 			avatar, phone, timezone, locale,
 			two_factor_enabled, password_changed_at,
 			preferences, metadata,
 			created_at, updated_at, created_by, updated_by
 		FROM users
-		WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL
+		WHERE id = $1 AND tenant_id = $2
 	`
 
 	return r.scanUser(r.db.QueryRowContext(ctx, query, userID, tenantID))
@@ -88,14 +96,14 @@ func (r *PostgresRepository) GetByID(ctx context.Context, tenantID, userID strin
 func (r *PostgresRepository) GetByEmail(ctx context.Context, tenantID, email string) (*user.User, error) {
 	query := `
 		SELECT
-			id, tenant_id, email, password, first_name, last_name, role, status,
+			id, tenant_id, email, password_hash, first_name, last_name, role, status,
 			email_verified, email_verified_at, last_login_at,
 			avatar, phone, timezone, locale,
 			two_factor_enabled, password_changed_at,
 			preferences, metadata,
 			created_at, updated_at, created_by, updated_by
 		FROM users
-		WHERE email = $1 AND tenant_id = $2 AND deleted_at IS NULL
+		WHERE email = $1 AND tenant_id = $2
 	`
 
 	return r.scanUser(r.db.QueryRowContext(ctx, query, email, tenantID))
@@ -105,14 +113,14 @@ func (r *PostgresRepository) GetByEmail(ctx context.Context, tenantID, email str
 func (r *PostgresRepository) GetByEmailGlobal(ctx context.Context, email string) (*user.User, error) {
 	query := `
 		SELECT
-			id, tenant_id, email, password, first_name, last_name, role, status,
+			id, tenant_id, email, password_hash, first_name, last_name, role, status,
 			email_verified, email_verified_at, last_login_at,
 			avatar, phone, timezone, locale,
 			two_factor_enabled, password_changed_at,
 			preferences, metadata,
 			created_at, updated_at, created_by, updated_by
 		FROM users
-		WHERE email = $1 AND deleted_at IS NULL
+		WHERE email = $1
 		LIMIT 1
 	`
 
@@ -144,7 +152,7 @@ func (r *PostgresRepository) List(ctx context.Context, tenantID string, filters 
 
 	query := fmt.Sprintf(`
 		SELECT
-			id, tenant_id, email, password, first_name, last_name, role, status,
+			id, tenant_id, email, password_hash, first_name, last_name, role, status,
 			email_verified, email_verified_at, last_login_at,
 			avatar, phone, timezone, locale,
 			two_factor_enabled, password_changed_at,
@@ -199,7 +207,7 @@ func (r *PostgresRepository) Update(ctx context.Context, u *user.User) error {
 			metadata = $19,
 			updated_at = $20,
 			updated_by = $21
-		WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL
+		WHERE id = $1 AND tenant_id = $2
 	`
 
 	preferencesJSON, err := json.Marshal(u.Preferences)
@@ -244,8 +252,8 @@ func (r *PostgresRepository) Update(ctx context.Context, u *user.User) error {
 func (r *PostgresRepository) Delete(ctx context.Context, tenantID, userID string) error {
 	query := `
 		UPDATE users
-		SET deleted_at = $3
-		WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL
+		SET status = 'inactive'
+		WHERE id = $1 AND tenant_id = $2
 	`
 
 	result, err := r.db.ExecContext(ctx, query, userID, tenantID, time.Now())
@@ -267,7 +275,7 @@ func (r *PostgresRepository) Delete(ctx context.Context, tenantID, userID string
 
 // ExistsByEmail checks if a user with the given email exists in tenant
 func (r *PostgresRepository) ExistsByEmail(ctx context.Context, tenantID, email string) (bool, error) {
-	query := `SELECT EXISTS(SELECT 1 FROM users WHERE email = $1 AND tenant_id = $2 AND deleted_at IS NULL)`
+	query := `SELECT EXISTS(SELECT 1 FROM users WHERE email = $1 AND tenant_id = $2)`
 
 	var exists bool
 	err := r.db.QueryRowContext(ctx, query, email, tenantID).Scan(&exists)
@@ -280,7 +288,7 @@ func (r *PostgresRepository) ExistsByEmail(ctx context.Context, tenantID, email 
 
 // CountByTenant counts users in a tenant
 func (r *PostgresRepository) CountByTenant(ctx context.Context, tenantID string) (int64, error) {
-	query := `SELECT COUNT(*) FROM users WHERE tenant_id = $1 AND deleted_at IS NULL`
+	query := `SELECT COUNT(*) FROM users WHERE tenant_id = $1`
 
 	var count int64
 	err := r.db.QueryRowContext(ctx, query, tenantID).Scan(&count)
@@ -293,7 +301,7 @@ func (r *PostgresRepository) CountByTenant(ctx context.Context, tenantID string)
 
 // CountByRole counts users by role in a tenant
 func (r *PostgresRepository) CountByRole(ctx context.Context, tenantID string, role user.UserRole) (int64, error) {
-	query := `SELECT COUNT(*) FROM users WHERE tenant_id = $1 AND role = $2 AND deleted_at IS NULL`
+	query := `SELECT COUNT(*) FROM users WHERE tenant_id = $1 AND role = $2`
 
 	var count int64
 	err := r.db.QueryRowContext(ctx, query, tenantID, role).Scan(&count)
@@ -306,7 +314,7 @@ func (r *PostgresRepository) CountByRole(ctx context.Context, tenantID string, r
 
 // CountByStatus counts users by status in a tenant
 func (r *PostgresRepository) CountByStatus(ctx context.Context, tenantID string, status user.UserStatus) (int64, error) {
-	query := `SELECT COUNT(*) FROM users WHERE tenant_id = $1 AND status = $2 AND deleted_at IS NULL`
+	query := `SELECT COUNT(*) FROM users WHERE tenant_id = $1 AND status = $2`
 
 	var count int64
 	err := r.db.QueryRowContext(ctx, query, tenantID, status).Scan(&count)
@@ -322,7 +330,7 @@ func (r *PostgresRepository) UpdateLastLogin(ctx context.Context, tenantID, user
 	query := `
 		UPDATE users
 		SET last_login_at = $3, updated_at = $3
-		WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL
+		WHERE id = $1 AND tenant_id = $2
 	`
 
 	now := time.Now()
@@ -347,14 +355,14 @@ func (r *PostgresRepository) UpdateLastLogin(ctx context.Context, tenantID, user
 func (r *PostgresRepository) GetOwner(ctx context.Context, tenantID string) (*user.User, error) {
 	query := `
 		SELECT
-			id, tenant_id, email, password, first_name, last_name, role, status,
+			id, tenant_id, email, password_hash, first_name, last_name, role, status,
 			email_verified, email_verified_at, last_login_at,
 			avatar, phone, timezone, locale,
 			two_factor_enabled, password_changed_at,
 			preferences, metadata,
 			created_at, updated_at, created_by, updated_by
 		FROM users
-		WHERE tenant_id = $1 AND role = 'owner' AND deleted_at IS NULL
+		WHERE tenant_id = $1 AND role = 'owner'
 		LIMIT 1
 	`
 

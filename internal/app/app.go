@@ -19,22 +19,22 @@ import (
 	authHandler "nexpaces-api/internal/handler/auth"
 	blogHandler "nexpaces-api/internal/handler/blog"
 	bookingHandler "nexpaces-api/internal/handler/booking"
-	serviceHandler "nexpaces-api/internal/handler/service"
 	lessonHandler "nexpaces-api/internal/handler/lesson"
+	serviceHandler "nexpaces-api/internal/handler/service"
 	tenantHandler "nexpaces-api/internal/handler/tenant"
 	userHandler "nexpaces-api/internal/handler/user"
 	websiteHandler "nexpaces-api/internal/handler/website"
 	blogRepo "nexpaces-api/internal/repository/blog"
 	bookingRepo "nexpaces-api/internal/repository/booking"
-	serviceRepo "nexpaces-api/internal/repository/service"
 	lessonRepo "nexpaces-api/internal/repository/lesson"
+	serviceRepo "nexpaces-api/internal/repository/service"
 	tenantRepo "nexpaces-api/internal/repository/tenant"
 	userRepo "nexpaces-api/internal/repository/user"
 	websiteRepo "nexpaces-api/internal/repository/website"
 	blogUsecase "nexpaces-api/internal/usecase/blog"
 	bookingUsecase "nexpaces-api/internal/usecase/booking"
-	serviceUsecase "nexpaces-api/internal/usecase/service"
 	lessonUsecase "nexpaces-api/internal/usecase/lesson"
+	serviceUsecase "nexpaces-api/internal/usecase/service"
 	tenantUsecase "nexpaces-api/internal/usecase/tenant"
 	userUsecase "nexpaces-api/internal/usecase/user"
 	websiteUsecase "nexpaces-api/internal/usecase/website"
@@ -80,6 +80,12 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 		Max:        cfg.Security.RateLimit.Requests,
 		Expiration: cfg.Security.RateLimit.Duration,
 	}))
+
+	openAPIMiddleware, err := newOpenAPIMiddleware("api/openapi.yaml")
+	if err != nil {
+		return nil, fmt.Errorf("setup OpenAPI middleware: %w", err)
+	}
+	app.Use(openAPIMiddleware)
 
 	// Initialize shared dependencies
 	appLogger := pkgLogger.New(pkgLogger.Config{
@@ -208,9 +214,9 @@ func customErrorHandler(c *fiber.Ctx, err error) error {
 	}
 
 	return c.Status(code).JSON(fiber.Map{
-		"error":   err.Error(),
-		"code":    code,
-		"path":    c.Path(),
-		"method":  c.Method(),
+		"error":  err.Error(),
+		"code":   code,
+		"path":   c.Path(),
+		"method": c.Method(),
 	})
 }

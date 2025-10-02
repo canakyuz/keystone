@@ -1,4 +1,5 @@
-.PHONY: help dev build test lint fmt clean docker-up docker-down migrate-up migrate-down
+.PHONY: help dev build test lint fmt clean docker-up docker-down migrate-up migrate-down \
+	openapi-gen openapi-lint openapi-diff docs
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
@@ -35,6 +36,9 @@ docker-up: ## Start docker-compose stack
 docker-down: ## Stop docker-compose stack
 	docker-compose down
 
+docker-reset:
+	docker
+
 docker-logs: ## View API logs
 	docker-compose logs -f api
 
@@ -61,3 +65,20 @@ db-drop: ## Drop database
 	dropdb -h $(DB_HOST) -U $(DB_USER) $(DB_NAME)
 
 db-reset: db-drop db-create migrate-up ## Reset database
+
+# OpenAPI workflow
+OPENAPI_SPEC=api/openapi.yaml
+SPECTRAL_IMAGE?=stoplight/spectral:6
+REDOCLY_IMAGE?=redocly/cli:latest
+
+openapi-gen: ## Regenerate API code from OpenAPI spec
+	go generate ./internal/api
+
+openapi-lint: ## Lint OpenAPI specification (requires Docker + stoplight/spectral image)
+	docker run --rm -v $(CURDIR):/work -w /work $(SPECTRAL_IMAGE) lint $(OPENAPI_SPEC)
+
+openapi-diff: ## Compare spec with origin/main (requires Docker + redocly/cli image)
+	docker run --rm -v $(CURDIR):/work -w /work $(REDOCLY_IMAGE) diff $(OPENAPI_SPEC) --branch=origin/main
+
+docs: ## Build veya güncelle API dokümantasyon dosyaları
+	@echo "Swagger UI statik dosyalarını web/static/docs içine kopyalayın veya güncelleyin"

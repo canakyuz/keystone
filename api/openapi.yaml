@@ -1,0 +1,1721 @@
+openapi: 3.1.0
+info:
+  title: NexSpaces API
+  version: 0.1.0
+servers:
+  - url: http://localhost:8080/api/v1
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    Student:
+      type: object
+      required:
+        - id
+        - first_name
+        - last_name
+        - email
+      properties:
+        id:
+          type: string
+          format: uuid
+        first_name:
+          type: string
+        last_name:
+          type: string
+        email:
+          type: string
+          format: email
+    StudentCreate:
+      type: object
+      required:
+        - first_name
+        - last_name
+        - email
+      properties:
+        first_name:
+          type: string
+        last_name:
+          type: string
+        email:
+          type: string
+          format: email
+    GenericEntity:
+      type: object
+      additionalProperties: true
+    GenericList:
+      type: array
+      items:
+        $ref: '#/components/schemas/GenericEntity'
+security:
+  - BearerAuth: []
+paths:
+  /health:
+    get:
+      tags: [System]
+      summary: Health check
+      description: Returns API status information.
+      security: []
+      responses:
+        '200':
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                  environment:
+                    type: string
+                  message:
+                    type: string
+  /public/websites/slug/{slug}:
+    get:
+      tags: [Public]
+      summary: Get public website by slug
+      security: []
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Website details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericEntity'
+  /auth/register:
+    post:
+      tags: [Auth]
+      summary: Register tenant owner
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericEntity'
+      responses:
+        '201':
+          description: Registered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericEntity'
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Authenticate user
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericEntity'
+      responses:
+        '200':
+          description: Authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericEntity'
+  /auth/logout:
+    post:
+      tags: [Auth]
+      summary: Logout current user
+      security: []
+      responses:
+        '204':
+          description: Logged out
+  /auth/me:
+    get:
+      tags: [Auth]
+      summary: Get current user profile
+      responses:
+        '200':
+          description: Profile information
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericEntity'
+  /tenants:
+    get:
+      tags: [Tenant]
+      summary: List tenants
+      responses:
+        '200':
+          description: Tenant list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericList'
+    post:
+      tags: [Tenant]
+      summary: Create tenant
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericEntity'
+      responses:
+        '201':
+          description: Created tenant
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericEntity'
+  /tenants/current:
+    get:
+      tags: [Tenant]
+      summary: Get current tenant
+      responses:
+        '200':
+          description: Current tenant
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericEntity'
+  /tenants/stats:
+    get:
+      tags: [Tenant]
+      summary: Tenant statistics
+      responses:
+        '200':
+          description: Tenant stats
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericEntity'
+  /tenants/slug/{slug}:
+    get:
+      tags: [Tenant]
+      summary: Get tenant by slug
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Tenant detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericEntity'
+  /tenants/{id}:
+    get:
+      tags: [Tenant]
+      summary: Get tenant by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Tenant detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericEntity'
+    patch:
+      tags: [Tenant]
+      summary: Update tenant
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericEntity'
+      responses:
+        '200':
+          description: Updated tenant
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericEntity'
+    delete:
+      tags: [Tenant]
+      summary: Delete tenant
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Deleted
+  /tenants/{id}/suspend:
+    post:
+      tags: [Tenant]
+      summary: Suspend tenant
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Tenant suspended
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericEntity'
+  /tenants/{id}/activate:
+    post:
+      tags: [Tenant]
+      summary: Activate tenant
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Tenant activated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericEntity'
+  /tenants/{id}/upgrade:
+    post:
+      tags: [Tenant]
+      summary: Upgrade tenant plan
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Tenant upgraded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericEntity'
+  /tenants/{id}/domain:
+    post:
+      tags: [Tenant]
+      summary: Set custom domain
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericEntity'
+      responses:
+        '200':
+          description: Domain set
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericEntity'
+  /tenants/{id}/domain/verify:
+    post:
+      tags: [Tenant]
+      summary: Verify custom domain
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Domain verified
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericEntity'
+  /users:
+    get:
+      tags: [User]
+      summary: List users
+      responses:
+        '200':
+          description: User list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericList'
+    post:
+      tags: [User]
+      summary: Create user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericEntity'
+      responses:
+        '201':
+          description: Created user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericEntity'
+  /users/stats:
+    get:
+      tags: [User]
+      summary: User statistics
+      responses:
+        '200':
+          description: User stats
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericEntity'
+  /users/{id}:
+    get:
+      tags: [User]
+      summary: Get user by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: User detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericEntity'
+    patch:
+      tags: [User]
+      summary: Update user
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericEntity'
+      responses:
+        '200':
+          description: Updated user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericEntity'
+    delete:
+      tags: [User]
+      summary: Delete user
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Deleted
+  /users/{id}/password:
+    post:
+      tags: [User]
+      summary: Update user password
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericEntity'
+      responses:
+        '200':
+          description: Password updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericEntity'
+  /users/{id}/role:
+    post:
+      tags: [User]
+      summary: Update user role
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericEntity'
+      responses:
+        '200':
+          description: Role updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericEntity'
+  /users/{id}/suspend:
+    post:
+      tags: [User]
+      summary: Suspend user
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: User suspended
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericEntity'
+  /users/{id}/activate:
+    post:
+      tags: [User]
+      summary: Activate user
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: User activated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericEntity'
+  /users/{id}/verify-email:
+    post:
+      tags: [User]
+      summary: Verify user email
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Email verification triggered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericEntity'
+  /websites:
+    get:
+      tags: [Website]
+      summary: List websites
+      responses:
+        '200':
+          description: Website list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericList'
+    post:
+      tags: [Website]
+      summary: Create website
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericEntity'
+      responses:
+        '201':
+          description: Created website
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericEntity'
+  /websites/{id}:
+    get:
+      tags: [Website]
+      summary: Get website by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Website detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericEntity'
+    patch:
+      tags: [Website]
+      summary: Update website
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericEntity'
+      responses:
+        '200':
+          description: Updated website
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericEntity'
+    delete:
+      tags: [Website]
+      summary: Delete website
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Deleted
+  /websites/{id}/publish:
+    post:
+      tags: [Website]
+      summary: Publish website
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Website published
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericEntity'
+  /websites/{id}/archive:
+    post:
+      tags: [Website]
+      summary: Archive website
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Website archived
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericEntity'
+  /students:
+    get:
+      tags: [Student]
+      summary: List students
+      responses:
+        '200':
+          description: Student list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericList'
+    post:
+      tags: [Student]
+      summary: Create student
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StudentCreate'
+      responses:
+        '201':
+          description: Created student
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Student'
+  /students/stats:
+    get:
+      tags: [Student]
+      summary: Student statistics
+      responses:
+        '200':
+          description: Student stats
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericEntity'
+  /students/email:
+    get:
+      tags: [Student]
+      summary: Get student by email
+      parameters:
+        - name: email
+          in: query
+          required: true
+          schema:
+            type: string
+            format: email
+      responses:
+        '200':
+          description: Student detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Student'
+  /students/{id}:
+    get:
+      tags: [Student]
+      summary: Get student by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Student detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Student'
+    put:
+      tags: [Student]
+      summary: Update student
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StudentCreate'
+      responses:
+        '200':
+          description: Updated student
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Student'
+    delete:
+      tags: [Student]
+      summary: Delete student
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Deleted
+  /students/{student_id}/lessons:
+    get:
+      tags: [Student]
+      summary: List lessons for student
+      parameters:
+        - name: student_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Lesson list for student
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericList'
+  /students/{student_id}/assignments:
+    get:
+      tags: [Student]
+      summary: List assignments for student
+      parameters:
+        - name: student_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Assignment list for student
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericList'
+  /lessons:
+    get:
+      tags: [Lesson]
+      summary: List lessons
+      responses:
+        '200':
+          description: Lesson list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericList'
+    post:
+      tags: [Lesson]
+      summary: Create lesson
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericEntity'
+      responses:
+        '201':
+          description: Created lesson
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericEntity'
+  /lessons/stats:
+    get:
+      tags: [Lesson]
+      summary: Lesson statistics
+      responses:
+        '200':
+          description: Lesson stats
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericEntity'
+  /lessons/upcoming:
+    get:
+      tags: [Lesson]
+      summary: Upcoming lessons
+      responses:
+        '200':
+          description: Upcoming lesson list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericList'
+  /lessons/{id}:
+    get:
+      tags: [Lesson]
+      summary: Get lesson by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Lesson detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericEntity'
+    put:
+      tags: [Lesson]
+      summary: Update lesson
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericEntity'
+      responses:
+        '200':
+          description: Updated lesson
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericEntity'
+    delete:
+      tags: [Lesson]
+      summary: Delete lesson
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Deleted
+  /assignments:
+    get:
+      tags: [Assignment]
+      summary: List assignments
+      responses:
+        '200':
+          description: Assignment list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericList'
+    post:
+      tags: [Assignment]
+      summary: Create assignment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericEntity'
+      responses:
+        '201':
+          description: Created assignment
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericEntity'
+  /assignments/stats:
+    get:
+      tags: [Assignment]
+      summary: Assignment statistics
+      responses:
+        '200':
+          description: Assignment stats
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericEntity'
+  /assignments/overdue:
+    get:
+      tags: [Assignment]
+      summary: Overdue assignments
+      responses:
+        '200':
+          description: Overdue assignment list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericList'
+  /assignments/{id}:
+    get:
+      tags: [Assignment]
+      summary: Get assignment by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Assignment detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericEntity'
+    put:
+      tags: [Assignment]
+      summary: Update assignment
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericEntity'
+      responses:
+        '200':
+          description: Updated assignment
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericEntity'
+    delete:
+      tags: [Assignment]
+      summary: Delete assignment
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Deleted
+  /availabilities:
+    get:
+      tags: [Availability]
+      summary: List availabilities
+      responses:
+        '200':
+          description: Availability list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericList'
+    post:
+      tags: [Availability]
+      summary: Create availability
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericEntity'
+      responses:
+        '201':
+          description: Created availability
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericEntity'
+  /availabilities/stats:
+    get:
+      tags: [Availability]
+      summary: Availability statistics
+      responses:
+        '200':
+          description: Availability stats
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericEntity'
+  /availabilities/date-range:
+    get:
+      tags: [Availability]
+      summary: Get availabilities by date range
+      parameters:
+        - name: start
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+        - name: end
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+      responses:
+        '200':
+          description: Availability list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericList'
+  /availabilities/{id}:
+    get:
+      tags: [Availability]
+      summary: Get availability by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Availability detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericEntity'
+    put:
+      tags: [Availability]
+      summary: Update availability
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericEntity'
+      responses:
+        '200':
+          description: Updated availability
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericEntity'
+    delete:
+      tags: [Availability]
+      summary: Delete availability
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Deleted
+  /availabilities/user/{user_id}:
+    get:
+      tags: [Availability]
+      summary: List availabilities for user
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Availability list for user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericList'
+  /appointments:
+    get:
+      tags: [Appointment]
+      summary: List appointments
+      responses:
+        '200':
+          description: Appointment list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericList'
+    post:
+      tags: [Appointment]
+      summary: Create appointment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericEntity'
+      responses:
+        '201':
+          description: Created appointment
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericEntity'
+  /appointments/stats:
+    get:
+      tags: [Appointment]
+      summary: Appointment statistics
+      responses:
+        '200':
+          description: Appointment stats
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericEntity'
+  /appointments/upcoming:
+    get:
+      tags: [Appointment]
+      summary: Upcoming appointments
+      responses:
+        '200':
+          description: Upcoming appointment list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericList'
+  /appointments/date-range:
+    get:
+      tags: [Appointment]
+      summary: Get appointments by date range
+      parameters:
+        - name: start
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+        - name: end
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+      responses:
+        '200':
+          description: Appointment list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericList'
+  /appointments/client:
+    get:
+      tags: [Appointment]
+      summary: Get appointments by client email
+      parameters:
+        - name: email
+          in: query
+          required: true
+          schema:
+            type: string
+            format: email
+      responses:
+        '200':
+          description: Appointment list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericList'
+  /appointments/{id}:
+    get:
+      tags: [Appointment]
+      summary: Get appointment by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Appointment detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericEntity'
+    put:
+      tags: [Appointment]
+      summary: Update appointment
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericEntity'
+      responses:
+        '200':
+          description: Updated appointment
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericEntity'
+    delete:
+      tags: [Appointment]
+      summary: Delete appointment
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Deleted
+  /appointments/{id}/confirm:
+    post:
+      tags: [Appointment]
+      summary: Confirm appointment
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Appointment confirmed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericEntity'
+  /appointments/{id}/cancel:
+    post:
+      tags: [Appointment]
+      summary: Cancel appointment
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Appointment cancelled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericEntity'
+  /appointments/{id}/complete:
+    post:
+      tags: [Appointment]
+      summary: Complete appointment
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Appointment completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericEntity'
+  /appointments/user/{user_id}:
+    get:
+      tags: [Appointment]
+      summary: List appointments for user
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Appointment list for user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericList'
+  /services:
+    get:
+      tags: [Service]
+      summary: List services
+      responses:
+        '200':
+          description: Service list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericList'
+    post:
+      tags: [Service]
+      summary: Create service
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericEntity'
+      responses:
+        '201':
+          description: Created service
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericEntity'
+  /services/stats:
+    get:
+      tags: [Service]
+      summary: Service statistics
+      responses:
+        '200':
+          description: Service stats
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericEntity'
+  /services/featured:
+    get:
+      tags: [Service]
+      summary: Featured services
+      responses:
+        '200':
+          description: Featured service list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericList'
+  /services/slug/{slug}:
+    get:
+      tags: [Service]
+      summary: Get service by slug
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Service detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericEntity'
+  /services/{id}:
+    get:
+      tags: [Service]
+      summary: Get service by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Service detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericEntity'
+    put:
+      tags: [Service]
+      summary: Update service
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericEntity'
+      responses:
+        '200':
+          description: Updated service
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericEntity'
+    delete:
+      tags: [Service]
+      summary: Delete service
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Deleted
+  /blog/categories:
+    get:
+      tags: [Blog]
+      summary: List categories
+      responses:
+        '200':
+          description: Category list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericList'
+    post:
+      tags: [Blog]
+      summary: Create category
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericEntity'
+      responses:
+        '201':
+          description: Created category
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericEntity'
+  /blog/categories/slug/{slug}:
+    get:
+      tags: [Blog]
+      summary: Get category by slug
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Category detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericEntity'
+  /blog/categories/{id}:
+    get:
+      tags: [Blog]
+      summary: Get category by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Category detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericEntity'
+    put:
+      tags: [Blog]
+      summary: Update category
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericEntity'
+      responses:
+        '200':
+          description: Updated category
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericEntity'
+    delete:
+      tags: [Blog]
+      summary: Delete category
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Deleted
+  /blog/categories/{category_id}/posts:
+    get:
+      tags: [Blog]
+      summary: List posts by category
+      parameters:
+        - name: category_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Post list for category
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericList'
+  /blog/posts:
+    get:
+      tags: [Blog]
+      summary: List posts
+      responses:
+        '200':
+          description: Post list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericList'
+    post:
+      tags: [Blog]
+      summary: Create post
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericEntity'
+      responses:
+        '201':
+          description: Created post
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericEntity'
+  /blog/posts/featured:
+    get:
+      tags: [Blog]
+      summary: Featured posts
+      responses:
+        '200':
+          description: Featured post list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericList'
+  /blog/posts/slug/{slug}:
+    get:
+      tags: [Blog]
+      summary: Get post by slug
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Post detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericEntity'
+  /blog/posts/tag/{tag}:
+    get:
+      tags: [Blog]
+      summary: List posts by tag
+      parameters:
+        - name: tag
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Post list by tag
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericList'
+  /blog/posts/{id}:
+    get:
+      tags: [Blog]
+      summary: Get post by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Post detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericEntity'
+    put:
+      tags: [Blog]
+      summary: Update post
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericEntity'
+      responses:
+        '200':
+          description: Updated post
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericEntity'
+    delete:
+      tags: [Blog]
+      summary: Delete post
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Deleted
+  /blog/posts/{id}/publish:
+    post:
+      tags: [Blog]
+      summary: Publish post
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Post published
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericEntity'
+  /blog/posts/{id}/archive:
+    post:
+      tags: [Blog]
+      summary: Archive post
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Post archived
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericEntity'

@@ -3,7 +3,7 @@ version: '3.8'
 services:
   postgres:
     image: postgres:15-alpine
-    container_name: nexspaces-postgres
+    container_name: postgres
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
@@ -20,7 +20,7 @@ services:
 
   redis:
     image: redis:7-alpine
-    container_name: nexspaces-redis
+    container_name: redis
     ports:
       - "6379:6379"
     volumes:
@@ -35,7 +35,7 @@ services:
     build:
       context: .
       dockerfile: docker/Dockerfile
-    container_name: nexspaces-api
+    container_name: api
     ports:
       - "8080:8080"
     environment:

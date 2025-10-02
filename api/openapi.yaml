@@ -4,75 +4,36 @@ info:
   version: 0.1.0
 servers:
   - url: http://localhost:8080/api/v1
-components:
-  securitySchemes:
-    BearerAuth:
-      type: http
-      scheme: bearer
-      bearerFormat: JWT
-  schemas:
-    Student:
-      type: object
-      required:
-        - id
-        - first_name
-        - last_name
-        - email
-      properties:
-        id:
-          type: string
-          format: uuid
-        first_name:
-          type: string
-        last_name:
-          type: string
-        email:
-          type: string
-          format: email
-    StudentCreate:
-      type: object
-      required:
-        - first_name
-        - last_name
-        - email
-      properties:
-        first_name:
-          type: string
-        last_name:
-          type: string
-        email:
-          type: string
-          format: email
-    GenericEntity:
-      type: object
-      additionalProperties: true
-    GenericList:
-      type: array
-      items:
-        $ref: '#/components/schemas/GenericEntity'
+    description: Local development
 security:
   - BearerAuth: []
+tags:
+  - name: System
+  - name: Auth
+  - name: Public
+  - name: Tenant
+  - name: User
+  - name: Website
+  - name: Student
+  - name: Lesson
+  - name: Assignment
+  - name: Availability
+  - name: Appointment
+  - name: Service
+  - name: Blog
 paths:
   /health:
     get:
       tags: [System]
       summary: Health check
-      description: Returns API status information.
       security: []
       responses:
         '200':
-          description: Healthy
+          description: API status information
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  status:
-                    type: string
-                  environment:
-                    type: string
-                  message:
-                    type: string
+                $ref: '#/components/schemas/HealthResponse'
   /public/websites/slug/{slug}:
     get:
       tags: [Public]
@@ -86,29 +47,41 @@ paths:
             type: string
       responses:
         '200':
-          description: Website details
+          description: Published website details
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GenericEntity'
+                $ref: '#/components/schemas/WebsiteResponse'
+        '404':
+          description: Website not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /auth/register:
     post:
       tags: [Auth]
-      summary: Register tenant owner
+      summary: Register tenant user
       security: []
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/GenericEntity'
+              $ref: '#/components/schemas/RegisterRequest'
       responses:
         '201':
-          description: Registered
+          description: Registered user
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GenericEntity'
+                $ref: '#/components/schemas/UserEnvelope'
+        '400':
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /auth/login:
     post:
       tags: [Auth]
@@ -119,44 +92,82 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/GenericEntity'
+              $ref: '#/components/schemas/LoginRequest'
       responses:
         '200':
-          description: Authenticated
+          description: Authentication result
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GenericEntity'
+                $ref: '#/components/schemas/LoginResponse'
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /auth/logout:
     post:
       tags: [Auth]
-      summary: Logout current user
-      security: []
-      responses:
-        '204':
-          description: Logged out
-  /auth/me:
-    get:
-      tags: [Auth]
-      summary: Get current user profile
+      summary: Logout user (client token revoke)
       responses:
         '200':
-          description: Profile information
+          description: Logout acknowledgement
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GenericEntity'
+                $ref: '#/components/schemas/MessageResponse'
+  /auth/me:
+    get:
+      tags: [Auth]
+      summary: Get current authenticated user
+      responses:
+        '200':
+          description: Current user profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserEnvelope'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /tenants:
     get:
       tags: [Tenant]
       summary: List tenants
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: per_page
+          in: query
+          schema:
+            type: integer
+            default: 20
+        - name: status
+          in: query
+          schema:
+            type: string
+        - name: plan
+          in: query
+          schema:
+            type: string
+        - name: search
+          in: query
+          schema:
+            type: string
       responses:
         '200':
-          description: Tenant list
+          description: Paginated tenant list
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GenericList'
+                $ref: '#/components/schemas/TenantListEnvelope'
     post:
       tags: [Tenant]
       summary: Create tenant
@@ -165,36 +176,48 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/GenericEntity'
+              $ref: '#/components/schemas/TenantCreateRequest'
       responses:
         '201':
-          description: Created tenant
+          description: Tenant created
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GenericEntity'
+                $ref: '#/components/schemas/TenantEnvelope'
+        '400':
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /tenants/current:
     get:
       tags: [Tenant]
-      summary: Get current tenant
+      summary: Get tenant of authenticated user
       responses:
         '200':
-          description: Current tenant
+          description: Tenant details
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GenericEntity'
+                $ref: '#/components/schemas/TenantEnvelope'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /tenants/stats:
     get:
       tags: [Tenant]
       summary: Tenant statistics
       responses:
         '200':
-          description: Tenant stats
+          description: Aggregated tenant statistics
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GenericEntity'
+                $ref: '#/components/schemas/TenantStatsEnvelope'
   /tenants/slug/{slug}:
     get:
       tags: [Tenant]
@@ -207,11 +230,17 @@ paths:
             type: string
       responses:
         '200':
-          description: Tenant detail
+          description: Tenant details
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GenericEntity'
+                $ref: '#/components/schemas/TenantEnvelope'
+        '404':
+          description: Tenant not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /tenants/{id}:
     get:
       tags: [Tenant]
@@ -224,14 +253,20 @@ paths:
             type: string
       responses:
         '200':
-          description: Tenant detail
+          description: Tenant details
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GenericEntity'
+                $ref: '#/components/schemas/TenantEnvelope'
+        '404':
+          description: Tenant not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
     patch:
       tags: [Tenant]
-      summary: Update tenant
+      summary: Update tenant profile
       parameters:
         - name: id
           in: path
@@ -243,14 +278,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/GenericEntity'
+              $ref: '#/components/schemas/TenantUpdateRequest'
       responses:
         '200':
           description: Updated tenant
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GenericEntity'
+                $ref: '#/components/schemas/TenantEnvelope'
     delete:
       tags: [Tenant]
       summary: Delete tenant
@@ -262,7 +297,13 @@ paths:
             type: string
       responses:
         '204':
-          description: Deleted
+          description: Tenant deleted
+        '400':
+          description: Cannot delete tenant
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /tenants/{id}/suspend:
     post:
       tags: [Tenant]
@@ -273,13 +314,19 @@ paths:
           required: true
           schema:
             type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TenantSuspendRequest'
       responses:
         '200':
-          description: Tenant suspended
+          description: Suspension result
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GenericEntity'
+                $ref: '#/components/schemas/MessageResponse'
   /tenants/{id}/activate:
     post:
       tags: [Tenant]
@@ -292,11 +339,11 @@ paths:
             type: string
       responses:
         '200':
-          description: Tenant activated
+          description: Activation result
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GenericEntity'
+                $ref: '#/components/schemas/MessageResponse'
   /tenants/{id}/upgrade:
     post:
       tags: [Tenant]
@@ -307,13 +354,19 @@ paths:
           required: true
           schema:
             type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TenantUpgradeRequest'
       responses:
         '200':
-          description: Tenant upgraded
+          description: Upgraded tenant
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GenericEntity'
+                $ref: '#/components/schemas/TenantEnvelope'
   /tenants/{id}/domain:
     post:
       tags: [Tenant]
@@ -329,14 +382,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/GenericEntity'
+              $ref: '#/components/schemas/TenantDomainRequest'
       responses:
         '200':
-          description: Domain set
+          description: Updated tenant domain
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GenericEntity'
+                $ref: '#/components/schemas/TenantEnvelope'
   /tenants/{id}/domain/verify:
     post:
       tags: [Tenant]
@@ -349,22 +402,45 @@ paths:
             type: string
       responses:
         '200':
-          description: Domain verified
+          description: Verification result
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GenericEntity'
+                $ref: '#/components/schemas/TenantEnvelope'
   /users:
     get:
       tags: [User]
       summary: List users
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: per_page
+          in: query
+          schema:
+            type: integer
+            default: 20
+        - name: role
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: string
+        - name: search
+          in: query
+          schema:
+            type: string
       responses:
         '200':
-          description: User list
+          description: Paginated users
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GenericList'
+                $ref: '#/components/schemas/UserListEnvelope'
     post:
       tags: [User]
       summary: Create user
@@ -373,25 +449,25 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/GenericEntity'
+              $ref: '#/components/schemas/UserCreateRequest'
       responses:
         '201':
           description: Created user
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GenericEntity'
+                $ref: '#/components/schemas/UserEnvelope'
   /users/stats:
     get:
       tags: [User]
       summary: User statistics
       responses:
         '200':
-          description: User stats
+          description: Aggregated user statistics
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GenericEntity'
+                $ref: '#/components/schemas/UserStatsEnvelope'
   /users/{id}:
     get:
       tags: [User]
@@ -404,14 +480,20 @@ paths:
             type: string
       responses:
         '200':
-          description: User detail
+          description: User details
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GenericEntity'
+                $ref: '#/components/schemas/UserEnvelope'
+        '404':
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
     patch:
       tags: [User]
-      summary: Update user
+      summary: Update user profile
       parameters:
         - name: id
           in: path
@@ -423,14 +505,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/GenericEntity'
+              $ref: '#/components/schemas/UserUpdateRequest'
       responses:
         '200':
           description: Updated user
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GenericEntity'
+                $ref: '#/components/schemas/UserEnvelope'
     delete:
       tags: [User]
       summary: Delete user
@@ -442,7 +524,7 @@ paths:
             type: string
       responses:
         '204':
-          description: Deleted
+          description: User deleted
   /users/{id}/password:
     post:
       tags: [User]
@@ -458,14 +540,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/GenericEntity'
+              $ref: '#/components/schemas/UserPasswordUpdateRequest'
       responses:
         '200':
           description: Password updated
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GenericEntity'
+                $ref: '#/components/schemas/MessageResponse'
   /users/{id}/role:
     post:
       tags: [User]
@@ -481,14 +563,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/GenericEntity'
+              $ref: '#/components/schemas/UserRoleUpdateRequest'
       responses:
         '200':
-          description: Role updated
+          description: Updated user
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GenericEntity'
+                $ref: '#/components/schemas/UserEnvelope'
   /users/{id}/suspend:
     post:
       tags: [User]
@@ -499,13 +581,19 @@ paths:
           required: true
           schema:
             type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserSuspendRequest'
       responses:
         '200':
-          description: User suspended
+          description: Suspension result
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GenericEntity'
+                $ref: '#/components/schemas/MessageResponse'
   /users/{id}/activate:
     post:
       tags: [User]
@@ -518,11 +606,11 @@ paths:
             type: string
       responses:
         '200':
-          description: User activated
+          description: Activation result
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GenericEntity'
+                $ref: '#/components/schemas/MessageResponse'
   /users/{id}/verify-email:
     post:
       tags: [User]
@@ -535,22 +623,22 @@ paths:
             type: string
       responses:
         '200':
-          description: Email verification triggered
+          description: Verification result
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GenericEntity'
+                $ref: '#/components/schemas/MessageResponse'
   /websites:
     get:
       tags: [Website]
-      summary: List websites
+      summary: List tenant websites
       responses:
         '200':
           description: Website list
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GenericList'
+                $ref: '#/components/schemas/WebsiteListResponse'
     post:
       tags: [Website]
       summary: Create website
@@ -559,14 +647,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/GenericEntity'
+              $ref: '#/components/schemas/WebsiteCreateRequest'
       responses:
         '201':
           description: Created website
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GenericEntity'
+                $ref: '#/components/schemas/WebsiteResponse'
   /websites/{id}:
     get:
       tags: [Website]
@@ -579,11 +667,11 @@ paths:
             type: string
       responses:
         '200':
-          description: Website detail
+          description: Website
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GenericEntity'
+                $ref: '#/components/schemas/WebsiteResponse'
     patch:
       tags: [Website]
       summary: Update website
@@ -598,14 +686,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/GenericEntity'
+              $ref: '#/components/schemas/WebsiteUpdateRequest'
       responses:
         '200':
           description: Updated website
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GenericEntity'
+                $ref: '#/components/schemas/WebsiteResponse'
     delete:
       tags: [Website]
       summary: Delete website
@@ -617,7 +705,24 @@ paths:
             type: string
       responses:
         '204':
-          description: Deleted
+          description: Website deleted
+  /websites/slug/{slug}:
+    get:
+      tags: [Website]
+      summary: Get tenant website by slug
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Website details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WebsiteResponse'
   /websites/{id}/publish:
     post:
       tags: [Website]
@@ -630,11 +735,11 @@ paths:
             type: string
       responses:
         '200':
-          description: Website published
+          description: Published website
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GenericEntity'
+                $ref: '#/components/schemas/WebsiteResponse'
   /websites/{id}/archive:
     post:
       tags: [Website]
@@ -647,22 +752,45 @@ paths:
             type: string
       responses:
         '200':
-          description: Website archived
+          description: Archived website
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GenericEntity'
+                $ref: '#/components/schemas/WebsiteResponse'
   /students:
     get:
       tags: [Student]
       summary: List students
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+        - name: level
+          in: query
+          schema:
+            type: string
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
       responses:
         '200':
-          description: Student list
+          description: Students
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GenericList'
+                $ref: '#/components/schemas/StudentListResponse'
     post:
       tags: [Student]
       summary: Create student
@@ -671,14 +799,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/StudentCreate'
+              $ref: '#/components/schemas/StudentCreateRequest'
       responses:
         '201':
           description: Created student
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Student'
+                $ref: '#/components/schemas/StudentResponse'
   /students/stats:
     get:
       tags: [Student]
@@ -689,7 +817,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GenericEntity'
+                $ref: '#/components/schemas/StudentStatsResponse'
   /students/email:
     get:
       tags: [Student]
@@ -703,11 +831,11 @@ paths:
             format: email
       responses:
         '200':
-          description: Student detail
+          description: Student
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Student'
+                $ref: '#/components/schemas/StudentResponse'
   /students/{id}:
     get:
       tags: [Student]
@@ -720,11 +848,11 @@ paths:
             type: string
       responses:
         '200':
-          description: Student detail
+          description: Student
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Student'
+                $ref: '#/components/schemas/StudentResponse'
     put:
       tags: [Student]
       summary: Update student
@@ -739,14 +867,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/StudentCreate'
+              $ref: '#/components/schemas/StudentUpdateRequest'
       responses:
         '200':
           description: Updated student
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Student'
+                $ref: '#/components/schemas/StudentResponse'
     delete:
       tags: [Student]
       summary: Delete student
@@ -758,7 +886,7 @@ paths:
             type: string
       responses:
         '204':
-          description: Deleted
+          description: Student deleted
   /students/{student_id}/lessons:
     get:
       tags: [Student]
@@ -771,11 +899,11 @@ paths:
             type: string
       responses:
         '200':
-          description: Lesson list for student
+          description: Lessons for student
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GenericList'
+                $ref: '#/components/schemas/LessonListResponse'
   /students/{student_id}/assignments:
     get:
       tags: [Student]
@@ -788,22 +916,22 @@ paths:
             type: string
       responses:
         '200':
-          description: Assignment list for student
+          description: Assignments for student
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GenericList'
+                $ref: '#/components/schemas/AssignmentListResponse'
   /lessons:
     get:
       tags: [Lesson]
       summary: List lessons
       responses:
         '200':
-          description: Lesson list
+          description: Lessons
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GenericList'
+                $ref: '#/components/schemas/LessonListResponse'
     post:
       tags: [Lesson]
       summary: Create lesson
@@ -812,14 +940,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/GenericEntity'
+              $ref: '#/components/schemas/LessonCreateRequest'
       responses:
         '201':
           description: Created lesson
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GenericEntity'
+                $ref: '#/components/schemas/LessonResponse'
   /lessons/stats:
     get:
       tags: [Lesson]
@@ -830,18 +958,18 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GenericEntity'
+                $ref: '#/components/schemas/LessonStatsResponse'
   /lessons/upcoming:
     get:
       tags: [Lesson]
       summary: Upcoming lessons
       responses:
         '200':
-          description: Upcoming lesson list
+          description: Upcoming lessons
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GenericList'
+                $ref: '#/components/schemas/LessonListResponse'
   /lessons/{id}:
     get:
       tags: [Lesson]
@@ -854,11 +982,11 @@ paths:
             type: string
       responses:
         '200':
-          description: Lesson detail
+          description: Lesson
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GenericEntity'
+                $ref: '#/components/schemas/LessonResponse'
     put:
       tags: [Lesson]
       summary: Update lesson
@@ -873,14 +1001,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/GenericEntity'
+              $ref: '#/components/schemas/LessonUpdateRequest'
       responses:
         '200':
           description: Updated lesson
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GenericEntity'
+                $ref: '#/components/schemas/LessonResponse'
     delete:
       tags: [Lesson]
       summary: Delete lesson
@@ -892,18 +1020,35 @@ paths:
             type: string
       responses:
         '204':
-          description: Deleted
+          description: Lesson deleted
+  /lessons/{id}/students:
+    get:
+      tags: [Lesson]
+      summary: List students for lesson
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Students attending lesson
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StudentListResponse'
   /assignments:
     get:
       tags: [Assignment]
       summary: List assignments
       responses:
         '200':
-          description: Assignment list
+          description: Assignments
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GenericList'
+                $ref: '#/components/schemas/AssignmentListResponse'
     post:
       tags: [Assignment]
       summary: Create assignment
@@ -912,14 +1057,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/GenericEntity'
+              $ref: '#/components/schemas/AssignmentCreateRequest'
       responses:
         '201':
           description: Created assignment
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GenericEntity'
+                $ref: '#/components/schemas/AssignmentResponse'
   /assignments/stats:
     get:
       tags: [Assignment]
@@ -930,18 +1075,18 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GenericEntity'
+                $ref: '#/components/schemas/AssignmentStatsResponse'
   /assignments/overdue:
     get:
       tags: [Assignment]
       summary: Overdue assignments
       responses:
         '200':
-          description: Overdue assignment list
+          description: Overdue assignments
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GenericList'
+                $ref: '#/components/schemas/AssignmentListResponse'
   /assignments/{id}:
     get:
       tags: [Assignment]
@@ -954,11 +1099,11 @@ paths:
             type: string
       responses:
         '200':
-          description: Assignment detail
+          description: Assignment
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GenericEntity'
+                $ref: '#/components/schemas/AssignmentResponse'
     put:
       tags: [Assignment]
       summary: Update assignment
@@ -973,14 +1118,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/GenericEntity'
+              $ref: '#/components/schemas/AssignmentUpdateRequest'
       responses:
         '200':
           description: Updated assignment
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GenericEntity'
+                $ref: '#/components/schemas/AssignmentResponse'
     delete:
       tags: [Assignment]
       summary: Delete assignment
@@ -992,18 +1137,50 @@ paths:
             type: string
       responses:
         '204':
-          description: Deleted
+          description: Assignment deleted
+  /assignments/{id}/students:
+    get:
+      tags: [Assignment]
+      summary: List students for assignment
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Students with assignment
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StudentListResponse'
   /availabilities:
     get:
       tags: [Availability]
       summary: List availabilities
+      parameters:
+        - name: start
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: end
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: user_id
+          in: query
+          schema:
+            type: string
       responses:
         '200':
-          description: Availability list
+          description: Availabilities
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GenericList'
+                $ref: '#/components/schemas/AvailabilityListResponse'
     post:
       tags: [Availability]
       summary: Create availability
@@ -1012,14 +1189,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/GenericEntity'
+              $ref: '#/components/schemas/AvailabilityCreateRequest'
       responses:
         '201':
           description: Created availability
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GenericEntity'
+                $ref: '#/components/schemas/AvailabilityResponse'
   /availabilities/stats:
     get:
       tags: [Availability]
@@ -1030,31 +1207,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GenericEntity'
-  /availabilities/date-range:
-    get:
-      tags: [Availability]
-      summary: Get availabilities by date range
-      parameters:
-        - name: start
-          in: query
-          required: false
-          schema:
-            type: string
-            format: date-time
-        - name: end
-          in: query
-          required: false
-          schema:
-            type: string
-            format: date-time
-      responses:
-        '200':
-          description: Availability list
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/GenericList'
+                $ref: '#/components/schemas/AvailabilityStatsResponse'
   /availabilities/{id}:
     get:
       tags: [Availability]
@@ -1067,11 +1220,11 @@ paths:
             type: string
       responses:
         '200':
-          description: Availability detail
+          description: Availability
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GenericEntity'
+                $ref: '#/components/schemas/AvailabilityResponse'
     put:
       tags: [Availability]
       summary: Update availability
@@ -1086,14 +1239,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/GenericEntity'
+              $ref: '#/components/schemas/AvailabilityUpdateRequest'
       responses:
         '200':
           description: Updated availability
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GenericEntity'
+                $ref: '#/components/schemas/AvailabilityResponse'
     delete:
       tags: [Availability]
       summary: Delete availability
@@ -1105,11 +1258,11 @@ paths:
             type: string
       responses:
         '204':
-          description: Deleted
+          description: Availability deleted
   /availabilities/user/{user_id}:
     get:
       tags: [Availability]
-      summary: List availabilities for user
+      summary: List availabilities by user
       parameters:
         - name: user_id
           in: path
@@ -1118,22 +1271,38 @@ paths:
             type: string
       responses:
         '200':
-          description: Availability list for user
+          description: User availabilities
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GenericList'
+                $ref: '#/components/schemas/AvailabilityListResponse'
   /appointments:
     get:
       tags: [Appointment]
       summary: List appointments
+      parameters:
+        - name: start
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: end
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: email
+          in: query
+          schema:
+            type: string
+            format: email
       responses:
         '200':
-          description: Appointment list
+          description: Appointments
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GenericList'
+                $ref: '#/components/schemas/AppointmentListResponse'
     post:
       tags: [Appointment]
       summary: Create appointment
@@ -1142,14 +1311,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/GenericEntity'
+              $ref: '#/components/schemas/AppointmentCreateRequest'
       responses:
         '201':
           description: Created appointment
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GenericEntity'
+                $ref: '#/components/schemas/AppointmentResponse'
   /appointments/stats:
     get:
       tags: [Appointment]
@@ -1160,46 +1329,46 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GenericEntity'
+                $ref: '#/components/schemas/AppointmentStatsResponse'
   /appointments/upcoming:
     get:
       tags: [Appointment]
       summary: Upcoming appointments
       responses:
         '200':
-          description: Upcoming appointment list
+          description: Upcoming appointments
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GenericList'
+                $ref: '#/components/schemas/AppointmentListResponse'
   /appointments/date-range:
     get:
       tags: [Appointment]
-      summary: Get appointments by date range
+      summary: Appointments in date range
       parameters:
         - name: start
           in: query
-          required: false
+          required: true
           schema:
             type: string
             format: date-time
         - name: end
           in: query
-          required: false
+          required: true
           schema:
             type: string
             format: date-time
       responses:
         '200':
-          description: Appointment list
+          description: Appointments
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GenericList'
+                $ref: '#/components/schemas/AppointmentListResponse'
   /appointments/client:
     get:
       tags: [Appointment]
-      summary: Get appointments by client email
+      summary: Appointments by client email
       parameters:
         - name: email
           in: query
@@ -1209,11 +1378,11 @@ paths:
             format: email
       responses:
         '200':
-          description: Appointment list
+          description: Appointments for client
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GenericList'
+                $ref: '#/components/schemas/AppointmentListResponse'
   /appointments/{id}:
     get:
       tags: [Appointment]
@@ -1226,11 +1395,11 @@ paths:
             type: string
       responses:
         '200':
-          description: Appointment detail
+          description: Appointment
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GenericEntity'
+                $ref: '#/components/schemas/AppointmentResponse'
     put:
       tags: [Appointment]
       summary: Update appointment
@@ -1245,14 +1414,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/GenericEntity'
+              $ref: '#/components/schemas/AppointmentUpdateRequest'
       responses:
         '200':
           description: Updated appointment
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GenericEntity'
+                $ref: '#/components/schemas/AppointmentResponse'
     delete:
       tags: [Appointment]
       summary: Delete appointment
@@ -1264,7 +1433,7 @@ paths:
             type: string
       responses:
         '204':
-          description: Deleted
+          description: Appointment deleted
   /appointments/{id}/confirm:
     post:
       tags: [Appointment]
@@ -1277,11 +1446,11 @@ paths:
             type: string
       responses:
         '200':
-          description: Appointment confirmed
+          description: Confirmation result
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GenericEntity'
+                $ref: '#/components/schemas/AppointmentResponse'
   /appointments/{id}/cancel:
     post:
       tags: [Appointment]
@@ -1292,13 +1461,19 @@ paths:
           required: true
           schema:
             type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AppointmentCancellationRequest'
       responses:
         '200':
-          description: Appointment cancelled
+          description: Cancellation result
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GenericEntity'
+                $ref: '#/components/schemas/AppointmentResponse'
   /appointments/{id}/complete:
     post:
       tags: [Appointment]
@@ -1311,11 +1486,11 @@ paths:
             type: string
       responses:
         '200':
-          description: Appointment completed
+          description: Completion result
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GenericEntity'
+                $ref: '#/components/schemas/AppointmentResponse'
   /appointments/user/{user_id}:
     get:
       tags: [Appointment]
@@ -1328,22 +1503,22 @@ paths:
             type: string
       responses:
         '200':
-          description: Appointment list for user
+          description: Appointments for user
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GenericList'
+                $ref: '#/components/schemas/AppointmentListResponse'
   /services:
     get:
       tags: [Service]
-      summary: List services
+      summary: List tenant services
       responses:
         '200':
-          description: Service list
+          description: Services
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GenericList'
+                $ref: '#/components/schemas/ServiceListResponse'
     post:
       tags: [Service]
       summary: Create service
@@ -1352,14 +1527,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/GenericEntity'
+              $ref: '#/components/schemas/ServiceCreateRequest'
       responses:
         '201':
           description: Created service
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GenericEntity'
+                $ref: '#/components/schemas/ServiceResponse'
   /services/stats:
     get:
       tags: [Service]
@@ -1370,18 +1545,18 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GenericEntity'
+                $ref: '#/components/schemas/ServiceStatsResponse'
   /services/featured:
     get:
       tags: [Service]
       summary: Featured services
       responses:
         '200':
-          description: Featured service list
+          description: Featured services
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GenericList'
+                $ref: '#/components/schemas/ServiceListResponse'
   /services/slug/{slug}:
     get:
       tags: [Service]
@@ -1394,11 +1569,11 @@ paths:
             type: string
       responses:
         '200':
-          description: Service detail
+          description: Service
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GenericEntity'
+                $ref: '#/components/schemas/ServiceResponse'
   /services/{id}:
     get:
       tags: [Service]
@@ -1411,11 +1586,11 @@ paths:
             type: string
       responses:
         '200':
-          description: Service detail
+          description: Service
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GenericEntity'
+                $ref: '#/components/schemas/ServiceResponse'
     put:
       tags: [Service]
       summary: Update service
@@ -1430,14 +1605,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/GenericEntity'
+              $ref: '#/components/schemas/ServiceUpdateRequest'
       responses:
         '200':
           description: Updated service
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GenericEntity'
+                $ref: '#/components/schemas/ServiceResponse'
     delete:
       tags: [Service]
       summary: Delete service
@@ -1449,18 +1624,18 @@ paths:
             type: string
       responses:
         '204':
-          description: Deleted
+          description: Service deleted
   /blog/categories:
     get:
       tags: [Blog]
       summary: List categories
       responses:
         '200':
-          description: Category list
+          description: Categories
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GenericList'
+                $ref: '#/components/schemas/CategoryListResponse'
     post:
       tags: [Blog]
       summary: Create category
@@ -1469,14 +1644,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/GenericEntity'
+              $ref: '#/components/schemas/CategoryCreateRequest'
       responses:
         '201':
           description: Created category
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GenericEntity'
+                $ref: '#/components/schemas/CategoryResponse'
   /blog/categories/slug/{slug}:
     get:
       tags: [Blog]
@@ -1489,11 +1664,11 @@ paths:
             type: string
       responses:
         '200':
-          description: Category detail
+          description: Category
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GenericEntity'
+                $ref: '#/components/schemas/CategoryResponse'
   /blog/categories/{id}:
     get:
       tags: [Blog]
@@ -1506,11 +1681,11 @@ paths:
             type: string
       responses:
         '200':
-          description: Category detail
+          description: Category
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GenericEntity'
+                $ref: '#/components/schemas/CategoryResponse'
     put:
       tags: [Blog]
       summary: Update category
@@ -1525,14 +1700,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/GenericEntity'
+              $ref: '#/components/schemas/CategoryUpdateRequest'
       responses:
         '200':
           description: Updated category
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GenericEntity'
+                $ref: '#/components/schemas/CategoryResponse'
     delete:
       tags: [Blog]
       summary: Delete category
@@ -1544,7 +1719,7 @@ paths:
             type: string
       responses:
         '204':
-          description: Deleted
+          description: Category deleted
   /blog/categories/{category_id}/posts:
     get:
       tags: [Blog]
@@ -1557,22 +1732,31 @@ paths:
             type: string
       responses:
         '200':
-          description: Post list for category
+          description: Posts for category
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GenericList'
+                $ref: '#/components/schemas/PostListResponse'
   /blog/posts:
     get:
       tags: [Blog]
       summary: List posts
+      parameters:
+        - name: tag
+          in: query
+          schema:
+            type: string
+        - name: featured
+          in: query
+          schema:
+            type: boolean
       responses:
         '200':
-          description: Post list
+          description: Posts
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GenericList'
+                $ref: '#/components/schemas/PostListResponse'
     post:
       tags: [Blog]
       summary: Create post
@@ -1581,25 +1765,25 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/GenericEntity'
+              $ref: '#/components/schemas/PostCreateRequest'
       responses:
         '201':
           description: Created post
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GenericEntity'
+                $ref: '#/components/schemas/PostResponse'
   /blog/posts/featured:
     get:
       tags: [Blog]
       summary: Featured posts
       responses:
         '200':
-          description: Featured post list
+          description: Featured posts
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GenericList'
+                $ref: '#/components/schemas/PostListResponse'
   /blog/posts/slug/{slug}:
     get:
       tags: [Blog]
@@ -1612,11 +1796,11 @@ paths:
             type: string
       responses:
         '200':
-          description: Post detail
+          description: Post
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GenericEntity'
+                $ref: '#/components/schemas/PostResponse'
   /blog/posts/tag/{tag}:
     get:
       tags: [Blog]
@@ -1629,11 +1813,11 @@ paths:
             type: string
       responses:
         '200':
-          description: Post list by tag
+          description: Posts by tag
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GenericList'
+                $ref: '#/components/schemas/PostListResponse'
   /blog/posts/{id}:
     get:
       tags: [Blog]
@@ -1646,11 +1830,11 @@ paths:
             type: string
       responses:
         '200':
-          description: Post detail
+          description: Post
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GenericEntity'
+                $ref: '#/components/schemas/PostResponse'
     put:
       tags: [Blog]
       summary: Update post
@@ -1665,14 +1849,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/GenericEntity'
+              $ref: '#/components/schemas/PostUpdateRequest'
       responses:
         '200':
           description: Updated post
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GenericEntity'
+                $ref: '#/components/schemas/PostResponse'
     delete:
       tags: [Blog]
       summary: Delete post
@@ -1684,7 +1868,7 @@ paths:
             type: string
       responses:
         '204':
-          description: Deleted
+          description: Post deleted
   /blog/posts/{id}/publish:
     post:
       tags: [Blog]
@@ -1697,11 +1881,11 @@ paths:
             type: string
       responses:
         '200':
-          description: Post published
+          description: Published post
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GenericEntity'
+                $ref: '#/components/schemas/PostResponse'
   /blog/posts/{id}/archive:
     post:
       tags: [Blog]
@@ -1714,8 +1898,1691 @@ paths:
             type: string
       responses:
         '200':
-          description: Post archived
+          description: Archived post
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GenericEntity'
+                $ref: '#/components/schemas/PostResponse'
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required: [error]
+    MessageResponse:
+      type: object
+      properties:
+        message:
+          type: string
+      required: [message]
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+        environment:
+          type: string
+        message:
+          type: string
+    RegisterRequest:
+      type: object
+      properties:
+        tenant_id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+        first_name:
+          type: string
+        last_name:
+          type: string
+      required: [tenant_id, email, password, first_name, last_name]
+    LoginRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+        tenant_id:
+          type: string
+          format: uuid
+          nullable: true
+      required: [email, password]
+    LoginResponse:
+      type: object
+      properties:
+        user:
+          $ref: '#/components/schemas/User'
+        access_token:
+          type: string
+        refresh_token:
+          type: string
+          nullable: true
+        expires_in:
+          type: integer
+          description: Token lifetime in seconds
+      required: [user, access_token, expires_in]
+    TenantCreateRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        slug:
+          type: string
+        email:
+          type: string
+          format: email
+        phone:
+          type: string
+        plan:
+          type: string
+          enum: [free, starter, pro, enterprise]
+      required: [name, slug, email, plan]
+    TenantUpdateRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+        phone:
+          type: string
+    TenantUpgradeRequest:
+      type: object
+      properties:
+        plan:
+          type: string
+          enum: [free, starter, pro, enterprise]
+      required: [plan]
+    TenantDomainRequest:
+      type: object
+      properties:
+        domain:
+          type: string
+      required: [domain]
+    TenantSuspendRequest:
+      type: object
+      properties:
+        reason:
+          type: string
+          nullable: true
+    FeatureLimits:
+      type: object
+      properties:
+        max_users:
+          type: integer
+        max_websites:
+          type: integer
+        max_storage:
+          type: integer
+          format: int64
+        custom_domain:
+          type: boolean
+        api_access:
+          type: boolean
+    Tenant:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        slug:
+          type: string
+        email:
+          type: string
+          format: email
+        phone:
+          type: string
+        status:
+          type: string
+        plan:
+          type: string
+        subscription_start:
+          type: string
+          format: date-time
+          nullable: true
+        subscription_end:
+          type: string
+          format: date-time
+          nullable: true
+        trial_ends_at:
+          type: string
+          format: date-time
+          nullable: true
+        custom_domain:
+          type: string
+          nullable: true
+        custom_domain_verified:
+          type: boolean
+        custom_domain_verified_at:
+          type: string
+          format: date-time
+          nullable: true
+        feature_limits:
+          $ref: '#/components/schemas/FeatureLimits'
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+      required:
+        - id
+        - name
+        - slug
+        - email
+        - status
+        - plan
+        - feature_limits
+        - created_at
+        - updated_at
+    TenantEnvelope:
+      type: object
+      properties:
+        data:
+          $ref: '#/components/schemas/Tenant'
+      required: [data]
+    TenantList:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Tenant'
+        total:
+          type: integer
+        page:
+          type: integer
+        per_page:
+          type: integer
+        total_pages:
+          type: integer
+      required: [data, total, page, per_page, total_pages]
+    TenantListEnvelope:
+      type: object
+      properties:
+        data:
+          $ref: '#/components/schemas/TenantList'
+      required: [data]
+    TenantStats:
+      type: object
+      additionalProperties:
+        type: integer
+    TenantStatsEnvelope:
+      type: object
+      properties:
+        data:
+          $ref: '#/components/schemas/TenantStats'
+      required: [data]
+    UserCreateRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+        first_name:
+          type: string
+        last_name:
+          type: string
+        role:
+          type: string
+          enum: [owner, admin, editor, viewer]
+      required: [email, password, first_name, last_name, role]
+    UserUpdateRequest:
+      type: object
+      properties:
+        first_name:
+          type: string
+        last_name:
+          type: string
+        phone:
+          type: string
+        timezone:
+          type: string
+        locale:
+          type: string
+    UserPasswordUpdateRequest:
+      type: object
+      properties:
+        current_password:
+          type: string
+        new_password:
+          type: string
+      required: [current_password, new_password]
+    UserRoleUpdateRequest:
+      type: object
+      properties:
+        role:
+          type: string
+          enum: [owner, admin, editor, viewer]
+      required: [role]
+    UserSuspendRequest:
+      type: object
+      properties:
+        reason:
+          type: string
+          nullable: true
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenant_id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        first_name:
+          type: string
+        last_name:
+          type: string
+        full_name:
+          type: string
+        role:
+          type: string
+        status:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        email_verified:
+          type: boolean
+        email_verified_at:
+          type: string
+          format: date-time
+          nullable: true
+        last_login_at:
+          type: string
+          format: date-time
+          nullable: true
+        avatar:
+          type: string
+          nullable: true
+        phone:
+          type: string
+          nullable: true
+        timezone:
+          type: string
+          nullable: true
+        locale:
+          type: string
+          nullable: true
+        two_factor_enabled:
+          type: boolean
+        password_changed_at:
+          type: string
+          format: date-time
+          nullable: true
+        permissions:
+          type: array
+          items:
+            type: string
+      required:
+        - id
+        - tenant_id
+        - email
+        - first_name
+        - last_name
+        - role
+        - status
+        - created_at
+        - updated_at
+        - email_verified
+        - two_factor_enabled
+        - permissions
+    UserEnvelope:
+      type: object
+      properties:
+        data:
+          $ref: '#/components/schemas/User'
+      required: [data]
+    UserList:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/User'
+        total:
+          type: integer
+        page:
+          type: integer
+        per_page:
+          type: integer
+        total_pages:
+          type: integer
+      required: [data, total, page, per_page, total_pages]
+    UserListEnvelope:
+      type: object
+      properties:
+        data:
+          $ref: '#/components/schemas/UserList'
+      required: [data]
+    UserStats:
+      type: object
+      additionalProperties:
+        type: integer
+    UserStatsEnvelope:
+      type: object
+      properties:
+        data:
+          $ref: '#/components/schemas/UserStats'
+      required: [data]
+    WebsiteCreateRequest:
+      type: object
+      properties:
+        tenant_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        slug:
+          type: string
+        description:
+          type: string
+          nullable: true
+      required: [name, slug]
+    WebsiteUpdateRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+    WebsiteResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenant_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        slug:
+          type: string
+        type:
+          type: string
+        description:
+          type: string
+          nullable: true
+        status:
+          type: string
+        homepage_id:
+          type: string
+          format: uuid
+          nullable: true
+        title:
+          type: string
+        logo:
+          type: string
+          nullable: true
+        favicon:
+          type: string
+          nullable: true
+        custom_domain:
+          type: string
+          nullable: true
+        custom_domain_verified:
+          type: boolean
+        primary_url:
+          type: string
+        template_id:
+          type: string
+          format: uuid
+          nullable: true
+        template_name:
+          type: string
+          nullable: true
+        template_version:
+          type: string
+          nullable: true
+        published_at:
+          type: string
+          format: date-time
+          nullable: true
+        unpublished_at:
+          type: string
+          format: date-time
+          nullable: true
+        archived_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+      required:
+        - id
+        - tenant_id
+        - name
+        - slug
+        - status
+        - title
+        - custom_domain_verified
+        - primary_url
+        - created_at
+        - updated_at
+    WebsiteListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/WebsiteResponse'
+        total:
+          type: integer
+      required: [items, total]
+    StudentCreateRequest:
+      type: object
+      properties:
+        first_name:
+          type: string
+        last_name:
+          type: string
+        email:
+          type: string
+          format: email
+        phone:
+          type: string
+        date_of_birth:
+          type: string
+          format: date
+          nullable: true
+        status:
+          type: string
+          enum: [active, inactive, suspended, graduated]
+        level:
+          type: string
+          enum: [beginner, intermediate, advanced]
+        grade:
+          type: string
+          nullable: true
+        school:
+          type: string
+          nullable: true
+        parent_name:
+          type: string
+          nullable: true
+        parent_email:
+          type: string
+          format: email
+          nullable: true
+        parent_phone:
+          type: string
+          nullable: true
+        current_gpa:
+          type: number
+          format: float
+          nullable: true
+        target_gpa:
+          type: number
+          format: float
+          nullable: true
+        subjects:
+          type: array
+          items:
+            type: string
+        goals:
+          type: string
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        avatar:
+          type: string
+          nullable: true
+      required: [first_name, last_name, email, status, level]
+    StudentUpdateRequest:
+      type: object
+      properties:
+        first_name:
+          type: string
+        last_name:
+          type: string
+        email:
+          type: string
+          format: email
+        phone:
+          type: string
+        date_of_birth:
+          type: string
+          format: date
+          nullable: true
+        status:
+          type: string
+        level:
+          type: string
+        grade:
+          type: string
+          nullable: true
+        school:
+          type: string
+          nullable: true
+        parent_name:
+          type: string
+          nullable: true
+        parent_email:
+          type: string
+          format: email
+          nullable: true
+        parent_phone:
+          type: string
+          nullable: true
+        current_gpa:
+          type: number
+          format: float
+          nullable: true
+        target_gpa:
+          type: number
+          format: float
+          nullable: true
+        subjects:
+          type: array
+          items:
+            type: string
+        goals:
+          type: string
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        avatar:
+          type: string
+          nullable: true
+    StudentResponse:
+      type: object
+      properties:
+        id:
+          type: string
+        tenant_id:
+          type: string
+        first_name:
+          type: string
+        last_name:
+          type: string
+        email:
+          type: string
+          format: email
+        phone:
+          type: string
+          nullable: true
+        date_of_birth:
+          type: string
+          format: date
+          nullable: true
+        status:
+          type: string
+        level:
+          type: string
+        grade:
+          type: string
+          nullable: true
+        school:
+          type: string
+          nullable: true
+        parent_name:
+          type: string
+          nullable: true
+        parent_email:
+          type: string
+          format: email
+          nullable: true
+        parent_phone:
+          type: string
+          nullable: true
+        current_gpa:
+          type: number
+          format: float
+          nullable: true
+        target_gpa:
+          type: number
+          format: float
+          nullable: true
+        subjects:
+          type: array
+          items:
+            type: string
+        goals:
+          type: string
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        enrollment_date:
+          type: string
+          format: date-time
+        last_lesson_date:
+          type: string
+          format: date-time
+          nullable: true
+        total_lessons:
+          type: integer
+        completed_lessons:
+          type: integer
+        cancelled_lessons:
+          type: integer
+        attendance_rate:
+          type: number
+          format: float
+        average_score:
+          type: number
+          format: float
+        avatar:
+          type: string
+          nullable: true
+        metadata:
+          type: object
+          additionalProperties: {}
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+      required:
+        - id
+        - tenant_id
+        - first_name
+        - last_name
+        - email
+        - status
+        - level
+        - enrollment_date
+        - total_lessons
+        - completed_lessons
+        - cancelled_lessons
+        - attendance_rate
+        - average_score
+        - created_at
+        - updated_at
+    StudentListResponse:
+      type: object
+      properties:
+        students:
+          type: array
+          items:
+            $ref: '#/components/schemas/StudentResponse'
+        total:
+          type: integer
+        limit:
+          type: integer
+        offset:
+          type: integer
+      required: [students, total, limit, offset]
+    StudentStatsResponse:
+      type: object
+      additionalProperties:
+        type: integer
+    LessonCreateRequest:
+      type: object
+      properties:
+        student_id:
+          type: string
+        title:
+          type: string
+        description:
+          type: string
+          nullable: true
+        subject:
+          type: string
+        topic:
+          type: string
+          nullable: true
+        status:
+          type: string
+        type:
+          type: string
+        scheduled_at:
+          type: string
+          format: date-time
+        duration:
+          type: integer
+        location:
+          type: string
+          nullable: true
+        meeting_url:
+          type: string
+          nullable: true
+        materials:
+          type: array
+          items:
+            type: string
+        homework:
+          type: string
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+      required: [student_id, title, subject, status, type, scheduled_at, duration]
+    LessonUpdateRequest:
+      type: object
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+          nullable: true
+        subject:
+          type: string
+        topic:
+          type: string
+          nullable: true
+        status:
+          type: string
+        started_at:
+          type: string
+          format: date-time
+          nullable: true
+        completed_at:
+          type: string
+          format: date-time
+          nullable: true
+        performance_score:
+          type: integer
+          nullable: true
+        attendance_status:
+          type: string
+          nullable: true
+        homework_completed:
+          type: boolean
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+    LessonResponse:
+      type: object
+      properties:
+        id:
+          type: string
+        tenant_id:
+          type: string
+        student_id:
+          type: string
+        title:
+          type: string
+        description:
+          type: string
+          nullable: true
+        subject:
+          type: string
+        topic:
+          type: string
+          nullable: true
+        status:
+          type: string
+        type:
+          type: string
+        scheduled_at:
+          type: string
+          format: date-time
+        started_at:
+          type: string
+          format: date-time
+          nullable: true
+        completed_at:
+          type: string
+          format: date-time
+          nullable: true
+        duration:
+          type: integer
+        location:
+          type: string
+          nullable: true
+        meeting_url:
+          type: string
+          nullable: true
+        materials:
+          type: array
+          items:
+            type: string
+        homework:
+          type: string
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        student_notes:
+          type: string
+          nullable: true
+        performance_score:
+          type: integer
+          nullable: true
+        attendance_status:
+          type: string
+          nullable: true
+        homework_completed:
+          type: boolean
+        next_lesson_topic:
+          type: string
+          nullable: true
+        next_lesson_date:
+          type: string
+          format: date-time
+          nullable: true
+        metadata:
+          type: object
+          additionalProperties: {}
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+      required:
+        - id
+        - tenant_id
+        - student_id
+        - title
+        - subject
+        - status
+        - type
+        - scheduled_at
+        - duration
+        - homework_completed
+        - created_at
+        - updated_at
+    LessonListResponse:
+      type: object
+      properties:
+        lessons:
+          type: array
+          items:
+            $ref: '#/components/schemas/LessonResponse'
+        total:
+          type: integer
+        limit:
+          type: integer
+        offset:
+          type: integer
+      required: [lessons, total, limit, offset]
+    LessonStatsResponse:
+      type: object
+      additionalProperties:
+        type: integer
+    AssignmentCreateRequest:
+      type: object
+      properties:
+        student_id:
+          type: string
+        lesson_id:
+          type: string
+          nullable: true
+        title:
+          type: string
+        description:
+          type: string
+          nullable: true
+        subject:
+          type: string
+        status:
+          type: string
+        due_date:
+          type: string
+          format: date-time
+        max_score:
+          type: integer
+        files:
+          type: array
+          items:
+            type: string
+      required: [student_id, title, subject, status, due_date, max_score]
+    AssignmentUpdateRequest:
+      type: object
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+          nullable: true
+        status:
+          type: string
+        submitted_at:
+          type: string
+          format: date-time
+          nullable: true
+        graded_at:
+          type: string
+          format: date-time
+          nullable: true
+        score:
+          type: integer
+          nullable: true
+        feedback:
+          type: string
+          nullable: true
+    AssignmentResponse:
+      type: object
+      properties:
+        id:
+          type: string
+        tenant_id:
+          type: string
+        student_id:
+          type: string
+        lesson_id:
+          type: string
+          nullable: true
+        title:
+          type: string
+        description:
+          type: string
+          nullable: true
+        subject:
+          type: string
+        status:
+          type: string
+        due_date:
+          type: string
+          format: date-time
+        submitted_at:
+          type: string
+          format: date-time
+          nullable: true
+        graded_at:
+          type: string
+          format: date-time
+          nullable: true
+        score:
+          type: integer
+          nullable: true
+        max_score:
+          type: integer
+        feedback:
+          type: string
+          nullable: true
+        files:
+          type: array
+          items:
+            type: string
+        metadata:
+          type: object
+          additionalProperties: {}
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+      required:
+        - id
+        - tenant_id
+        - student_id
+        - title
+        - subject
+        - status
+        - due_date
+        - max_score
+        - created_at
+        - updated_at
+    AssignmentListResponse:
+      type: object
+      properties:
+        assignments:
+          type: array
+          items:
+            $ref: '#/components/schemas/AssignmentResponse'
+        total:
+          type: integer
+        limit:
+          type: integer
+        offset:
+          type: integer
+      required: [assignments, total, limit, offset]
+    AssignmentStatsResponse:
+      type: object
+      additionalProperties:
+        type: integer
+    AvailabilityCreateRequest:
+      type: object
+      properties:
+        user_id:
+          type: string
+          nullable: true
+        title:
+          type: string
+        description:
+          type: string
+          nullable: true
+        start_time:
+          type: string
+          format: date-time
+        end_time:
+          type: string
+          format: date-time
+        recurrence:
+          type: string
+          enum: [none, daily, weekly, monthly]
+        recurrence_end:
+          type: string
+          format: date-time
+          nullable: true
+        days_of_week:
+          type: array
+          items:
+            type: integer
+      required: [title, start_time, end_time, recurrence]
+    AvailabilityUpdateRequest:
+      type: object
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+          nullable: true
+        start_time:
+          type: string
+          format: date-time
+          nullable: true
+        end_time:
+          type: string
+          format: date-time
+          nullable: true
+        status:
+          type: string
+          nullable: true
+    AvailabilityResponse:
+      type: object
+      properties:
+        id:
+          type: string
+        tenant_id:
+          type: string
+        user_id:
+          type: string
+          nullable: true
+        title:
+          type: string
+        description:
+          type: string
+          nullable: true
+        start_time:
+          type: string
+          format: date-time
+        end_time:
+          type: string
+          format: date-time
+        status:
+          type: string
+        recurrence:
+          type: string
+        recurrence_end:
+          type: string
+          format: date-time
+          nullable: true
+        days_of_week:
+          type: array
+          items:
+            type: integer
+        metadata:
+          type: object
+          additionalProperties: {}
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+      required:
+        - id
+        - tenant_id
+        - title
+        - start_time
+        - end_time
+        - status
+        - recurrence
+        - created_at
+        - updated_at
+    AvailabilityListResponse:
+      type: object
+      properties:
+        availabilities:
+          type: array
+          items:
+            $ref: '#/components/schemas/AvailabilityResponse'
+        total:
+          type: integer
+        limit:
+          type: integer
+        offset:
+          type: integer
+      required: [availabilities, total, limit, offset]
+    AvailabilityStatsResponse:
+      type: object
+      additionalProperties:
+        type: integer
+    AppointmentCreateRequest:
+      type: object
+      properties:
+        user_id:
+          type: string
+          nullable: true
+        client_name:
+          type: string
+        client_email:
+          type: string
+          format: email
+        client_phone:
+          type: string
+          nullable: true
+        title:
+          type: string
+        description:
+          type: string
+          nullable: true
+        type:
+          type: string
+        start_time:
+          type: string
+          format: date-time
+        end_time:
+          type: string
+          format: date-time
+        duration:
+          type: integer
+        location:
+          type: string
+          nullable: true
+        meeting_url:
+          type: string
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+      required: [client_name, client_email, title, type, start_time, end_time, duration]
+    AppointmentUpdateRequest:
+      type: object
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+          nullable: true
+        status:
+          type: string
+        notes:
+          type: string
+          nullable: true
+        cancellation_reason:
+          type: string
+          nullable: true
+    AppointmentCancellationRequest:
+      type: object
+      properties:
+        reason:
+          type: string
+          nullable: true
+    AppointmentResponse:
+      type: object
+      properties:
+        id:
+          type: string
+        tenant_id:
+          type: string
+        user_id:
+          type: string
+          nullable: true
+        client_name:
+          type: string
+        client_email:
+          type: string
+          format: email
+        client_phone:
+          type: string
+          nullable: true
+        title:
+          type: string
+        description:
+          type: string
+          nullable: true
+        type:
+          type: string
+        status:
+          type: string
+        start_time:
+          type: string
+          format: date-time
+        end_time:
+          type: string
+          format: date-time
+        duration:
+          type: integer
+        location:
+          type: string
+          nullable: true
+        meeting_url:
+          type: string
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        cancellation_reason:
+          type: string
+          nullable: true
+        cancelled_at:
+          type: string
+          format: date-time
+          nullable: true
+        confirmed_at:
+          type: string
+          format: date-time
+          nullable: true
+        completed_at:
+          type: string
+          format: date-time
+          nullable: true
+        reminder_sent:
+          type: boolean
+        reminder_sent_at:
+          type: string
+          format: date-time
+          nullable: true
+        metadata:
+          type: object
+          additionalProperties: {}
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+      required:
+        - id
+        - tenant_id
+        - client_name
+        - client_email
+        - title
+        - type
+        - status
+        - start_time
+        - end_time
+        - duration
+        - reminder_sent
+        - created_at
+        - updated_at
+    AppointmentListResponse:
+      type: object
+      properties:
+        appointments:
+          type: array
+          items:
+            $ref: '#/components/schemas/AppointmentResponse'
+        total:
+          type: integer
+        limit:
+          type: integer
+        offset:
+          type: integer
+      required: [appointments, total, limit, offset]
+    AppointmentStatsResponse:
+      type: object
+      additionalProperties:
+        type: integer
+    ServiceCreateRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        slug:
+          type: string
+        description:
+          type: string
+          nullable: true
+        category:
+          type: string
+        features:
+          type: array
+          items:
+            type: string
+        base_price:
+          type: number
+          format: float
+        currency:
+          type: string
+        pricing_model:
+          type: string
+        billing_cycle:
+          type: string
+          nullable: true
+        duration:
+          type: integer
+          nullable: true
+        max_clients:
+          type: integer
+          nullable: true
+        is_public:
+          type: boolean
+        image:
+          type: string
+          nullable: true
+      required: [name, slug, category, base_price, currency, pricing_model]
+    ServiceUpdateRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        features:
+          type: array
+          items:
+            type: string
+        base_price:
+          type: number
+          format: float
+        status:
+          type: string
+        featured:
+          type: boolean
+        image:
+          type: string
+          nullable: true
+    ServiceResponse:
+      type: object
+      properties:
+        id:
+          type: string
+        tenant_id:
+          type: string
+        name:
+          type: string
+        slug:
+          type: string
+        description:
+          type: string
+          nullable: true
+        category:
+          type: string
+        status:
+          type: string
+        features:
+          type: array
+          items:
+            type: string
+        base_price:
+          type: number
+          format: float
+        currency:
+          type: string
+        pricing_model:
+          type: string
+        billing_cycle:
+          type: string
+          nullable: true
+        duration:
+          type: integer
+          nullable: true
+        max_clients:
+          type: integer
+          nullable: true
+        is_public:
+          type: boolean
+        featured:
+          type: boolean
+        image:
+          type: string
+          nullable: true
+        metadata:
+          type: object
+          additionalProperties: {}
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+      required:
+        - id
+        - tenant_id
+        - name
+        - slug
+        - category
+        - status
+        - base_price
+        - currency
+        - pricing_model
+        - is_public
+        - featured
+        - created_at
+        - updated_at
+    ServiceListResponse:
+      type: object
+      properties:
+        services:
+          type: array
+          items:
+            $ref: '#/components/schemas/ServiceResponse'
+        total:
+          type: integer
+        limit:
+          type: integer
+        offset:
+          type: integer
+      required: [services, total, limit, offset]
+    ServiceStatsResponse:
+      type: object
+      additionalProperties:
+        type: integer
+    CategoryCreateRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        slug:
+          type: string
+        description:
+          type: string
+          nullable: true
+        metadata:
+          type: object
+          additionalProperties: {}
+      required: [name, slug]
+    CategoryUpdateRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        slug:
+          type: string
+        description:
+          type: string
+          nullable: true
+        metadata:
+          type: object
+          additionalProperties: {}
+    CategoryResponse:
+      type: object
+      properties:
+        id:
+          type: string
+        tenant_id:
+          type: string
+        name:
+          type: string
+        slug:
+          type: string
+        description:
+          type: string
+          nullable: true
+        post_count:
+          type: integer
+        metadata:
+          type: object
+          additionalProperties: {}
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+      required:
+        - id
+        - tenant_id
+        - name
+        - slug
+        - post_count
+        - metadata
+        - created_at
+        - updated_at
+    CategoryListResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/CategoryResponse'
+        total:
+          type: integer
+        page:
+          type: integer
+        limit:
+          type: integer
+      required: [data, total, page, limit]
+    PostCreateRequest:
+      type: object
+      properties:
+        category_id:
+          type: string
+          nullable: true
+        title:
+          type: string
+        slug:
+          type: string
+        content:
+          type: string
+          nullable: true
+        excerpt:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum: [draft, published, archived]
+        featured:
+          type: boolean
+        image:
+          type: string
+          nullable: true
+        tags:
+          type: array
+          items:
+            type: string
+        published_at:
+          type: string
+          format: date-time
+          nullable: true
+        metadata:
+          type: object
+          additionalProperties: {}
+      required: [title, slug, status, featured]
+    PostUpdateRequest:
+      allOf:
+        - $ref: '#/components/schemas/PostCreateRequest'
+    PostResponse:
+      type: object
+      properties:
+        id:
+          type: string
+        tenant_id:
+          type: string
+        category_id:
+          type: string
+          nullable: true
+        title:
+          type: string
+        slug:
+          type: string
+        content:
+          type: string
+          nullable: true
+        excerpt:
+          type: string
+          nullable: true
+        status:
+          type: string
+        featured:
+          type: boolean
+        view_count:
+          type: integer
+        image:
+          type: string
+          nullable: true
+        tags:
+          type: array
+          items:
+            type: string
+        published_at:
+          type: string
+          format: date-time
+          nullable: true
+        metadata:
+          type: object
+          additionalProperties: {}
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        created_by:
+          type: string
+          nullable: true
+        updated_by:
+          type: string
+          nullable: true
+      required:
+        - id
+        - tenant_id
+        - title
+        - slug
+        - status
+        - featured
+        - view_count
+        - tags
+        - metadata
+        - created_at
+        - updated_at
+    PostListResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/PostResponse'
+        total:
+          type: integer
+        page:
+          type: integer
+        limit:
+          type: integer
+      required: [data, total, page, limit]

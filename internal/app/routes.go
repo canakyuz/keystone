@@ -6,8 +6,8 @@ import (
 	authHandler "nexpaces-api/internal/handler/auth"
 	blogHandler "nexpaces-api/internal/handler/blog"
 	bookingHandler "nexpaces-api/internal/handler/booking"
-	serviceHandler "nexpaces-api/internal/handler/service"
 	lessonHandler "nexpaces-api/internal/handler/lesson"
+	serviceHandler "nexpaces-api/internal/handler/service"
 	tenantHandler "nexpaces-api/internal/handler/tenant"
 	userHandler "nexpaces-api/internal/handler/user"
 	websiteHandler "nexpaces-api/internal/handler/website"
@@ -31,6 +31,14 @@ func setupRoutes(
 	postH *blogHandler.PostHandler,
 	categoryH *blogHandler.CategoryHandler,
 ) {
+	app.Get("/docs", func(c *fiber.Ctx) error {
+		return c.SendFile("web/static/docs/index.html")
+	})
+	app.Static("/docs/", "./web/static/docs")
+	app.Get("/api/openapi.yaml", func(c *fiber.Ctx) error {
+		return c.SendFile("api/openapi.yaml")
+	})
+
 	// Health check
 	app.Get("/health", func(c *fiber.Ctx) error {
 		return c.JSON(fiber.Map{
@@ -59,33 +67,33 @@ func setupRoutes(
 
 	// Tenant routes (authentication required)
 	tenants := v1.Group("/tenants", middleware.AuthMiddleware(cfg.Auth.JWTSecret))
-	tenants.Post("/", tenantH.Create)                                    // Create tenant
-	tenants.Get("/current", tenantH.GetCurrent)                          // Get current tenant
-	tenants.Get("/stats", tenantH.GetStats)                              // Tenant statistics
-	tenants.Get("/slug/:slug", tenantH.GetBySlug)                        // Get by slug
-	tenants.Get("/:id", tenantH.GetByID)                                 // Get by ID
-	tenants.Get("/", tenantH.List)                                       // List tenants
-	tenants.Patch("/:id", tenantH.Update)                                // Update tenant
-	tenants.Post("/:id/suspend", tenantH.Suspend)                        // Suspend tenant
-	tenants.Post("/:id/activate", tenantH.Activate)                      // Activate tenant
-	tenants.Post("/:id/upgrade", tenantH.UpgradePlan)                    // Upgrade plan
-	tenants.Post("/:id/domain", tenantH.SetCustomDomain)                 // Set custom domain
-	tenants.Post("/:id/domain/verify", tenantH.VerifyCustomDomain)       // Verify domain
-	tenants.Delete("/:id", tenantH.Delete)                               // Delete tenant
+	tenants.Post("/", tenantH.Create)                              // Create tenant
+	tenants.Get("/current", tenantH.GetCurrent)                    // Get current tenant
+	tenants.Get("/stats", tenantH.GetStats)                        // Tenant statistics
+	tenants.Get("/slug/:slug", tenantH.GetBySlug)                  // Get by slug
+	tenants.Get("/:id", tenantH.GetByID)                           // Get by ID
+	tenants.Get("/", tenantH.List)                                 // List tenants
+	tenants.Patch("/:id", tenantH.Update)                          // Update tenant
+	tenants.Post("/:id/suspend", tenantH.Suspend)                  // Suspend tenant
+	tenants.Post("/:id/activate", tenantH.Activate)                // Activate tenant
+	tenants.Post("/:id/upgrade", tenantH.UpgradePlan)              // Upgrade plan
+	tenants.Post("/:id/domain", tenantH.SetCustomDomain)           // Set custom domain
+	tenants.Post("/:id/domain/verify", tenantH.VerifyCustomDomain) // Verify domain
+	tenants.Delete("/:id", tenantH.Delete)                         // Delete tenant
 
 	// User routes (authentication required)
 	users := v1.Group("/users", middleware.AuthMiddleware(cfg.Auth.JWTSecret))
-	users.Post("/", userH.Create)                            // Create user (admin only)
-	users.Get("/stats", userH.GetStats)                      // User statistics
-	users.Get("/:id", userH.GetByID)                         // Get user by ID
-	users.Get("/", userH.List)                               // List users
-	users.Patch("/:id", userH.Update)                        // Update user
-	users.Post("/:id/password", userH.UpdatePassword)        // Update password
-	users.Post("/:id/role", userH.UpdateRole)                // Update role (admin only)
-	users.Post("/:id/suspend", userH.Suspend)                // Suspend user (admin only)
-	users.Post("/:id/activate", userH.Activate)              // Activate user (admin only)
-	users.Post("/:id/verify-email", userH.VerifyEmail)       // Verify email
-	users.Delete("/:id", userH.Delete)                       // Delete user (admin only)
+	users.Post("/", userH.Create)                      // Create user (admin only)
+	users.Get("/stats", userH.GetStats)                // User statistics
+	users.Get("/:id", userH.GetByID)                   // Get user by ID
+	users.Get("/", userH.List)                         // List users
+	users.Patch("/:id", userH.Update)                  // Update user
+	users.Post("/:id/password", userH.UpdatePassword)  // Update password
+	users.Post("/:id/role", userH.UpdateRole)          // Update role (admin only)
+	users.Post("/:id/suspend", userH.Suspend)          // Suspend user (admin only)
+	users.Post("/:id/activate", userH.Activate)        // Activate user (admin only)
+	users.Post("/:id/verify-email", userH.VerifyEmail) // Verify email
+	users.Delete("/:id", userH.Delete)                 // Delete user (admin only)
 
 	// Website routes (tenant-scoped)
 	websites := v1.Group("/websites", middleware.AuthMiddleware(cfg.Auth.JWTSecret))
@@ -99,36 +107,36 @@ func setupRoutes(
 
 	// Student routes (Lessons module - tenant-scoped)
 	students := v1.Group("/students", middleware.AuthMiddleware(cfg.Auth.JWTSecret))
-	students.Post("/", studentH.Create)                      // Create student
-	students.Get("/stats", studentH.GetStats)                // Student statistics
-	students.Get("/email", studentH.GetByEmail)              // Get by email
-	students.Get("/:id", studentH.GetByID)                   // Get student by ID
-	students.Get("/", studentH.List)                         // List students
-	students.Put("/:id", studentH.Update)                    // Update student
-	students.Delete("/:id", studentH.Delete)                 // Delete student
+	students.Post("/", studentH.Create)         // Create student
+	students.Get("/stats", studentH.GetStats)   // Student statistics
+	students.Get("/email", studentH.GetByEmail) // Get by email
+	students.Get("/:id", studentH.GetByID)      // Get student by ID
+	students.Get("/", studentH.List)            // List students
+	students.Put("/:id", studentH.Update)       // Update student
+	students.Delete("/:id", studentH.Delete)    // Delete student
 
 	// Lesson routes (Lessons module - tenant-scoped)
 	lessons := v1.Group("/lessons", middleware.AuthMiddleware(cfg.Auth.JWTSecret))
-	lessons.Post("/", lessonH.Create)                        // Create lesson
-	lessons.Get("/stats", lessonH.GetStats)                  // Lesson statistics
-	lessons.Get("/upcoming", lessonH.GetUpcoming)            // Get upcoming lessons
-	lessons.Get("/:id", lessonH.GetByID)                     // Get lesson by ID
-	lessons.Get("/", lessonH.List)                           // List lessons
-	lessons.Put("/:id", lessonH.Update)                      // Update lesson
-	lessons.Delete("/:id", lessonH.Delete)                   // Delete lesson
+	lessons.Post("/", lessonH.Create)             // Create lesson
+	lessons.Get("/stats", lessonH.GetStats)       // Lesson statistics
+	lessons.Get("/upcoming", lessonH.GetUpcoming) // Get upcoming lessons
+	lessons.Get("/:id", lessonH.GetByID)          // Get lesson by ID
+	lessons.Get("/", lessonH.List)                // List lessons
+	lessons.Put("/:id", lessonH.Update)           // Update lesson
+	lessons.Delete("/:id", lessonH.Delete)        // Delete lesson
 
 	// Student-specific lesson routes
 	students.Get("/:student_id/lessons", lessonH.GetByStudent) // Get lessons by student
 
 	// Assignment routes (Lessons module - tenant-scoped)
 	assignments := v1.Group("/assignments", middleware.AuthMiddleware(cfg.Auth.JWTSecret))
-	assignments.Post("/", assignmentH.Create)                // Create assignment
-	assignments.Get("/stats", assignmentH.GetStats)          // Assignment statistics
-	assignments.Get("/overdue", assignmentH.GetOverdue)      // Get overdue assignments
-	assignments.Get("/:id", assignmentH.GetByID)             // Get assignment by ID
-	assignments.Get("/", assignmentH.List)                   // List assignments
-	assignments.Put("/:id", assignmentH.Update)              // Update assignment
-	assignments.Delete("/:id", assignmentH.Delete)           // Delete assignment
+	assignments.Post("/", assignmentH.Create)           // Create assignment
+	assignments.Get("/stats", assignmentH.GetStats)     // Assignment statistics
+	assignments.Get("/overdue", assignmentH.GetOverdue) // Get overdue assignments
+	assignments.Get("/:id", assignmentH.GetByID)        // Get assignment by ID
+	assignments.Get("/", assignmentH.List)              // List assignments
+	assignments.Put("/:id", assignmentH.Update)         // Update assignment
+	assignments.Delete("/:id", assignmentH.Delete)      // Delete assignment
 
 	// Student-specific assignment routes
 	students.Get("/:student_id/assignments", assignmentH.GetByStudent) // Get assignments by student
@@ -148,54 +156,54 @@ func setupRoutes(
 
 	// Appointment routes (Booking module - tenant-scoped)
 	appointments := v1.Group("/appointments", middleware.AuthMiddleware(cfg.Auth.JWTSecret))
-	appointments.Post("/", appointmentH.Create)                   // Create appointment
-	appointments.Get("/stats", appointmentH.GetStats)             // Appointment statistics
-	appointments.Get("/upcoming", appointmentH.GetUpcoming)       // Get upcoming appointments
-	appointments.Get("/date-range", appointmentH.GetByDateRange)  // Get by date range
-	appointments.Get("/client", appointmentH.GetByClient)         // Get by client email
-	appointments.Get("/:id", appointmentH.GetByID)                // Get appointment by ID
-	appointments.Get("/", appointmentH.List)                      // List appointments
-	appointments.Put("/:id", appointmentH.Update)                 // Update appointment
-	appointments.Post("/:id/confirm", appointmentH.Confirm)       // Confirm appointment
-	appointments.Post("/:id/cancel", appointmentH.Cancel)         // Cancel appointment
-	appointments.Post("/:id/complete", appointmentH.Complete)     // Complete appointment
-	appointments.Delete("/:id", appointmentH.Delete)              // Delete appointment
+	appointments.Post("/", appointmentH.Create)                  // Create appointment
+	appointments.Get("/stats", appointmentH.GetStats)            // Appointment statistics
+	appointments.Get("/upcoming", appointmentH.GetUpcoming)      // Get upcoming appointments
+	appointments.Get("/date-range", appointmentH.GetByDateRange) // Get by date range
+	appointments.Get("/client", appointmentH.GetByClient)        // Get by client email
+	appointments.Get("/:id", appointmentH.GetByID)               // Get appointment by ID
+	appointments.Get("/", appointmentH.List)                     // List appointments
+	appointments.Put("/:id", appointmentH.Update)                // Update appointment
+	appointments.Post("/:id/confirm", appointmentH.Confirm)      // Confirm appointment
+	appointments.Post("/:id/cancel", appointmentH.Cancel)        // Cancel appointment
+	appointments.Post("/:id/complete", appointmentH.Complete)    // Complete appointment
+	appointments.Delete("/:id", appointmentH.Delete)             // Delete appointment
 
 	// User-specific appointment routes
 
 	// Service routes (tenant-scoped)
 	services := v1.Group("/services", middleware.AuthMiddleware(cfg.Auth.JWTSecret))
-	services.Post("/", serviceH.Create)                  // Create service
-	services.Get("/stats", serviceH.GetStats)            // Service statistics
-	services.Get("/featured", serviceH.GetFeatured)      // Get featured services
-	services.Get("/slug/:slug", serviceH.GetBySlug)      // Get by slug
-	services.Get("/:id", serviceH.GetByID)               // Get service by ID
-	services.Get("/", serviceH.List)                     // List services
-	services.Put("/:id", serviceH.Update)                // Update service
-	services.Delete("/:id", serviceH.Delete)             // Delete service
+	services.Post("/", serviceH.Create)                        // Create service
+	services.Get("/stats", serviceH.GetStats)                  // Service statistics
+	services.Get("/featured", serviceH.GetFeatured)            // Get featured services
+	services.Get("/slug/:slug", serviceH.GetBySlug)            // Get by slug
+	services.Get("/:id", serviceH.GetByID)                     // Get service by ID
+	services.Get("/", serviceH.List)                           // List services
+	services.Put("/:id", serviceH.Update)                      // Update service
+	services.Delete("/:id", serviceH.Delete)                   // Delete service
 	appointments.Get("/user/:user_id", appointmentH.GetByUser) // Get appointments by user
 
 	// Blog Category routes (tenant-scoped)
 	categories := v1.Group("/blog/categories", middleware.AuthMiddleware(cfg.Auth.JWTSecret))
-	categories.Post("/", categoryH.Create)                  // Create category
-	categories.Get("/slug/:slug", categoryH.GetBySlug)      // Get by slug
-	categories.Get("/:id", categoryH.GetByID)               // Get category by ID
-	categories.Get("/", categoryH.List)                     // List categories
-	categories.Put("/:id", categoryH.Update)                // Update category
-	categories.Delete("/:id", categoryH.Delete)             // Delete category
+	categories.Post("/", categoryH.Create)             // Create category
+	categories.Get("/slug/:slug", categoryH.GetBySlug) // Get by slug
+	categories.Get("/:id", categoryH.GetByID)          // Get category by ID
+	categories.Get("/", categoryH.List)                // List categories
+	categories.Put("/:id", categoryH.Update)           // Update category
+	categories.Delete("/:id", categoryH.Delete)        // Delete category
 
 	// Blog Post routes (tenant-scoped)
 	posts := v1.Group("/blog/posts", middleware.AuthMiddleware(cfg.Auth.JWTSecret))
-	posts.Post("/", postH.Create)                           // Create post
-	posts.Get("/featured", postH.GetFeatured)               // Get featured posts
-	posts.Get("/slug/:slug", postH.GetBySlug)               // Get by slug
-	posts.Get("/tag/:tag", postH.GetByTag)                  // Get by tag
-	posts.Get("/:id", postH.GetByID)                        // Get post by ID
-	posts.Get("/", postH.List)                              // List posts
-	posts.Put("/:id", postH.Update)                         // Update post
-	posts.Post("/:id/publish", postH.Publish)               // Publish post
-	posts.Post("/:id/archive", postH.Archive)               // Archive post
-	posts.Delete("/:id", postH.Delete)                      // Delete post
+	posts.Post("/", postH.Create)             // Create post
+	posts.Get("/featured", postH.GetFeatured) // Get featured posts
+	posts.Get("/slug/:slug", postH.GetBySlug) // Get by slug
+	posts.Get("/tag/:tag", postH.GetByTag)    // Get by tag
+	posts.Get("/:id", postH.GetByID)          // Get post by ID
+	posts.Get("/", postH.List)                // List posts
+	posts.Put("/:id", postH.Update)           // Update post
+	posts.Post("/:id/publish", postH.Publish) // Publish post
+	posts.Post("/:id/archive", postH.Archive) // Archive post
+	posts.Delete("/:id", postH.Delete)        // Delete post
 
 	// Category-specific post routes
 	categories.Get("/:category_id/posts", postH.GetByCategoryID) // Get posts by category

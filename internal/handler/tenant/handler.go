@@ -263,6 +263,30 @@ func (h *Handler) Delete(c *fiber.Ctx) error {
 	return c.Status(fiber.StatusNoContent).Send(nil)
 }
 
+// UpdateBranding updates tenant branding settings
+// PATCH /api/v1/tenants/:id/branding
+func (h *Handler) UpdateBranding(c *fiber.Ctx) error {
+	id := c.Params("id")
+
+	var req tenant.UpdateBrandingRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid request body",
+		})
+	}
+
+	result, err := h.tenantService.UpdateBranding(c.Context(), id, &req)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": err.Error(),
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"data": result,
+	})
+}
+
 // GetStats retrieves tenant statistics
 // GET /api/v1/tenants/stats
 func (h *Handler) GetStats(c *fiber.Ctx) error {

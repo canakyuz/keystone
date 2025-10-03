@@ -22,6 +22,7 @@ import (
 	lessonHandler "nexpaces-api/internal/handler/lesson"
 	serviceHandler "nexpaces-api/internal/handler/service"
 	tenantHandler "nexpaces-api/internal/handler/tenant"
+	uploadHandler "nexpaces-api/internal/handler/upload"
 	userHandler "nexpaces-api/internal/handler/user"
 	websiteHandler "nexpaces-api/internal/handler/website"
 	blogRepo "nexpaces-api/internal/repository/blog"
@@ -158,8 +159,11 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 	postHTTPHandler := blogHandler.NewPostHandler(postService, *appLogger)
 	categoryHTTPHandler := blogHandler.NewCategoryHandler(categoryService, *appLogger)
 
+	// Upload handler
+	uploadHTTPHandler := uploadHandler.NewHandler(appLogger)
+
 	// Setup routes
-	setupRoutes(app, cfg, authHTTPHandler, tenantHTTPHandler, userHTTPHandler, websiteHTTPHandler,
+	setupRoutes(app, cfg, authHTTPHandler, tenantHTTPHandler, userHTTPHandler, uploadHTTPHandler, websiteHTTPHandler,
 		studentHTTPHandler, lessonHTTPHandler, assignmentHTTPHandler,
 		availabilityHTTPHandler, appointmentHTTPHandler,
 		serviceHTTPHandler,

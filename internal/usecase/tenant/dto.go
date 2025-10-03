@@ -38,6 +38,28 @@ type SetCustomDomainRequest struct {
 	Domain string `json:"domain" validate:"required,domain"`
 }
 
+// BrandingSettings represents branding configuration
+type BrandingSettings struct {
+	Logo          string `json:"logo,omitempty"`
+	Favicon       string `json:"favicon,omitempty"`
+	PrimaryColor  string `json:"primary_color,omitempty" validate:"omitempty,hexcolor|rgb|rgba"`
+	SecondaryColor string `json:"secondary_color,omitempty" validate:"omitempty,hexcolor|rgb|rgba"`
+	AccentColor   string `json:"accent_color,omitempty" validate:"omitempty,hexcolor|rgb|rgba"`
+	FontFamily    string `json:"font_family,omitempty"`
+	CustomCSS     string `json:"custom_css,omitempty" validate:"omitempty,max=50000"`
+}
+
+// UpdateBrandingRequest represents request to update branding settings
+type UpdateBrandingRequest struct {
+	Logo          *string `json:"logo,omitempty"`
+	Favicon       *string `json:"favicon,omitempty"`
+	PrimaryColor  *string `json:"primary_color,omitempty" validate:"omitempty,hexcolor|rgb|rgba"`
+	SecondaryColor *string `json:"secondary_color,omitempty" validate:"omitempty,hexcolor|rgb|rgba"`
+	AccentColor   *string `json:"accent_color,omitempty" validate:"omitempty,hexcolor|rgb|rgba"`
+	FontFamily    *string `json:"font_family,omitempty"`
+	CustomCSS     *string `json:"custom_css,omitempty" validate:"omitempty,max=50000"`
+}
+
 // TenantResponse represents tenant response
 type TenantResponse struct {
 	ID        string    `json:"id"`
@@ -59,6 +81,9 @@ type TenantResponse struct {
 	CustomDomain         string     `json:"custom_domain,omitempty"`
 	CustomDomainVerified bool       `json:"custom_domain_verified"`
 	CustomDomainVerifiedAt *time.Time `json:"custom_domain_verified_at,omitempty"`
+
+	// Branding
+	Branding *BrandingSettings `json:"branding,omitempty"`
 
 	// Feature limits
 	FeatureLimits FeatureLimitsResponse `json:"feature_limits"`
@@ -86,7 +111,7 @@ type TenantListResponse struct {
 func ToResponse(t *tenant.Tenant) *TenantResponse {
 	limits := tenant.SubscriptionPlan(t.Plan).GetFeatureLimits()
 
-	return &TenantResponse{
+	response := &TenantResponse{
 		ID:                     t.ID,
 		Name:                   t.Name,
 		Slug:                   t.Slug,
@@ -110,6 +135,37 @@ func ToResponse(t *tenant.Tenant) *TenantResponse {
 			APIAccess:    limits.APIAccess,
 		},
 	}
+
+	// Extract branding settings if exists
+	if branding, exists := t.Settings["branding"]; exists {
+		if brandingMap, ok := branding.(map[string]interface{}); ok {
+			brandingSettings := &BrandingSettings{}
+			if logo, ok := brandingMap["logo"].(string); ok {
+				brandingSettings.Logo = logo
+			}
+			if favicon, ok := brandingMap["favicon"].(string); ok {
+				brandingSettings.Favicon = favicon
+			}
+			if primaryColor, ok := brandingMap["primary_color"].(string); ok {
+				brandingSettings.PrimaryColor = primaryColor
+			}
+			if secondaryColor, ok := brandingMap["secondary_color"].(string); ok {
+				brandingSettings.SecondaryColor = secondaryColor
+			}
+			if accentColor, ok := brandingMap["accent_color"].(string); ok {
+				brandingSettings.AccentColor = accentColor
+			}
+			if fontFamily, ok := brandingMap["font_family"].(string); ok {
+				brandingSettings.FontFamily = fontFamily
+			}
+			if customCSS, ok := brandingMap["custom_css"].(string); ok {
+				brandingSettings.CustomCSS = customCSS
+			}
+			response.Branding = brandingSettings
+		}
+	}
+
+	return response
 }
 
 // ToResponseList converts domain tenants to response list

@@ -47,6 +47,9 @@ func New() *Validator {
 	_ = validate.RegisterValidation("domain", validateDomain)
 	_ = validate.RegisterValidation("nospecialchars", validateNoSpecialChars)
 	_ = validate.RegisterValidation("alphanumspace", validateAlphaNumSpace)
+	_ = validate.RegisterValidation("hexcolor", validateHexColor)
+	_ = validate.RegisterValidation("rgb", validateRGB)
+	_ = validate.RegisterValidation("rgba", validateRGBA)
 
 	return &Validator{
 		validate: validate,
@@ -158,6 +161,36 @@ func validateAlphaNumSpace(fl validator.FieldLevel) bool {
 	return alphaNumSpaceRegex.MatchString(value)
 }
 
+// validateHexColor validates hex color format (#RGB, #RRGGBB, #RRGGBBAA)
+func validateHexColor(fl validator.FieldLevel) bool {
+	value := fl.Field().String()
+	if value == "" {
+		return true
+	}
+	hexColorRegex := regexp.MustCompile(`^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3}|[A-Fa-f0-9]{8})$`)
+	return hexColorRegex.MatchString(value)
+}
+
+// validateRGB validates RGB color format (rgb(r, g, b))
+func validateRGB(fl validator.FieldLevel) bool {
+	value := fl.Field().String()
+	if value == "" {
+		return true
+	}
+	rgbRegex := regexp.MustCompile(`^rgb\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*\)$`)
+	return rgbRegex.MatchString(value)
+}
+
+// validateRGBA validates RGBA color format (rgba(r, g, b, a))
+func validateRGBA(fl validator.FieldLevel) bool {
+	value := fl.Field().String()
+	if value == "" {
+		return true
+	}
+	rgbaRegex := regexp.MustCompile(`^rgba\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(0|1|0?\.\d+)\s*\)$`)
+	return rgbaRegex.MatchString(value)
+}
+
 // formatErrorMessage formats validation error messages
 func formatErrorMessage(err validator.FieldError) string {
 	field := err.Field()
@@ -206,6 +239,12 @@ func formatErrorMessage(err validator.FieldError) string {
 		return fmt.Sprintf("%s contains invalid special characters", field)
 	case "alphanumspace":
 		return fmt.Sprintf("%s must contain only letters, numbers, and spaces", field)
+	case "hexcolor":
+		return fmt.Sprintf("%s must be a valid hex color (#RGB, #RRGGBB, or #RRGGBBAA)", field)
+	case "rgb":
+		return fmt.Sprintf("%s must be a valid RGB color (rgb(r, g, b))", field)
+	case "rgba":
+		return fmt.Sprintf("%s must be a valid RGBA color (rgba(r, g, b, a))", field)
 	case "oneof":
 		return fmt.Sprintf("%s must be one of: %s", field, err.Param())
 	case "eqfield":

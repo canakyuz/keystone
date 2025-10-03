@@ -9,6 +9,7 @@ import (
 	lessonHandler "nexpaces-api/internal/handler/lesson"
 	serviceHandler "nexpaces-api/internal/handler/service"
 	tenantHandler "nexpaces-api/internal/handler/tenant"
+	uploadHandler "nexpaces-api/internal/handler/upload"
 	userHandler "nexpaces-api/internal/handler/user"
 	websiteHandler "nexpaces-api/internal/handler/website"
 	"nexpaces-api/internal/middleware"
@@ -21,6 +22,7 @@ func setupRoutes(
 	authH *authHandler.Handler,
 	tenantH *tenantHandler.Handler,
 	userH *userHandler.Handler,
+	uploadH *uploadHandler.Handler,
 	websiteH *websiteHandler.Handler,
 	studentH *lessonHandler.StudentHandler,
 	lessonH *lessonHandler.LessonHandler,
@@ -79,7 +81,17 @@ func setupRoutes(
 	tenants.Post("/:id/upgrade", tenantH.UpgradePlan)              // Upgrade plan
 	tenants.Post("/:id/domain", tenantH.SetCustomDomain)           // Set custom domain
 	tenants.Post("/:id/domain/verify", tenantH.VerifyCustomDomain) // Verify domain
+	tenants.Patch("/:id/branding", tenantH.UpdateBranding)         // Update branding
 	tenants.Delete("/:id", tenantH.Delete)                         // Delete tenant
+
+	// Upload routes (tenant-scoped, authentication required)
+	upload := v1.Group("/upload", middleware.AuthMiddleware(cfg.Auth.JWTSecret))
+	upload.Post("/logo", uploadH.UploadLogo)       // Upload logo
+	upload.Post("/favicon", uploadH.UploadFavicon) // Upload favicon
+	upload.Post("/image", uploadH.UploadImage)     // Upload general image
+
+	// Serve uploaded files (public access)
+	app.Static("/uploads", "./uploads")
 
 	// User routes (authentication required)
 	users := v1.Group("/users", middleware.AuthMiddleware(cfg.Auth.JWTSecret))

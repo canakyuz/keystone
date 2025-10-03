@@ -344,6 +344,70 @@ func (s *Service) Delete(ctx context.Context, id string) error {
 	return nil
 }
 
+// UpdateBranding updates tenant branding settings
+func (s *Service) UpdateBranding(ctx context.Context, id string, req *UpdateBrandingRequest) (*TenantResponse, error) {
+	// Validate request
+	if err := s.validator.Validate(req); err != nil {
+		return nil, err
+	}
+
+	// Get existing tenant
+	t, err := s.repo.GetByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	// Get current branding settings or create new
+	var branding map[string]interface{}
+	if existingBranding, exists := t.Settings["branding"]; exists {
+		if brandingMap, ok := existingBranding.(map[string]interface{}); ok {
+			branding = brandingMap
+		} else {
+			branding = make(map[string]interface{})
+		}
+	} else {
+		branding = make(map[string]interface{})
+	}
+
+	// Update only provided fields
+	if req.Logo != nil {
+		branding["logo"] = *req.Logo
+	}
+	if req.Favicon != nil {
+		branding["favicon"] = *req.Favicon
+	}
+	if req.PrimaryColor != nil {
+		branding["primary_color"] = *req.PrimaryColor
+	}
+	if req.SecondaryColor != nil {
+		branding["secondary_color"] = *req.SecondaryColor
+	}
+	if req.AccentColor != nil {
+		branding["accent_color"] = *req.AccentColor
+	}
+	if req.FontFamily != nil {
+		branding["font_family"] = *req.FontFamily
+	}
+	if req.CustomCSS != nil {
+		branding["custom_css"] = *req.CustomCSS
+	}
+
+	// Update tenant settings
+	t.UpdateSettings("branding", branding)
+
+	// Save to repository
+	if err := s.repo.Update(ctx, t); err != nil {
+		s.logger.ErrorWithErr(err, "failed to update branding")
+		return nil, fmt.Errorf("failed to update branding: %w", err)
+	}
+
+	s.logger.WithFields(logger.Fields{
+		"tenant_id": t.ID,
+	}).Info("Tenant branding updated successfully")
+
+	return ToResponse(t), nil
+}
+
 // GetStats retrieves tenant statistics
 func (s *Service) GetStats(ctx context.Context) (map[string]interface{}, error) {
 	stats := make(map[string]interface{})

@@ -14,6 +14,7 @@ type Config struct {
 	Redis    RedisConfig
 	Auth     AuthConfig
 	Security SecurityConfig
+	Payment  PaymentConfig
 }
 
 // ServerConfig holds server configuration
@@ -77,6 +78,42 @@ type RateLimitConfig struct {
 	Duration time.Duration
 }
 
+// PaymentConfig holds payment provider configuration
+type PaymentConfig struct {
+	Iyzico   IyzicoConfig
+	Checkout CheckoutConfig
+	Stripe   StripeConfig
+}
+
+// IyzicoConfig holds iyzico (Turkey) payment configuration
+type IyzicoConfig struct {
+	Enabled        bool
+	APIKey         string
+	SecretKey      string
+	BaseURL        string
+	ThreeDSCallback string
+	Currency       string
+}
+
+// CheckoutConfig holds Checkout.com (Global) payment configuration
+type CheckoutConfig struct {
+	Enabled     bool
+	PublicKey   string
+	SecretKey   string
+	BaseURL     string
+	CallbackURL string
+	Currency    string
+}
+
+// StripeConfig holds Stripe payment configuration
+type StripeConfig struct {
+	Enabled        bool
+	PublishableKey string
+	SecretKey      string
+	WebhookSecret  string
+	Currency       string
+}
+
 // Load loads configuration from environment variables
 func Load() (*Config, error) {
 	cfg := &Config{
@@ -124,6 +161,31 @@ func Load() (*Config, error) {
 			RateLimit: RateLimitConfig{
 				Requests: parseInt(getEnv("RATE_LIMIT_REQUESTS", "100")),
 				Duration: parseDuration(getEnv("RATE_LIMIT_DURATION", "1m")),
+			},
+		},
+		Payment: PaymentConfig{
+			Iyzico: IyzicoConfig{
+				Enabled:        parseBool(getEnv("IYZICO_ENABLED", "false")),
+				APIKey:         getEnv("IYZICO_API_KEY", ""),
+				SecretKey:      getEnv("IYZICO_SECRET_KEY", ""),
+				BaseURL:        getEnv("IYZICO_BASE_URL", "https://api.iyzipay.com"),
+				ThreeDSCallback: getEnv("IYZICO_3DS_CALLBACK_URL", ""),
+				Currency:       getEnv("IYZICO_CURRENCY", "TRY"),
+			},
+			Checkout: CheckoutConfig{
+				Enabled:     parseBool(getEnv("CHECKOUT_ENABLED", "false")),
+				PublicKey:   getEnv("CHECKOUT_PUBLIC_KEY", ""),
+				SecretKey:   getEnv("CHECKOUT_SECRET_KEY", ""),
+				BaseURL:     getEnv("CHECKOUT_BASE_URL", "https://api.checkout.com"),
+				CallbackURL: getEnv("CHECKOUT_CALLBACK_URL", ""),
+				Currency:    getEnv("CHECKOUT_CURRENCY", "USD"),
+			},
+			Stripe: StripeConfig{
+				Enabled:        parseBool(getEnv("STRIPE_ENABLED", "false")),
+				PublishableKey: getEnv("STRIPE_PUBLISHABLE_KEY", ""),
+				SecretKey:      getEnv("STRIPE_SECRET_KEY", ""),
+				WebhookSecret:  getEnv("STRIPE_WEBHOOK_SECRET", ""),
+				Currency:       getEnv("STRIPE_CURRENCY", "USD"),
 			},
 		},
 	}

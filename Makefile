@@ -91,7 +91,13 @@ migrate-status: ## Show migration files
 	@ls -1 migrations/*.down.sql 2>/dev/null || echo "  None"
 
 docker-migrate: ## Run migrations in Docker
-	docker-compose exec api make migrate-up DB_HOST=postgres
+	@echo "\033[32m▶ Running migrations in Docker...\033[0m"
+	@for file in migrations/*.up.sql; do \
+		[ -f "$$file" ] || continue; \
+		echo "  → $$(basename $$file)"; \
+		docker-compose exec -T postgres psql -U postgres -d nexspaces_dev < $$file || exit 1; \
+	done
+	@echo "\033[32m✓ Migrations complete\033[0m"
 
 # ==============================================================================
 # Testing

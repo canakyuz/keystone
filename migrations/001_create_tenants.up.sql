@@ -5,6 +5,15 @@
 -- Enable UUID extension
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
+-- Create application user role for RLS policies
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'application_user') THEN
+        CREATE ROLE application_user;
+    END IF;
+END
+$$;
+
 -- Create tenants table
 CREATE TABLE IF NOT EXISTS tenants (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),

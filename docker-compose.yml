@@ -49,6 +49,16 @@ services:
       - ENVIRONMENT=development
       - JWT_SECRET=dev-secret-change-in-production
       - ALLOWED_ORIGINS=http://localhost:3000,http://localhost:3001
+      # Payment
+      - PAYMENT_DEFAULT_PROVIDER=iyzico
+      - PAYMENT_IYZICO_ENABLED=true
+      - PAYMENT_IYZICO_API_KEY=sandbox-test-key
+      - PAYMENT_IYZICO_SECRET_KEY=sandbox-test-secret
+      - PAYMENT_IYZICO_BASE_URL=https://sandbox-api.iyzipay.com
+      - PAYMENT_CHECKOUT_ENABLED=true
+      - PAYMENT_CHECKOUT_PUBLIC_KEY=pk_test_key
+      - PAYMENT_CHECKOUT_SECRET_KEY=sk_test_secret
+      - PAYMENT_CHECKOUT_BASE_URL=https://api.sandbox.checkout.com
     depends_on:
       postgres:
         condition: service_healthy

@@ -20,6 +20,7 @@ import (
 	blogHandler "nexpaces-api/internal/handler/blog"
 	bookingHandler "nexpaces-api/internal/handler/booking"
 	lessonHandler "nexpaces-api/internal/handler/lesson"
+	paymentHandler "nexpaces-api/internal/handler/payment"
 	serviceHandler "nexpaces-api/internal/handler/service"
 	tenantHandler "nexpaces-api/internal/handler/tenant"
 	uploadHandler "nexpaces-api/internal/handler/upload"
@@ -28,6 +29,7 @@ import (
 	blogRepo "nexpaces-api/internal/repository/blog"
 	bookingRepo "nexpaces-api/internal/repository/booking"
 	lessonRepo "nexpaces-api/internal/repository/lesson"
+	paymentRepo "nexpaces-api/internal/repository/payment"
 	serviceRepo "nexpaces-api/internal/repository/service"
 	tenantRepo "nexpaces-api/internal/repository/tenant"
 	userRepo "nexpaces-api/internal/repository/user"
@@ -35,10 +37,12 @@ import (
 	blogUsecase "nexpaces-api/internal/usecase/blog"
 	bookingUsecase "nexpaces-api/internal/usecase/booking"
 	lessonUsecase "nexpaces-api/internal/usecase/lesson"
+	paymentUsecase "nexpaces-api/internal/usecase/payment"
 	serviceUsecase "nexpaces-api/internal/usecase/service"
 	tenantUsecase "nexpaces-api/internal/usecase/tenant"
 	userUsecase "nexpaces-api/internal/usecase/user"
 	websiteUsecase "nexpaces-api/internal/usecase/website"
+	providerPayment "nexpaces-api/internal/provider/payment"
 	"nexpaces-api/pkg/database"
 	pkgLogger "nexpaces-api/pkg/logger"
 	"nexpaces-api/pkg/validator"
@@ -116,6 +120,22 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 	postRepository := blogRepo.NewPostRepository(db)
 	categoryRepository := blogRepo.NewCategoryRepository(db)
 
+	// Payment module repository
+	paymentRepository := paymentRepo.NewPostgresRepository(db)
+
+	// Initialize payment orchestrator
+	paymentOrchestrator := providerPayment.NewOrchestrator(&cfg.Payment)
+
+	// Register payment providers
+	if cfg.Payment.Iyzico.Enabled {
+		iyzicoProvider := providerPayment.NewIyzicoProvider(&cfg.Payment.Iyzico)
+		paymentOrchestrator.RegisterProvider("iyzico", iyzicoProvider)
+	}
+	if cfg.Payment.Checkout.Enabled {
+		checkoutProvider := providerPayment.NewCheckoutProvider(&cfg.Payment.Checkout)
+		paymentOrchestrator.RegisterProvider("checkout", checkoutProvider)
+	}
+
 	// Initialize services
 	tenantService := tenantUsecase.NewService(tenantRepository, appValidator, appLogger)
 	userService := userUsecase.NewService(userRepository, appValidator, appLogger, cfg.Auth.JWTSecret)
@@ -136,6 +156,9 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 	// Blog module services
 	postService := blogUsecase.NewPostService(postRepository, *appLogger)
 	categoryService := blogUsecase.NewCategoryService(categoryRepository, *appLogger)
+
+	// Payment service
+	paymentService := paymentUsecase.NewService(paymentRepository, paymentOrchestrator)
 
 	// Initialize HTTP handlers
 	authHTTPHandler := authHandler.NewHandler(userService)
@@ -162,12 +185,17 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 	// Upload handler
 	uploadHTTPHandler := uploadHandler.NewHandler(appLogger)
 
+	// Payment handlers
+	paymentHTTPHandler := paymentHandler.NewHandler(paymentService)
+	webhookHTTPHandler := paymentHandler.NewWebhookHandler(paymentService)
+
 	// Setup routes
 	setupRoutes(app, cfg, authHTTPHandler, tenantHTTPHandler, userHTTPHandler, uploadHTTPHandler, websiteHTTPHandler,
 		studentHTTPHandler, lessonHTTPHandler, assignmentHTTPHandler,
 		availabilityHTTPHandler, appointmentHTTPHandler,
 		serviceHTTPHandler,
-		postHTTPHandler, categoryHTTPHandler)
+		postHTTPHandler, categoryHTTPHandler,
+		paymentHTTPHandler, webhookHTTPHandler)
 
 	return &Application{
 		config: cfg,

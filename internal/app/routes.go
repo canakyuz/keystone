@@ -7,6 +7,7 @@ import (
 	blogHandler "nexpaces-api/internal/handler/blog"
 	bookingHandler "nexpaces-api/internal/handler/booking"
 	lessonHandler "nexpaces-api/internal/handler/lesson"
+	paymentHandler "nexpaces-api/internal/handler/payment"
 	serviceHandler "nexpaces-api/internal/handler/service"
 	tenantHandler "nexpaces-api/internal/handler/tenant"
 	uploadHandler "nexpaces-api/internal/handler/upload"
@@ -32,6 +33,8 @@ func setupRoutes(
 	serviceH *serviceHandler.ServiceHandler,
 	postH *blogHandler.PostHandler,
 	categoryH *blogHandler.CategoryHandler,
+	paymentH *paymentHandler.Handler,
+	webhookH *paymentHandler.WebhookHandler,
 ) {
 	app.Get("/docs", func(c *fiber.Ctx) error {
 		return c.SendFile("web/static/docs/index.html")
@@ -219,4 +222,18 @@ func setupRoutes(
 
 	// Category-specific post routes
 	categories.Get("/:category_id/posts", postH.GetByCategoryID) // Get posts by category
+
+	// Payment routes (tenant-scoped, authentication required)
+	payments := v1.Group("/payments", middleware.AuthMiddleware(cfg.Auth.JWTSecret))
+	payments.Post("/", paymentH.CreatePayment)                // Create payment
+	payments.Post("/complete-3ds", paymentH.Complete3DSPayment) // Complete 3DS authentication
+	payments.Get("/:id", paymentH.GetPayment)                  // Get payment by ID
+	payments.Get("/", paymentH.ListPayments)                   // List payments
+	payments.Post("/:id/refund", paymentH.CreateRefund)        // Create refund
+
+	// Webhook routes (public, no authentication)
+	webhooks := v1.Group("/webhooks/payment")
+	webhooks.Post("/:provider", webhookH.HandleWebhook)                 // Generic webhook (provider-specific)
+	webhooks.Post("/iyzico/:tenant_id", webhookH.HandleIyzicoWebhook)   // iyzico webhook (tenant-specific URL)
+	webhooks.Post("/checkout/:tenant_id", webhookH.HandleCheckoutWebhook) // Checkout.com webhook (tenant-specific URL)
 }

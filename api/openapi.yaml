@@ -21,6 +21,7 @@ tags:
   - name: Appointment
   - name: Service
   - name: Blog
+  - name: Payment
 paths:
   /health:
     get:
@@ -1903,6 +1904,211 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/PostResponse'
+  /payments:
+    get:
+      tags: [Payment]
+      summary: List tenant payments
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [pending, processing, requires_3ds, succeeded, failed, cancelled, refunded]
+      responses:
+        '200':
+          description: Payment list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentListResponse'
+    post:
+      tags: [Payment]
+      summary: Create payment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PaymentCreateRequest'
+      responses:
+        '201':
+          description: Created payment
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentEnvelope'
+        '400':
+          description: Invalid payment request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /payments/complete-3ds:
+    post:
+      tags: [Payment]
+      summary: Complete 3DS authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Complete3DSRequest'
+      responses:
+        '200':
+          description: Payment status after 3DS completion
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentEnvelope'
+        '400':
+          description: 3DS completion failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /payments/{id}:
+    get:
+      tags: [Payment]
+      summary: Get payment by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Payment details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentEnvelope'
+        '404':
+          description: Payment not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /payments/{id}/refund:
+    post:
+      tags: [Payment]
+      summary: Create refund for payment
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateRefundRequest'
+      responses:
+        '201':
+          description: Refund created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RefundEnvelope'
+        '400':
+          description: Refund creation failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /webhooks/payment/{provider}:
+    post:
+      tags: [Payment]
+      summary: Generic payment webhook (provider-specific)
+      security: []
+      parameters:
+        - name: provider
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [iyzico, checkout, stripe]
+        - name: tenant_id
+          in: query
+          required: false
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '200':
+          description: Webhook processed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WebhookEventEnvelope'
+  /webhooks/payment/iyzico/{tenant_id}:
+    post:
+      tags: [Payment]
+      summary: iyzico webhook (tenant-specific URL)
+      security: []
+      parameters:
+        - name: tenant_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '200':
+          description: Webhook processed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WebhookEventEnvelope'
+  /webhooks/payment/checkout/{tenant_id}:
+    post:
+      tags: [Payment]
+      summary: Checkout.com webhook (tenant-specific URL)
+      security: []
+      parameters:
+        - name: tenant_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '200':
+          description: Webhook processed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WebhookEventEnvelope'
 components:
   securitySchemes:
     BearerAuth:
@@ -3586,3 +3792,354 @@ components:
         limit:
           type: integer
       required: [data, total, page, limit]
+    PaymentCreateRequest:
+      type: object
+      properties:
+        amount:
+          type: number
+          format: float
+          description: Payment amount
+        currency:
+          type: string
+          description: ISO 4217 currency code (TRY, USD, EUR, GBP)
+          enum: [TRY, USD, EUR, GBP]
+        description:
+          type: string
+          nullable: true
+        installment:
+          type: integer
+          minimum: 1
+          maximum: 12
+          nullable: true
+          description: Number of installments (Turkey only, 1 = no installment)
+        callback_url:
+          type: string
+          nullable: true
+          description: URL to redirect after 3DS authentication
+        card_token:
+          type: string
+          nullable: true
+          description: Tokenized card (if using saved card)
+        card_holder_name:
+          type: string
+          nullable: true
+        card_number:
+          type: string
+          nullable: true
+          description: Card number (for new cards)
+        card_expiry_month:
+          type: string
+          nullable: true
+        card_expiry_year:
+          type: string
+          nullable: true
+        card_cvv:
+          type: string
+          nullable: true
+        customer_name:
+          type: string
+        customer_email:
+          type: string
+          format: email
+        customer_phone:
+          type: string
+          nullable: true
+        billing_address:
+          type: string
+          nullable: true
+        billing_city:
+          type: string
+          nullable: true
+        billing_country:
+          type: string
+          nullable: true
+          description: ISO 3166-1 alpha-2 country code
+        billing_zip:
+          type: string
+          nullable: true
+        metadata:
+          type: object
+          additionalProperties: {}
+          nullable: true
+      required: [amount, currency, customer_name, customer_email]
+    Complete3DSRequest:
+      type: object
+      properties:
+        payment_id:
+          type: string
+          description: Payment ID requiring 3DS completion
+        threeds_response:
+          type: object
+          additionalProperties: {}
+          description: Provider-specific 3DS response data
+      required: [payment_id]
+    CreateRefundRequest:
+      type: object
+      properties:
+        amount:
+          type: number
+          format: float
+          nullable: true
+          description: Refund amount (null for full refund)
+        reason:
+          type: string
+          enum: [customer_request, duplicate, fraudulent, other]
+          description: Refund reason
+        description:
+          type: string
+          nullable: true
+      required: [reason]
+    PaymentResponse:
+      type: object
+      properties:
+        id:
+          type: string
+        tenant_id:
+          type: string
+        user_id:
+          type: string
+          nullable: true
+        provider:
+          type: string
+          enum: [iyzico, checkout, stripe]
+        provider_payment_id:
+          type: string
+          nullable: true
+        amount:
+          type: number
+          format: float
+        currency:
+          type: string
+        status:
+          type: string
+          enum: [pending, processing, requires_3ds, succeeded, failed, cancelled, refunded]
+        description:
+          type: string
+          nullable: true
+        installment:
+          type: integer
+          nullable: true
+        installment_rate:
+          type: number
+          format: float
+          nullable: true
+        total_amount:
+          type: number
+          format: float
+          nullable: true
+          description: Total amount including installment fees
+        requires_3ds:
+          type: boolean
+        threeds_version:
+          type: string
+          nullable: true
+        threeds_html_content:
+          type: string
+          nullable: true
+          description: HTML content for 3DS authentication
+        threeds_status:
+          type: string
+          nullable: true
+        card_brand:
+          type: string
+          nullable: true
+        card_last4:
+          type: string
+          nullable: true
+        card_bin:
+          type: string
+          nullable: true
+        card_expiry_month:
+          type: string
+          nullable: true
+        card_expiry_year:
+          type: string
+          nullable: true
+        customer_name:
+          type: string
+        customer_email:
+          type: string
+          format: email
+        customer_phone:
+          type: string
+          nullable: true
+        billing_address:
+          type: string
+          nullable: true
+        billing_city:
+          type: string
+          nullable: true
+        billing_country:
+          type: string
+          nullable: true
+        billing_zip:
+          type: string
+          nullable: true
+        ip_address:
+          type: string
+          nullable: true
+        user_agent:
+          type: string
+          nullable: true
+        metadata:
+          type: object
+          additionalProperties: {}
+        error_code:
+          type: string
+          nullable: true
+        error_message:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        completed_at:
+          type: string
+          format: date-time
+          nullable: true
+        cancelled_at:
+          type: string
+          format: date-time
+          nullable: true
+      required:
+        - id
+        - tenant_id
+        - provider
+        - amount
+        - currency
+        - status
+        - requires_3ds
+        - customer_name
+        - customer_email
+        - created_at
+        - updated_at
+    PaymentEnvelope:
+      type: object
+      properties:
+        data:
+          $ref: '#/components/schemas/PaymentResponse'
+      required: [data]
+    PaymentListResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/PaymentResponse'
+        total:
+          type: integer
+        limit:
+          type: integer
+        offset:
+          type: integer
+      required: [data, total, limit, offset]
+    RefundResponse:
+      type: object
+      properties:
+        id:
+          type: string
+        tenant_id:
+          type: string
+        payment_id:
+          type: string
+        provider:
+          type: string
+          enum: [iyzico, checkout, stripe]
+        provider_refund_id:
+          type: string
+          nullable: true
+        amount:
+          type: number
+          format: float
+        currency:
+          type: string
+        status:
+          type: string
+          enum: [pending, processing, succeeded, failed, cancelled]
+        reason:
+          type: string
+          enum: [customer_request, duplicate, fraudulent, other]
+        description:
+          type: string
+          nullable: true
+        error_code:
+          type: string
+          nullable: true
+        error_message:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        completed_at:
+          type: string
+          format: date-time
+          nullable: true
+      required:
+        - id
+        - tenant_id
+        - payment_id
+        - provider
+        - amount
+        - currency
+        - status
+        - reason
+        - created_at
+        - updated_at
+    RefundEnvelope:
+      type: object
+      properties:
+        data:
+          $ref: '#/components/schemas/RefundResponse'
+      required: [data]
+    WebhookEventResponse:
+      type: object
+      properties:
+        id:
+          type: string
+        tenant_id:
+          type: string
+        provider:
+          type: string
+          enum: [iyzico, checkout, stripe]
+        provider_event_id:
+          type: string
+        event_type:
+          type: string
+        processed:
+          type: boolean
+        retry_count:
+          type: integer
+        signature_valid:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+      required:
+        - id
+        - tenant_id
+        - provider
+        - provider_event_id
+        - event_type
+        - processed
+        - retry_count
+        - signature_valid
+        - created_at
+    WebhookEventEnvelope:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [success, error]
+        message:
+          type: string
+          nullable: true
+        data:
+          $ref: '#/components/schemas/WebhookEventResponse'
+      required: [status]

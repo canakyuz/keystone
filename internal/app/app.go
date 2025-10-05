@@ -21,6 +21,7 @@ import (
 	bookingHandler "nexpaces-api/internal/handler/booking"
 	lessonHandler "nexpaces-api/internal/handler/lesson"
 	paymentHandler "nexpaces-api/internal/handler/payment"
+	registryHandler "nexpaces-api/internal/handler/registry"
 	serviceHandler "nexpaces-api/internal/handler/service"
 	tenantHandler "nexpaces-api/internal/handler/tenant"
 	uploadHandler "nexpaces-api/internal/handler/upload"
@@ -30,6 +31,7 @@ import (
 	bookingRepo "nexpaces-api/internal/repository/booking"
 	lessonRepo "nexpaces-api/internal/repository/lesson"
 	paymentRepo "nexpaces-api/internal/repository/payment"
+	registryRepo "nexpaces-api/internal/repository/registry"
 	serviceRepo "nexpaces-api/internal/repository/service"
 	tenantRepo "nexpaces-api/internal/repository/tenant"
 	userRepo "nexpaces-api/internal/repository/user"
@@ -38,6 +40,7 @@ import (
 	bookingUsecase "nexpaces-api/internal/usecase/booking"
 	lessonUsecase "nexpaces-api/internal/usecase/lesson"
 	paymentUsecase "nexpaces-api/internal/usecase/payment"
+	registryService "nexpaces-api/internal/service/registry"
 	serviceUsecase "nexpaces-api/internal/usecase/service"
 	tenantUsecase "nexpaces-api/internal/usecase/tenant"
 	userUsecase "nexpaces-api/internal/usecase/user"
@@ -123,6 +126,12 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 	// Payment module repository
 	paymentRepository := paymentRepo.NewPostgresRepository(db)
 
+	// Registry repositories
+	moduleRepository := registryRepo.NewModuleRepository(db)
+	toolRepository := registryRepo.NewToolRepository(db)
+	tenantModuleRepository := registryRepo.NewTenantModuleRepository(db)
+	tenantToolRepository := registryRepo.NewTenantToolRepository(db)
+
 	// Initialize payment orchestrator
 	paymentOrchestrator := providerPayment.NewOrchestrator(&cfg.Payment)
 
@@ -160,6 +169,12 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 	// Payment service
 	paymentService := paymentUsecase.NewService(paymentRepository, paymentOrchestrator)
 
+	// Registry services
+	moduleCatalogService := registryService.NewModuleCatalogService(moduleRepository)
+	toolCatalogService := registryService.NewToolCatalogService(toolRepository)
+	dependencyCheckerService := registryService.NewDependencyCheckerService(db, moduleRepository, toolRepository, tenantModuleRepository, tenantToolRepository)
+	tenantActivationService := registryService.NewTenantActivationService(moduleRepository, toolRepository, tenantModuleRepository, tenantToolRepository, dependencyCheckerService)
+
 	// Initialize HTTP handlers
 	authHTTPHandler := authHandler.NewHandler(userService)
 	tenantHTTPHandler := tenantHandler.NewHandler(tenantService)
@@ -189,13 +204,19 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 	paymentHTTPHandler := paymentHandler.NewHandler(paymentService)
 	webhookHTTPHandler := paymentHandler.NewWebhookHandler(paymentService)
 
+	// Registry handlers
+	moduleCatalogHTTPHandler := registryHandler.NewModuleCatalogHandler(moduleCatalogService)
+	toolCatalogHTTPHandler := registryHandler.NewToolCatalogHandler(toolCatalogService)
+	activationHTTPHandler := registryHandler.NewActivationHandler(tenantActivationService, dependencyCheckerService)
+
 	// Setup routes
 	setupRoutes(app, cfg, authHTTPHandler, tenantHTTPHandler, userHTTPHandler, uploadHTTPHandler, websiteHTTPHandler,
 		studentHTTPHandler, lessonHTTPHandler, assignmentHTTPHandler,
 		availabilityHTTPHandler, appointmentHTTPHandler,
 		serviceHTTPHandler,
 		postHTTPHandler, categoryHTTPHandler,
-		paymentHTTPHandler, webhookHTTPHandler)
+		paymentHTTPHandler, webhookHTTPHandler,
+		moduleCatalogHTTPHandler, toolCatalogHTTPHandler, activationHTTPHandler)
 
 	return &Application{
 		config: cfg,

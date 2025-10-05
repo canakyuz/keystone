@@ -8,6 +8,7 @@ import (
 	bookingHandler "nexpaces-api/internal/handler/booking"
 	lessonHandler "nexpaces-api/internal/handler/lesson"
 	paymentHandler "nexpaces-api/internal/handler/payment"
+	registryHandler "nexpaces-api/internal/handler/registry"
 	serviceHandler "nexpaces-api/internal/handler/service"
 	tenantHandler "nexpaces-api/internal/handler/tenant"
 	uploadHandler "nexpaces-api/internal/handler/upload"
@@ -35,6 +36,9 @@ func setupRoutes(
 	categoryH *blogHandler.CategoryHandler,
 	paymentH *paymentHandler.Handler,
 	webhookH *paymentHandler.WebhookHandler,
+	moduleCatalogH *registryHandler.ModuleCatalogHandler,
+	toolCatalogH *registryHandler.ToolCatalogHandler,
+	activationH *registryHandler.ActivationHandler,
 ) {
 	app.Get("/docs", func(c *fiber.Ctx) error {
 		return c.SendFile("web/static/docs/index.html")
@@ -236,4 +240,50 @@ func setupRoutes(
 	webhooks.Post("/:provider", webhookH.HandleWebhook)                 // Generic webhook (provider-specific)
 	webhooks.Post("/iyzico/:tenant_id", webhookH.HandleIyzicoWebhook)   // iyzico webhook (tenant-specific URL)
 	webhooks.Post("/checkout/:tenant_id", webhookH.HandleCheckoutWebhook) // Checkout.com webhook (tenant-specific URL)
+
+	// Registry routes - Module & Tool Marketplace
+	registry := v1.Group("/registry")
+
+	// Public module catalog (no authentication)
+	registry.Get("/modules", moduleCatalogH.ListPublicModules)           // List public modules
+	registry.Get("/modules/search", moduleCatalogH.SearchModules)        // Search modules
+	registry.Get("/modules/popular", moduleCatalogH.GetPopularModules)   // Popular modules
+	registry.Get("/modules/top-rated", moduleCatalogH.GetTopRatedModules) // Top rated modules
+	registry.Get("/modules/new", moduleCatalogH.GetNewModules)           // New modules
+	registry.Get("/modules/free", moduleCatalogH.GetFreeModules)         // Free modules
+	registry.Get("/modules/category/:category", moduleCatalogH.GetModulesByCategory) // Modules by category
+	registry.Get("/modules/slug/:slug", moduleCatalogH.GetModuleBySlug) // Get module by slug
+	registry.Get("/modules/:id", moduleCatalogH.GetModuleByID)           // Get module by ID
+
+	// Public tool catalog (no authentication)
+	registry.Get("/tools", toolCatalogH.ListPublicTools)           // List public tools
+	registry.Get("/tools/search", toolCatalogH.SearchTools)        // Search tools
+	registry.Get("/tools/popular", toolCatalogH.GetPopularTools)   // Popular tools
+	registry.Get("/tools/top-rated", toolCatalogH.GetTopRatedTools) // Top rated tools
+	registry.Get("/tools/new", toolCatalogH.GetNewTools)           // New tools
+	registry.Get("/tools/free", toolCatalogH.GetFreeTools)         // Free tools
+	registry.Get("/tools/category/:category", toolCatalogH.GetToolsByCategory) // Tools by category
+	registry.Get("/tools/slug/:slug", toolCatalogH.GetToolBySlug) // Get tool by slug
+	registry.Get("/tools/:id", toolCatalogH.GetToolByID)           // Get tool by ID
+
+	// Tenant-specific activation routes (authentication required)
+	tenantRegistry := v1.Group("/registry/tenant", middleware.AuthMiddleware(cfg.Auth.JWTSecret))
+
+	// Module activation for current tenant
+	tenantRegistry.Get("/modules", activationH.GetActivatedModules)                        // List activated modules
+	tenantRegistry.Post("/modules/install", activationH.InstallModule)                     // Install module
+	tenantRegistry.Post("/modules/:module_id/activate", activationH.ActivateModule)        // Activate module
+	tenantRegistry.Post("/modules/:module_id/deactivate", activationH.DeactivateModule)    // Deactivate module
+	tenantRegistry.Delete("/modules/:module_id", activationH.UninstallModule)              // Uninstall module
+	tenantRegistry.Post("/modules/:module_id/complete-setup", activationH.CompleteModuleSetup) // Complete module setup
+	tenantRegistry.Get("/modules/:module_id/dependencies", activationH.CheckModuleDependencies) // Check module dependencies
+
+	// Tool activation for current tenant
+	tenantRegistry.Get("/tools", activationH.GetActivatedTools)                          // List activated tools
+	tenantRegistry.Post("/tools/install", activationH.InstallTool)                       // Install tool
+	tenantRegistry.Post("/tools/:tool_id/activate", activationH.ActivateTool)            // Activate tool
+	tenantRegistry.Post("/tools/:tool_id/deactivate", activationH.DeactivateTool)        // Deactivate tool
+	tenantRegistry.Delete("/tools/:tool_id", activationH.UninstallTool)                  // Uninstall tool
+	tenantRegistry.Post("/tools/:tool_id/complete-setup", activationH.CompleteToolSetup) // Complete tool setup
+	tenantRegistry.Get("/tools/:tool_id/dependencies", activationH.CheckToolDependencies) // Check tool dependencies
 }

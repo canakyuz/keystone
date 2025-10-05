@@ -1,5 +1,9 @@
 # 📅 NexSpaces API - Günlük İlerleme Takibi
 
+> **ÖNEMLİ UYARI:** Bu dosya, projenin geçmiş gelişim sürecini içeren tarihsel bir kayıttır. İçerisinde bahsedilen **"Tiered Isolation"** ve **"RLS"** tabanlı çok-kiracılı (multi-tenant) mimari kararları, daha sonra yerini **"Schema-per-Tenant" (Kiracı Başına Şema)** modeline bırakmıştır. Güncel mimari için lütfen ana `README.md` dosyasına başvurun.
+
+---
+
 > **Son Güncelleme:** 4 Ocak 2025 (Cumartesi)
 > **Sprint:** Payment Integration & UI Enhancements
 
@@ -614,6 +618,8 @@ Test Coverage:      40%+
      - 3 haftalık öğrenme patikası
 
 2. **Mimari Karar: Tiered Multi-Tenancy**
+   > *[Not: Bu karar daha sonra **Schema-per-Tenant** modeli ile güncellenmiştir.]*
+
    - Shared DB + RLS → Yeterli değil (noisy neighbor, compliance)
    - **Yeni yaklaşım:** 3-tier isolation
      - **Shared:** Blog, website ($29/mo)
@@ -673,6 +679,8 @@ Test Coverage:      40%+
      - 3 haftalık öğrenme patikası
 
 2. **Mimari Karar: Tiered Multi-Tenancy**
+   > *[Not: Bu karar daha sonra **Schema-per-Tenant** modeli ile güncellenmiştir.]*
+
    - Shared DB + RLS → Yeterli değil (noisy neighbor, compliance)
    - **Yeni yaklaşım:** 3-tier isolation
      - **Shared:** Blog, website ($29/mo)
@@ -825,6 +833,7 @@ Test Coverage:      40%+
 ### Mimari Kararlar
 
 1. **RLS + Tiered Hybrid Approach (Onaylandı)**
+   > *[Not: Bu karar daha sonra **Schema-per-Tenant** modeli ile güncellenmiştir.]*
    - Application-level filtering (primary defense)
    - RLS (failsafe, secondary defense)
    - Tiered DB isolation (enterprise için)

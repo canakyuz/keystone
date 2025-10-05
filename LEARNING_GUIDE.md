@@ -34,15 +34,15 @@ func main() {
 
     // Structs (like classes)
     type Tenant struct {
-        ID          string
-        Name        string
-        IsolationLevel string // 'shared', 'schema', 'database'
+        ID         string
+        Name       string
+        SchemaName string // e.g., 'tenant_acme'
     }
 
     tenant := Tenant{
         ID:   "550e8400",
         Name: "Acme Corp",
-        IsolationLevel: "shared",
+        SchemaName: "tenant_acme_corp",
     }
 
     fmt.Println(tenant.Name) // Acme Corp
@@ -186,7 +186,6 @@ func (r *PostgresRepo) Create(ctx context.Context, student *Student) error {
 type Student struct {
     ID        string
     Email     string
-    TenantID  string  // ⭐ Multi-tenant isolation
     CreatedAt time.Time
 }
 ```
@@ -239,69 +238,63 @@ nexpaces-api/
 
 ### What is Multi-Tenancy?
 
-One application serves multiple customers (tenants), but each tenant's data is isolated.
+One application serves multiple customers (tenants), but each tenant's data is logically isolated and invisible to other tenants.
+
+### Our Model: Schema-per-Tenant
+
+NexSpaces uses a **Schema-per-Tenant** architecture. This means every tenant gets their own dedicated schema within a single PostgreSQL database. This provides strong data isolation without the complexity of managing multiple databases.
 
 ```
 ┌──────────────────────────────────────────┐
-│         NEXPACES PLATFORM                │
-├─────────────┬──────────────┬─────────────┤
-│  Tenant A   │  Tenant B    │  Tenant C   │
-│  (Hospital) │  (School)    │  (Blog)     │
-│             │              │             │
-│  Dedicated  │  Schema      │  Shared DB  │
-│  Database   │  Isolation   │  + RLS      │
-└─────────────┴──────────────┴─────────────┘
+│         NEXPACES PLATFORM (Single DB)    │
+├──────────────────┬──────────────────┬────┤
+│ Schema: tenant_a │ Schema: tenant_b │ ...│
+│ (Tables for A)   │ (Tables for B)   │    │
+│ - users          │ - users          │    │
+│ - projects       │ - projects       │    │
+└──────────────────┴──────────────────┴────┘
 ```
-
-### Three Isolation Levels
-
-| Level | Database | Schema | Performance | Cost | Use Case |
-|-------|----------|--------|-------------|------|----------|
-| **Shared** | Same | Same | High density | Low | Blog, website |
-| **Schema** | Same | Separate | Good | Medium | E-commerce, LMS |
-| **Dedicated** | Separate | Separate | Isolated | High | Hospital, ERP |
 
 ### How It Works in Code
 
+We **DO NOT** use `WHERE tenant_id = ?` in our queries. Instead, we use PostgreSQL's `search_path` to scope the entire database session to a single tenant's schema.
+
 ```go
-// Every request has tenant context
+// 1. Middleware sets the tenant context
 func AuthMiddleware(c *fiber.Ctx) error {
     token := c.Get("Authorization")
     claims := parseJWT(token)
 
-    // Extract tenant ID from JWT
-    tenantID := claims.TenantID
+    // Get tenant's unique schema name (e.g., "tenant_acme_corp")
+    schemaName := claims.SchemaName
 
     // Store in request context
-    c.Locals("tenant_id", tenantID)
+    c.Locals("schema_name", schemaName)
 
     return c.Next()
 }
 
-// Every query includes tenant filter
-func (r *UserRepo) GetByID(ctx context.Context, id string) (*User, error) {
-    tenantID := ctx.Value("tenant_id").(string)
+// 2. A database manager sets the search_path for the connection
+func (m *TenantManager) SetTenantScope(ctx context.Context, schemaName string) error {
+    // This line tells PostgreSQL to only look for tables in this schema
+    _, err := m.db.ExecContext(ctx, fmt.Sprintf("SET search_path TO %s, public", pq.QuoteIdentifier(schemaName)))
+    return err
+}
 
-    query := `
-        SELECT * FROM users
-        WHERE id = $1 AND tenant_id = $2
-    `
-    // ⭐ tenant_id filter prevents cross-tenant access
-    return r.db.QueryRow(query, id, tenantID)
+// 3. Repository queries are simple and clean
+func (r *UserRepo) GetByID(ctx context.Context, id string) (*User, error) {
+    // No tenant_id filter is needed!
+    // The query automatically runs inside the correct tenant's schema.
+    query := `SELECT * FROM users WHERE id = $1`
+    return r.db.QueryRow(query, id)
 }
 ```
 
-### Database RLS (Row Level Security)
+### Why This Model?
 
-```sql
--- Enable RLS on table
-ALTER TABLE users ENABLE ROW LEVEL SECURITY;
-
--- Create policy: only see own tenant's data
-CREATE POLICY tenant_isolation ON users
-    FOR ALL
-    USING (tenant_id = current_setting('app.current_tenant')::UUID);
-```
+- **Strong Isolation:** It's impossible for one tenant's query to see another tenant's data.
+- **Clean Code:** Repositories don't need to be aware of multi-tenancy. No more forgetting a `WHERE tenant_id` clause.
+- **Flexibility:** Different tenants can (in the future) have slightly different table structures based on their plan.
 
 ---
 
@@ -381,11 +374,10 @@ import (
 
 func TestNewStudent(t *testing.T) {
     // Arrange
-    tenantID := "tenant-123"
     email := "john@example.com"
 
     // Act
-    student, err := NewStudent(tenantID, "John", "Doe", email)
+    student, err := NewStudent("John", "Doe", email)
 
     // Assert
     assert.NoError(t, err)
@@ -395,7 +387,7 @@ func TestNewStudent(t *testing.T) {
 }
 
 func TestStudent_Suspend(t *testing.T) {
-    student, _ := NewStudent("tenant-123", "John", "Doe", "j@e.com")
+    student, _ := NewStudent("John", "Doe", "j@e.com")
 
     err := student.Suspend("Non-payment")
 
@@ -473,7 +465,7 @@ curl -X POST http://localhost:8080/api/v1/students \
 **Steps to add "Courses" module:**
 
 1. **Domain:** Create `Course` entity with validation
-2. **Migration:** Create `courses` table with `tenant_id`
+2. **Migration:** Create `courses` table (no `tenant_id` needed)
 3. **Repository:** Implement CRUD operations
 4. **Service:** Add business logic
 5. **Handler:** Create HTTP endpoints
@@ -509,8 +501,8 @@ curl -X POST http://localhost:8080/api/v1/students \
 
 ### Week 3: Advanced
 - [ ] Add a new module (complete CRUD)
-- [ ] Understand multi-tenancy
-- [ ] Write integration tests
+- [ ] Understand Schema-per-Tenant multi-tenancy
+- [ ] Write integration tests for tenant isolation
 - [ ] Deploy with Docker
 
 ---
@@ -653,7 +645,7 @@ After mastering the basics:
 1. **Read IMPLEMENTATION_ROADMAP.md** for detailed plan
 2. **Implement a full module** (Domain → Repository → Service → Handler)
 3. **Write comprehensive tests** (aim for >80% coverage)
-4. **Add tiered multi-tenancy** (Phase 9)
+4. **Understand the Schema-per-Tenant** architecture
 5. **Implement enterprise modules** (HMS, ERP, LMS)
 
 ---

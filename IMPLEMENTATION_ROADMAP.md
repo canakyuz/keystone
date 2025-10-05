@@ -1,7 +1,7 @@
 # NexSpaces API - Complete Implementation Roadmap
 
 > **Multi-Vertical Enterprise SaaS Platform**
-> Supporting Blog, E-commerce, LMS, HMS, ERP, and more with tiered multi-tenancy
+> Supporting Blog, E-commerce, LMS, and more with a unified Schema-per-Tenant architecture.
 
 ---
 
@@ -9,25 +9,12 @@
 
 ### ✅ Completed Phases
 
-**Phase 1-6:** Foundation & Core Modules ✅ **100%**
+**Phase 1-8:** Foundation, Core Modules & API Documentation ✅ **100%**
 - Clean Architecture setup
-- Multi-tenant infrastructure
+- Multi-tenant infrastructure foundation
 - Authentication & Authorization
-- Tenant, User, Website management
-- **32+ API endpoints**
-
-**Phase 7:** Additional Modules ✅ **100%**
-- ✅ **Projects Module** - Portfolio/Project management
-- ✅ **Lessons Module** - Student, Lesson, Assignment (LMS foundation)
-- ✅ **Booking Module** - Appointments, Availability (HMS/Services foundation)
-- ✅ **Services Module** - Service catalog, pricing
-- ✅ **Blog/CMS Module** - Posts, Categories
-
-**Phase 8:** API Documentation ✅ **100%**
-- ✅ OpenAPI 3.0 specification
-- ✅ Swagger UI integration
-- ✅ Request/Response validation middleware
-- ✅ Auto-generated client code
+- Core business modules (Projects, Lessons, Blog, etc.)
+- OpenAPI 3.0 specification with Swagger UI
 
 ### 📈 Build & Test Status
 
@@ -36,226 +23,147 @@
 - **Test Coverage:**
   - Domain layer: 36.8%
   - **Target:** 80%+
-- **Database:** PostgreSQL with RLS
+- **Database:** PostgreSQL (Schema-per-Tenant Model)
 - **Docker:** Multi-stage optimized
 
 ---
 
-## 🎯 Architecture Evolution: Tiered Multi-Tenancy
+## 🎯 Architectural Foundation: Schema-per-Tenant
 
-### Current Challenge
+### The Challenge
 
-**Problem:** Single shared database + RLS works for small tenants, but:
-- ❌ **Compliance:** HIPAA/PCI-DSS require physical isolation
-- ❌ **Performance:** Large ERP tenant slows down small blog tenants
-- ❌ **Scalability:** Cannot handle 500GB+ hospital or factory data
+While a single shared database is simple, it presents significant challenges for a true multi-vertical SaaS platform regarding data isolation, security, compliance, and performance. A more robust model is required.
 
-### Solution: **Tiered Isolation Strategy**
+### The Solution: **Unified Schema-per-Tenant Architecture**
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                     Tenant Isolation Tiers                       │
-├──────────────┬──────────────────┬──────────────────────────────┤
-│   SHARED     │   SCHEMA         │   DEDICATED DATABASE          │
-│              │                  │                               │
-│ Blog         │ E-commerce       │ HMS (Hospital)                │
-│ Website      │ LMS (Education)  │ ERP (Factory)                 │
-│ Portfolio    │ Medium business  │ Enterprise                    │
-│              │                  │                               │
-│ Same DB      │ Same DB,         │ Separate DB                   │
-│ + RLS        │ Separate Schema  │ Full isolation                │
-│              │                  │                               │
-│ $29/mo       │ $199/mo          │ $999/mo+                      │
-└──────────────┴──────────────────┴──────────────────────────────┘
-```
+The entire platform is built on a **Schema-per-Tenant** model. This strategy provides strong logical data isolation for all tenants, ensuring security and compliance while maintaining a manageable and scalable infrastructure.
+
+**How It Works:**
+1.  **Provisioning:** When a new tenant is created, the system provisions a dedicated schema for them within the main PostgreSQL database (e.g., `CREATE SCHEMA tenant_acme;`).
+2.  **Templating:** Based on the subscribed plan (e.g., LMS), a corresponding SQL template is executed to create all necessary tables (`courses`, `students`, etc.) inside the new schema.
+3.  **Connection Scoping:** The API backend identifies the tenant from the incoming request and sets the database connection's `search_path` to the tenant's schema. All subsequent queries are automatically and safely scoped to that tenant's data.
+
+This model eliminates the need for complex, tiered logic and provides a consistent, secure, and scalable foundation for all verticals.
 
 ---
 
-## 🏗️ PHASE 9: TIERED MULTI-TENANCY ARCHITECTURE
+## 🏗️ PHASE 9: SCHEMA-PER-TENANT ARCHITECTURE
 
 **Priority:** 🔴 CRITICAL | **Time:** 1-2 weeks
 
 ### 9.1 Database Schema Updates
 
-**Migration:** `014_add_tenant_isolation_tiers.up.sql`
+**Migration:** `014_add_tenant_schema_support.up.sql`
 
 ```sql
--- Add isolation configuration to tenants table
+-- Add schema name to tenants table for easy lookup
 ALTER TABLE tenants
-ADD COLUMN isolation_level VARCHAR(20) DEFAULT 'shared'
-    CHECK (isolation_level IN ('shared', 'schema', 'database', 'dedicated')),
-ADD COLUMN database_host VARCHAR(255),
-ADD COLUMN database_port INT,
-ADD COLUMN database_name VARCHAR(255),
-ADD COLUMN schema_name VARCHAR(255),
-ADD COLUMN region VARCHAR(50) DEFAULT 'us-east-1',
-ADD COLUMN data_residency VARCHAR(50);
+ADD COLUMN schema_name VARCHAR(63) UNIQUE;
 
--- Module-level configuration
-CREATE TABLE tenant_modules (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-    module_name VARCHAR(50) NOT NULL, -- 'blog', 'erp', 'hms', 'lms'
-    enabled BOOLEAN DEFAULT true,
-    isolation_level VARCHAR(20), -- Override tenant-level
-    compliance_mode VARCHAR(50), -- 'hipaa', 'pci-dss', 'gdpr'
-    config JSONB DEFAULT '{}',
-    created_at TIMESTAMP DEFAULT NOW(),
-    UNIQUE(tenant_id, module_name)
-);
+-- Create a function to generate a unique schema name
+CREATE OR REPLACE FUNCTION generate_schema_name(name TEXT) RETURNS TEXT AS $$
+DECLARE
+  slug TEXT;
+  schema_name TEXT;
+  counter INT := 0;
+BEGIN
+  slug := lower(regexp_replace(name, '[^a-zA-Z0-9_]+', '', 'g'));
+  schema_name := 'tenant_' || slug;
+  -- Check for uniqueness and append a number if needed
+  WHILE EXISTS (SELECT 1 FROM pg_namespace WHERE nspname = schema_name) LOOP
+    counter := counter + 1;
+    schema_name := 'tenant_' || slug || '_' || counter;
+  END LOOP;
+  RETURN schema_name;
+END;
+$$ LANGUAGE plpgsql;
 
-CREATE INDEX idx_modules_tenant ON tenant_modules(tenant_id);
-CREATE INDEX idx_modules_compliance ON tenant_modules(compliance_mode);
+-- Remove tenant_id from tables that will now be inside tenant schemas
+-- Example for the 'projects' table:
+-- ALTER TABLE projects DROP COLUMN tenant_id;
+-- Note: This will be done within the schema templates themselves.
 ```
 
-### 9.2 Tenant Connection Manager
+### 9.2 Tenant Connection & Session Scoping
 
-**File:** `pkg/database/tenant_router.go`
-
-```go
-type IsolationLevel string
-
-const (
-    IsolationShared    IsolationLevel = "shared"    // Blog, websites
-    IsolationSchema    IsolationLevel = "schema"    // E-commerce, LMS
-    IsolationDatabase  IsolationLevel = "database"  // HMS, ERP
-    IsolationDedicated IsolationLevel = "dedicated" // On-premise
-)
-
-type TenantConnectionManager struct {
-    sharedPool      *sql.DB                      // Shared pool
-    schemaPools     map[string]*sql.DB           // Schema-isolated
-    dedicatedPools  map[string]*sql.DB           // Dedicated DBs
-    configCache     sync.Map                     // Tenant configs
-}
-
-func (m *TenantConnectionManager) GetConnection(
-    ctx context.Context,
-    tenantID string,
-) (*sql.DB, error) {
-    tenant := m.getTenantConfig(tenantID)
-
-    switch tenant.IsolationLevel {
-    case IsolationShared:
-        return m.sharedPool, nil
-    case IsolationSchema:
-        return m.getSchemaPool(tenant.SchemaName)
-    case IsolationDatabase, IsolationDedicated:
-        return m.getDedicatedPool(tenantID, tenant.DatabaseConfig)
-    }
-}
-```
-
-### 9.3 Repository Layer Adaptation
-
-**Update:** All repositories use connection manager
+**File:** `pkg/database/tenant_manager.go`
 
 ```go
-type BaseRepository struct {
-    connManager *TenantConnectionManager
+// TenantManager is responsible for setting the session's search_path.
+type TenantManager struct {
+    db *sql.DB
 }
 
-func (r *BaseRepository) GetDB(ctx context.Context) (*sql.DB, error) {
-    tenantID := ctx.Value("tenant_id").(string)
-
-    // Automatically routes to correct database
-    db, err := r.connManager.GetConnection(ctx, tenantID)
+// SetTenantScope configures the database connection for a specific tenant.
+func (m *TenantManager) SetTenantScope(ctx context.Context, schemaName string) error {
+    conn, err := m.db.Conn(ctx)
     if err != nil {
-        return nil, err
+        return err
     }
+    defer conn.Close()
 
-    // Set search_path for schema isolation
-    tenant := r.connManager.getTenantConfig(tenantID)
-    if tenant.IsolationLevel == IsolationSchema {
-        db.Exec(fmt.Sprintf("SET search_path TO %s", tenant.SchemaName))
-    }
-
-    return db, nil
+    // Set the search_path for the duration of the request.
+    // This is the core of our multi-tenancy isolation.
+    _, err = conn.ExecContext(ctx, fmt.Sprintf("SET search_path TO %s, public", pq.QuoteIdentifier(schemaName)))
+    return err
 }
 ```
 
-### 9.4 Automatic Tier Selection
+### 9.3 Tenant Provisioning Service
 
-**File:** `internal/usecase/tenant/onboard.go`
+**File:** `internal/usecase/tenant/provision.go`
 
 ```go
-func (uc *TenantUsecase) DetermineIsolationLevel(
-    modules []string,
-    compliance []string,
-    estimatedDataGB int,
-) IsolationLevel {
-    // HIPAA compliance = dedicated database required
-    if slices.Contains(compliance, "hipaa") {
-        return IsolationDatabase
+// TenantProvisioningService handles the creation of new tenant schemas.
+type TenantProvisioningService struct {
+    db *sql.DB
+    templateRepo TemplateRepository // To fetch schema templates
+}
+
+// ProvisionNewTenant creates a new schema and runs the appropriate template.
+func (s *TenantProvisioningService) ProvisionNewTenant(ctx context.Context, tenantID, tenantName, plan string) (string, error) {
+    // 1. Generate a unique schema name
+    var schemaName string
+    err := s.db.QueryRowContext(ctx, "SELECT generate_schema_name($1)", tenantName).Scan(&schemaName)
+    if err != nil {
+        return "", err
     }
 
-    // PCI-DSS = minimum schema isolation
-    if slices.Contains(compliance, "pci-dss") {
-        return IsolationSchema
+    // 2. Create the schema
+    _, err = s.db.ExecContext(ctx, fmt.Sprintf("CREATE SCHEMA %s", pq.QuoteIdentifier(schemaName)))
+    if err != nil {
+        return "", err
     }
 
-    // HMS, ERP modules = dedicated database
-    if slices.Contains(modules, "hms") || slices.Contains(modules, "erp") {
-        return IsolationDatabase
+    // 3. Get the schema template SQL for the given plan
+    templateSQL, err := s.templateRepo.GetTemplateByPlan(ctx, plan)
+    if err != nil {
+        return "", err
     }
 
-    // LMS with large data = schema isolation
-    if slices.Contains(modules, "lms") && estimatedDataGB > 50 {
-        return IsolationSchema
+    // 4. Execute the template SQL within the new schema
+    // The SQL script must be written to assume it's running in the new schema.
+    _, err = s.db.ExecContext(ctx, fmt.Sprintf("SET search_path TO %s; %s", pq.QuoteIdentifier(schemaName), templateSQL))
+    if err != nil {
+        // Rollback: DROP SCHEMA
+        return "", err
     }
 
-    // Default: shared
-    return IsolationShared
+    // 5. Update the tenant record with the new schema name
+    _, err = s.db.ExecContext(ctx, "UPDATE tenants SET schema_name = $1 WHERE id = $2", schemaName, tenantID)
+    return schemaName, err
 }
 ```
 
-### 9.5 Tenant Migration Tools
+### 9.4 Deliverables
 
-**Script:** `scripts/upgrade_tenant_tier.go`
-
-```go
-// Upgrade tenant from shared to schema isolation
-func UpgradeTenantToSchema(tenantID string) error {
-    // 1. Create new schema
-    schemaName := fmt.Sprintf("tenant_%s", tenantID[:8])
-    db.Exec(fmt.Sprintf("CREATE SCHEMA %s", schemaName))
-
-    // 2. Copy all tables
-    tables := []string{"users", "posts", "projects", ...}
-    for _, table := range tables {
-        db.Exec(fmt.Sprintf(`
-            CREATE TABLE %s.%s AS
-            SELECT * FROM public.%s
-            WHERE tenant_id = '%s'
-        `, schemaName, table, table, tenantID))
-    }
-
-    // 3. Update tenant config
-    db.Exec(`
-        UPDATE tenants
-        SET isolation_level = 'schema', schema_name = $1
-        WHERE id = $2
-    `, schemaName, tenantID)
-
-    // 4. Delete from public schema
-    for _, table := range tables {
-        db.Exec(fmt.Sprintf(
-            "DELETE FROM public.%s WHERE tenant_id = '%s'",
-            table, tenantID,
-        ))
-    }
-}
-```
-
-### 9.6 Deliverables
-
-- [ ] Migration 014: Tenant isolation configuration
-- [ ] TenantConnectionManager implementation
-- [ ] BaseRepository update for routing
-- [ ] Automatic tier selection logic
-- [ ] Tier upgrade scripts (shared → schema → database)
-- [ ] Development docker-compose with multiple DB instances
-- [ ] Integration tests for cross-tier scenarios
+- [ ] Migration 014: Add `schema_name` to tenants table and create helper function.
+- [ ] `TenantManager` implementation to set `search_path`.
+- [ ] Middleware to call `SetTenantScope` for every authenticated request.
+- [ ] `TenantProvisioningService` for creating new tenant schemas.
+- [ ] A repository for storing and retrieving schema templates (`.sql` files).
+- [ ] Update `CreateTenant` use case to call the provisioning service.
+- [ ] Integration tests to verify tenant data isolation between schemas.
 
 ---
 
@@ -265,12 +173,12 @@ func UpgradeTenantToSchema(tenantID string) error {
 
 ### Module Matrix
 
-| Module | Complexity | Isolation | Compliance | Time |
-|--------|-----------|-----------|------------|------|
-| **HMS** (Hospital) | Very High | Database | HIPAA | 2 weeks |
-| **ERP** (Manufacturing) | Very High | Database | SOC 2 | 2 weeks |
-| **LMS** (Education) | High | Schema | FERPA | 1 week |
-| **OMS** (Orders) | Medium | Schema | PCI-DSS | 1 week |
+| Module | Complexity | Isolation Model | Compliance | Time |
+|--------|-----------|-----------------|------------|------|
+| **HMS** (Hospital) | Very High | Schema-per-Tenant | HIPAA | 2 weeks |
+| **ERP** (Manufacturing) | Very High | Schema-per-Tenant | SOC 2 | 2 weeks |
+| **LMS** (Education) | High | Schema-per-Tenant | FERPA | 1 week |
+| **OMS** (Orders) | Medium | Schema-per-Tenant | PCI-DSS | 1 week |
 
 ### 10.1 HMS (Hospital Management System)
 
@@ -279,7 +187,6 @@ func UpgradeTenantToSchema(tenantID string) error {
 -- Patient records (HIPAA-sensitive)
 CREATE TABLE patients (
     id UUID PRIMARY KEY,
-    tenant_id UUID NOT NULL,
     medical_record_number VARCHAR(50) UNIQUE NOT NULL,
     first_name VARCHAR(100) NOT NULL ENCRYPTED, -- PHI
     last_name VARCHAR(100) NOT NULL ENCRYPTED,  -- PHI
@@ -292,7 +199,6 @@ CREATE TABLE patients (
 
 CREATE TABLE medical_records (
     id UUID PRIMARY KEY,
-    tenant_id UUID NOT NULL,
     patient_id UUID NOT NULL REFERENCES patients(id),
     visit_date TIMESTAMP NOT NULL,
     diagnosis TEXT ENCRYPTED,
@@ -301,25 +207,7 @@ CREATE TABLE medical_records (
     notes TEXT ENCRYPTED,
     created_at TIMESTAMP DEFAULT NOW()
 );
-
-CREATE TABLE appointments (
-    id UUID PRIMARY KEY,
-    tenant_id UUID NOT NULL,
-    patient_id UUID NOT NULL REFERENCES patients(id),
-    doctor_id UUID NOT NULL REFERENCES users(id),
-    appointment_time TIMESTAMP NOT NULL,
-    status VARCHAR(20), -- scheduled, completed, cancelled
-    notes TEXT,
-    created_at TIMESTAMP DEFAULT NOW()
-);
 ```
-
-**Key Features:**
-- PHI (Protected Health Information) encryption
-- Audit logging for all access
-- HIPAA-compliant retention policies
-- Access control (doctor can only see own patients)
-- Integration with lab systems (HL7/FHIR)
 
 ### 10.2 ERP (Enterprise Resource Planning)
 
@@ -328,7 +216,6 @@ CREATE TABLE appointments (
 -- Inventory management
 CREATE TABLE inventory_items (
     id UUID PRIMARY KEY,
-    tenant_id UUID NOT NULL,
     sku VARCHAR(100) UNIQUE NOT NULL,
     name VARCHAR(255) NOT NULL,
     category VARCHAR(100),
@@ -338,39 +225,7 @@ CREATE TABLE inventory_items (
     location VARCHAR(255),
     created_at TIMESTAMP DEFAULT NOW()
 );
-
--- Production orders
-CREATE TABLE production_orders (
-    id UUID PRIMARY KEY,
-    tenant_id UUID NOT NULL,
-    order_number VARCHAR(50) UNIQUE NOT NULL,
-    product_id UUID REFERENCES inventory_items(id),
-    quantity INT NOT NULL,
-    start_date DATE,
-    due_date DATE,
-    status VARCHAR(20), -- pending, in_progress, completed
-    cost DECIMAL(12,2),
-    created_at TIMESTAMP DEFAULT NOW()
-);
-
--- Purchase orders
-CREATE TABLE purchase_orders (
-    id UUID PRIMARY KEY,
-    tenant_id UUID NOT NULL,
-    po_number VARCHAR(50) UNIQUE NOT NULL,
-    supplier_id UUID REFERENCES suppliers(id),
-    total_amount DECIMAL(12,2),
-    status VARCHAR(20),
-    created_at TIMESTAMP DEFAULT NOW()
-);
 ```
-
-**Key Features:**
-- Real-time inventory tracking
-- Bill of Materials (BOM) management
-- MES (Manufacturing Execution System) integration
-- Supply chain optimization
-- Cost accounting
 
 ### 10.3 LMS (Learning Management System)
 
@@ -380,49 +235,22 @@ CREATE TABLE purchase_orders (
 -- Courses (extends existing lessons)
 CREATE TABLE courses (
     id UUID PRIMARY KEY,
-    tenant_id UUID NOT NULL,
     title VARCHAR(255) NOT NULL,
     description TEXT,
     instructor_id UUID REFERENCES users(id),
-    duration_weeks INT,
     price DECIMAL(10,2),
-    enrollment_limit INT,
-    status VARCHAR(20),
     created_at TIMESTAMP DEFAULT NOW()
 );
 
 -- Course enrollments
 CREATE TABLE enrollments (
     id UUID PRIMARY KEY,
-    tenant_id UUID NOT NULL,
     student_id UUID REFERENCES students(id),
     course_id UUID REFERENCES courses(id),
     enrolled_at TIMESTAMP DEFAULT NOW(),
-    status VARCHAR(20), -- active, completed, dropped
-    progress_percentage INT DEFAULT 0,
-    final_grade DECIMAL(5,2)
-);
-
--- Video content
-CREATE TABLE course_videos (
-    id UUID PRIMARY KEY,
-    tenant_id UUID NOT NULL,
-    course_id UUID REFERENCES courses(id),
-    title VARCHAR(255) NOT NULL,
-    video_url TEXT NOT NULL,
-    duration_seconds INT,
-    order_index INT,
-    created_at TIMESTAMP DEFAULT NOW()
+    progress_percentage INT DEFAULT 0
 );
 ```
-
-**Key Features:**
-- FERPA compliance (student data protection)
-- Video hosting integration (Vimeo/YouTube)
-- Quiz & assessment engine
-- Certificate generation
-- Progress tracking
-- Discussion forums
 
 ### 10.4 OMS (Order Management System)
 
@@ -431,50 +259,13 @@ CREATE TABLE course_videos (
 -- Orders
 CREATE TABLE orders (
     id UUID PRIMARY KEY,
-    tenant_id UUID NOT NULL,
     order_number VARCHAR(50) UNIQUE NOT NULL,
     customer_id UUID REFERENCES customers(id),
     status VARCHAR(20), -- pending, processing, shipped, delivered
-    subtotal DECIMAL(12,2),
-    tax DECIMAL(12,2),
-    shipping_cost DECIMAL(12,2),
     total DECIMAL(12,2),
-    payment_method VARCHAR(50),
-    shipping_address JSONB,
     created_at TIMESTAMP DEFAULT NOW()
-);
-
--- Order items
-CREATE TABLE order_items (
-    id UUID PRIMARY KEY,
-    tenant_id UUID NOT NULL,
-    order_id UUID REFERENCES orders(id),
-    product_id UUID REFERENCES products(id),
-    quantity INT NOT NULL,
-    unit_price DECIMAL(12,2),
-    total_price DECIMAL(12,2),
-    created_at TIMESTAMP DEFAULT NOW()
-);
-
--- Shipping
-CREATE TABLE shipments (
-    id UUID PRIMARY KEY,
-    tenant_id UUID NOT NULL,
-    order_id UUID REFERENCES orders(id),
-    tracking_number VARCHAR(100),
-    carrier VARCHAR(50),
-    shipped_at TIMESTAMP,
-    delivered_at TIMESTAMP,
-    status VARCHAR(20)
 );
 ```
-
-**Key Features:**
-- PCI-DSS compliance (payment data)
-- Multi-warehouse support
-- Shipping integration (UPS, FedEx, DHL)
-- Return management
-- Real-time order tracking
 
 ---
 
@@ -487,35 +278,22 @@ CREATE TABLE shipments (
 **File:** `test/security/tenant_isolation_test.go`
 
 ```go
-func TestCrossTenantAccessPrevention(t *testing.T) {
-    // Setup: Create two tenants
-    tenantA := createTestTenant("Tenant A", IsolationShared)
-    tenantB := createTestTenant("Tenant B", IsolationShared)
+func TestCrossSchemaAccessPrevention(t *testing.T) {
+    // Setup: Create two tenants, which creates two schemas (e.g., tenant_a, tenant_b)
+    tenantA := createTestTenant("Tenant A", "LMS")
+    tenantB := createTestTenant("Tenant B", "LMS")
 
-    // Tenant A creates a patient
-    patientA := createPatient(tenantA.ID, "John Doe")
+    // Tenant A creates a course in its own schema (tenant_a.courses)
+    courseA := createCourseInSchema(tenantA.SchemaName, "History 101")
 
-    // Tenant B tries to access Tenant A's patient
-    _, err := getPatient(tenantB.ID, patientA.ID)
+    // Tenant B tries to access Tenant A's course
+    // This query will be executed with search_path = 'tenant_b, public'
+    // It should fail because tenant_a.courses is not in the search path.
+    _, err := getCourseFromSchema(tenantB.SchemaName, courseA.ID)
 
     // MUST fail
-    assert.Error(t, err)
-    assert.Equal(t, ErrPatientNotFound, err)
-}
-
-func TestRLSPolicyEnforcement(t *testing.T) {
-    // Direct SQL bypass attempt
-    db.Exec("SET app.current_tenant = ''")
-
-    rows, err := db.Query("SELECT * FROM patients")
-    assert.NoError(t, err)
-
-    // Should return 0 rows (RLS blocks access)
-    count := 0
-    for rows.Next() {
-        count++
-    }
-    assert.Equal(t, 0, count, "RLS failed - unauthorized access!")
+    assert.Error(t, err, "Cross-schema access was possible, which is a major security flaw!")
+    assert.Equal(t, ErrCourseNotFound, err)
 }
 ```
 
@@ -524,6 +302,8 @@ func TestRLSPolicyEnforcement(t *testing.T) {
 **HIPAA Audit Logging:**
 ```go
 func TestHIPAAAuditLogging(t *testing.T) {
+    // This test remains relevant. Ensure that when a user in a HIPAA-compliant
+    // tenant accesses a patient record, an audit log is created.
     patient := createPatient(tenantID, "Jane Doe")
 
     // Access patient record
@@ -533,44 +313,19 @@ func TestHIPAAAuditLogging(t *testing.T) {
     logs := getAuditLogs(tenantID, patient.ID)
     assert.NotEmpty(t, logs)
     assert.Equal(t, "patient.view", logs[0].Action)
-    assert.Equal(t, userID, logs[0].UserID)
-    assert.NotEmpty(t, logs[0].IPAddress)
 }
 ```
 
-### 11.3 Performance & Load Tests
-
-**File:** `test/performance/load_test.go`
-
-```go
-func TestNoisyNeighborIsolation(t *testing.T) {
-    // Tenant A: Heavy ERP queries (10,000 req/s)
-    tenantA := "erp-factory"
-
-    // Tenant B: Light blog queries (100 req/s)
-    tenantB := "simple-blog"
-
-    // Run concurrent load
-    go runHeavyLoad(tenantA)
-
-    // Measure Tenant B latency
-    latency := measureLatency(tenantB)
-
-    // Tenant B should NOT be affected (dedicated pool)
-    assert.Less(t, latency, 100*time.Millisecond)
-}
-```
-
-### 11.4 Integration Tests
+### 11.3 Integration Tests
 
 - [ ] Repository integration tests (all modules)
 - [ ] Service layer unit tests
 - [ ] Handler E2E tests
-- [ ] Cross-tier tenant tests (shared ↔ schema ↔ database)
-- [ ] Migration rollback tests
-- [ ] Disaster recovery tests
+- [ ] Tenant Provisioning Service tests
+- [ ] Schema migration script tests
+- [ ] Disaster recovery tests (backup/restore of a single schema)
 
-### 11.5 Test Coverage Targets
+### 11.4 Test Coverage Targets
 
 | Layer | Current | Target |
 |-------|---------|--------|
@@ -871,7 +626,7 @@ var (
 
 | Phase | Priority | Duration | Dependencies |
 |-------|----------|----------|--------------|
-| **9. Tiered Multi-Tenancy** | 🔴 CRITICAL | 1-2 weeks | None |
+| **9. Schema-per-Tenant Arch.** | 🔴 CRITICAL | 1-2 weeks | None |
 | **10. Enterprise Modules** | 🔴 HIGH | 4-6 weeks | Phase 9 |
 | **11. Comprehensive Testing** | 🔴 CRITICAL | 2-3 weeks | Phase 9-10 |
 | **12. OAuth & Advanced Auth** | 🟡 MEDIUM | 1 week | Phase 11 |
@@ -882,11 +637,11 @@ var (
 
 ### Week-by-Week Plan
 
-**Week 1-2: Tiered Multi-Tenancy**
-- Migration 014: Isolation configuration
-- TenantConnectionManager
-- Repository routing updates
-- Integration tests
+**Week 1-2: Schema-per-Tenant Architecture**
+- Migration 014: `schema_name` support
+- Tenant Provisioning Service
+- Tenant session scoping middleware
+- Integration tests for schema isolation
 
 **Week 3-4: HMS Module**
 - Patient, MedicalRecord, Appointment entities
@@ -913,8 +668,8 @@ var (
 - Payment processing
 
 **Week 9-11: Comprehensive Testing**
-- Security tests (cross-tenant, RLS)
-- Compliance tests (HIPAA, PCI-DSS, FERPA)
+- Security tests (cross-schema access)
+- Compliance tests (HIPAA, PCI-DSS)
 - Performance tests (load, stress)
 - Integration tests (E2E)
 - Target: 75%+ coverage
@@ -939,44 +694,40 @@ var (
 
 ## ✅ Success Criteria
 
-### Phase 9: Tiered Multi-Tenancy
-- [ ] Migration 014 applied successfully
-- [ ] TenantConnectionManager routes to correct DB
-- [ ] Shared, schema, database tiers all working
-- [ ] Tier upgrade scripts tested
-- [ ] No cross-tier data leakage
+### Phase 9: Schema-per-Tenant Architecture
+- [ ] Migration 014 applied successfully.
+- [ ] New tenants are provisioned with their own schema.
+- [ ] API requests are correctly scoped to the tenant's schema.
+- [ ] Integration tests prove zero cross-schema data leakage.
+- [ ] Schema templates are created for each vertical.
 
 ### Phase 10: Enterprise Modules
 - [ ] HMS: Patient CRUD with HIPAA compliance
 - [ ] ERP: Inventory tracking functional
 - [ ] LMS: Course enrollment working
 - [ ] OMS: Order processing end-to-end
-- [ ] All modules tenant-isolated
+- [ ] All modules are fully isolated within their tenant schema.
 
 ### Phase 11: Testing
 - [ ] Test coverage >75%
 - [ ] All security tests passing
 - [ ] Compliance tests (HIPAA, PCI-DSS) green
 - [ ] Load tests: 10,000 req/s sustained
-- [ ] Zero cross-tenant access bugs
+- [ ] Zero cross-tenant access bugs found.
 
 ### Phase 12: OAuth
-- [ ] Google login working
-- [ ] GitHub login working
-- [ ] Apple Sign In working
+- [ ] Google, GitHub, Apple login working
 - [ ] Account linking functional
 
 ### Phase 13: Payment
 - [ ] Stripe integration complete
 - [ ] Subscription creation/cancellation working
 - [ ] Webhook handling tested
-- [ ] Usage-based billing accurate
 
 ### Phase 14: DevOps
 - [ ] CI/CD pipeline passing
 - [ ] Production deployment successful
 - [ ] Monitoring dashboards active
-- [ ] Alerts configured
 
 ---
 
@@ -986,7 +737,6 @@ var (
 ```bash
 # OAuth
 go get golang.org/x/oauth2
-go get google.golang.org/api/oauth2/v2
 
 # Payments
 go get github.com/stripe/stripe-go/v76
@@ -1000,11 +750,10 @@ go get github.com/prometheus/client_golang
 
 ### External Services
 - **Stripe:** Payment processing
-- **AWS RDS:** PostgreSQL hosting (multi-region)
-- **Redis:** Session storage, rate limiting
+- **AWS RDS:** PostgreSQL hosting
+- **Redis:** Caching, session storage
 - **SendGrid/AWS SES:** Email delivery
 - **Cloudflare:** CDN, WAF, DDoS protection
-- **MaxMind GeoIP:** Geolocation (compliance)
 
 ---
 
@@ -1016,19 +765,13 @@ SERVER_HOST=0.0.0.0
 SERVER_PORT=8080
 SERVER_ENVIRONMENT=production
 
-# Database (Shared)
-DATABASE_HOST=shared-db.amazonaws.com
+# Database
+DATABASE_HOST=main-db.amazonaws.com
 DATABASE_PORT=5432
-DATABASE_NAME=nexpaces_shared
+DATABASE_NAME=nexpaces_main
 DATABASE_USER=postgres
 DATABASE_PASSWORD=***
 DATABASE_SSL_MODE=require
-
-# Database (Enterprise - Example)
-DATABASE_ENTERPRISE_HOST=enterprise-db.amazonaws.com
-DATABASE_ENTERPRISE_PORT=5432
-DATABASE_ENTERPRISE_USER=postgres
-DATABASE_ENTERPRISE_PASSWORD=***
 
 # Redis
 REDIS_URL=redis://redis-cluster.amazonaws.com:6379
@@ -1046,20 +789,9 @@ GITHUB_CLIENT_ID=***
 GITHUB_CLIENT_SECRET=***
 GITHUB_REDIRECT_URL=https://api.nexpaces.com/auth/github/callback
 
-# OAuth - Apple
-APPLE_CLIENT_ID=com.nexpaces.signin
-APPLE_TEAM_ID=***
-APPLE_KEY_ID=***
-APPLE_PRIVATE_KEY=/keys/apple-key.p8
-
 # Stripe
 STRIPE_SECRET_KEY=sk_live_***
-STRIPE_PUBLISHABLE_KEY=pk_live_***
 STRIPE_WEBHOOK_SECRET=whsec_***
-
-# Email
-SENDGRID_API_KEY=SG.***
-FROM_EMAIL=noreply@nexpaces.com
 
 # Encryption (HIPAA)
 ENCRYPTION_KEY_MASTER=***-32-bytes

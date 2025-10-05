@@ -145,7 +145,7 @@ func (s *ModuleCatalogService) GetModulesByPricingModel(ctx context.Context, pri
 
 // GetFreeModules retrieves all free modules
 func (s *ModuleCatalogService) GetFreeModules(ctx context.Context, filters registry.ModuleFilters) ([]*registry.Module, error) {
-	pricingModel := registry.PricingModelFree
+	pricingModel := registry.PricingFree
 	return s.GetModulesByPricingModel(ctx, pricingModel, filters)
 }
 

@@ -251,7 +251,8 @@ func (r *moduleRepository) Search(ctx context.Context, query string, filters reg
 		  AND (name ILIKE $1 OR description ILIKE $1 OR ARRAY_TO_STRING(tags, ' ') ILIKE $1)
 	`
 
-	conditions, args := r.buildFilterConditions(filters)
+	// $1 is used for search pattern, so filter conditions start at $2
+	conditions, args := r.buildFilterConditionsWithOffset(filters, 2)
 	searchPattern := "%" + query + "%"
 	allArgs := append([]interface{}{searchPattern}, args...)
 
@@ -304,9 +305,13 @@ func (r *moduleRepository) UpdateInstallCount(ctx context.Context, moduleID stri
 
 // Helper functions
 func (r *moduleRepository) buildFilterConditions(filters registry.ModuleFilters) ([]string, []interface{}) {
+	return r.buildFilterConditionsWithOffset(filters, 1)
+}
+
+func (r *moduleRepository) buildFilterConditionsWithOffset(filters registry.ModuleFilters, startParam int) ([]string, []interface{}) {
 	var conditions []string
 	var args []interface{}
-	paramCount := 1
+	paramCount := startParam
 
 	if filters.Category != nil {
 		conditions = append(conditions, fmt.Sprintf("category = $%d", paramCount))

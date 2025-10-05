@@ -17,7 +17,8 @@ import (
 	"nexpaces-api/internal/middleware"
 )
 
-// setupRoutes configures all application routes
+// setupRoutes fonksiyonu, uygulamanın tüm API rotalarını yapılandırır.
+// Bu fonksiyon, sunucu başlatıldığında çağrılır ve hangi HTTP yolunun hangi işleyici (handler) fonksiyona karşılık geldiğini belirler.
 func setupRoutes(
 	app *fiber.App,
 	cfg *config.Config,
@@ -40,15 +41,17 @@ func setupRoutes(
 	toolCatalogH *registryHandler.ToolCatalogHandler,
 	activationH *registryHandler.ActivationHandler,
 ) {
+	// /docs yolu, statik Swagger/OpenAPI dokümantasyon sayfasını sunar.
 	app.Get("/docs", func(c *fiber.Ctx) error {
 		return c.SendFile("web/static/docs/index.html")
 	})
 	app.Static("/docs/", "./web/static/docs")
+	// /api/openapi.yaml yolu, API'nin tanım dosyasını sunar.
 	app.Get("/api/openapi.yaml", func(c *fiber.Ctx) error {
 		return c.SendFile("api/openapi.yaml")
 	})
 
-	// Health check
+	// Health check (Sağlık Kontrolü) endpoint'i, servisin ayakta olup olmadığını kontrol etmek için kullanılır.
 	app.Get("/health", func(c *fiber.Ctx) error {
 		return c.JSON(fiber.Map{
 			"status":      "ok",
@@ -57,233 +60,233 @@ func setupRoutes(
 		})
 	})
 
-	// API v1 group
+	// /api/v1 grubu, API'nin 1. versiyonu için bir ana grup oluşturur.
 	v1 := app.Group("/api/v1")
 
-	// Public routes (no authentication required)
+	// Public (Herkese Açık) rotalar, kimlik doğrulaması gerektirmez.
 	public := v1.Group("/public")
 	public.Get("/websites/slug/:slug", websiteH.GetBySlug)
 
-	// Auth routes (public)
+	// Auth (Kimlik Doğrulama) rotaları, kullanıcı giriş/kayıt işlemleri için kullanılır ve halka açıktır.
 	auth := v1.Group("/auth")
-	auth.Post("/register", authH.Register)
-	auth.Post("/login", authH.Login)
-	auth.Post("/logout", authH.Logout)
+	auth.Post("/register", authH.Register) // Kullanıcı kaydı
+	auth.Post("/login", authH.Login)       // Kullanıcı girişi
+	auth.Post("/logout", authH.Logout)     // Kullanıcı çıkışı
 
-	// Protected auth routes
+	// Korumalı kimlik doğrulama rotaları, JWT token ile kimlik doğrulaması gerektirir.
 	authProtected := v1.Group("/auth", middleware.AuthMiddleware(cfg.Auth.JWTSecret))
-	authProtected.Get("/me", authH.GetMe)
+	authProtected.Get("/me", authH.GetMe) // Mevcut giriş yapmış kullanıcı bilgilerini getirir.
 
-	// Tenant routes (authentication required)
+	// Tenant (Kiracı) rotaları, kimlik doğrulaması gerektirir ve kiracıya özel işlemleri yönetir.
 	tenants := v1.Group("/tenants", middleware.AuthMiddleware(cfg.Auth.JWTSecret))
-	tenants.Post("/", tenantH.Create)                              // Create tenant
-	tenants.Get("/current", tenantH.GetCurrent)                    // Get current tenant
-	tenants.Get("/stats", tenantH.GetStats)                        // Tenant statistics
-	tenants.Get("/slug/:slug", tenantH.GetBySlug)                  // Get by slug
-	tenants.Get("/:id", tenantH.GetByID)                           // Get by ID
-	tenants.Get("/", tenantH.List)                                 // List tenants
-	tenants.Patch("/:id", tenantH.Update)                          // Update tenant
-	tenants.Post("/:id/suspend", tenantH.Suspend)                  // Suspend tenant
-	tenants.Post("/:id/activate", tenantH.Activate)                // Activate tenant
-	tenants.Post("/:id/upgrade", tenantH.UpgradePlan)              // Upgrade plan
-	tenants.Post("/:id/domain", tenantH.SetCustomDomain)           // Set custom domain
-	tenants.Post("/:id/domain/verify", tenantH.VerifyCustomDomain) // Verify domain
-	tenants.Patch("/:id/branding", tenantH.UpdateBranding)         // Update branding
-	tenants.Delete("/:id", tenantH.Delete)                         // Delete tenant
+	tenants.Post("/", tenantH.Create)                              // Yeni bir kiracı oluşturur.
+	tenants.Get("/current", tenantH.GetCurrent)                    // Mevcut (aktif) kiracıyı getirir.
+	tenants.Get("/stats", tenantH.GetStats)                        // Kiracı ile ilgili istatistikleri sunar.
+	tenants.Get("/slug/:slug", tenantH.GetBySlug)                  // 'slug' ile bir kiracıyı bulur.
+	tenants.Get("/:id", tenantH.GetByID)                           // ID ile bir kiracıyı bulur.
+	tenants.Get("/", tenantH.List)                                 // Tüm kiracıları listeler.
+	tenants.Patch("/:id", tenantH.Update)                          // Bir kiracının bilgilerini günceller.
+	tenants.Post("/:id/suspend", tenantH.Suspend)                  // Bir kiracıyı askıya alır.
+	tenants.Post("/:id/activate", tenantH.Activate)                // Askıya alınmış bir kiracıyı aktif eder.
+	tenants.Post("/:id/upgrade", tenantH.UpgradePlan)              // Kiracının abonelik planını yükseltir.
+	tenants.Post("/:id/domain", tenantH.SetCustomDomain)           // Kiracıya özel bir alan adı (domain) atar.
+	tenants.Post("/:id/domain/verify", tenantH.VerifyCustomDomain) // Atanan özel alan adını doğrular.
+	tenants.Patch("/:id/branding", tenantH.UpdateBranding)         // Kiracının marka kimliğini (logo, renkler vb.) günceller.
+	tenants.Delete("/:id", tenantH.Delete)                         // Bir kiracıyı siler.
 
-	// Upload routes (tenant-scoped, authentication required)
+	// Upload (Dosya Yükleme) rotaları, kiracıya özeldir ve kimlik doğrulaması gerektirir.
 	upload := v1.Group("/upload", middleware.AuthMiddleware(cfg.Auth.JWTSecret))
-	upload.Post("/logo", uploadH.UploadLogo)       // Upload logo
-	upload.Post("/favicon", uploadH.UploadFavicon) // Upload favicon
-	upload.Post("/image", uploadH.UploadImage)     // Upload general image
+	upload.Post("/logo", uploadH.UploadLogo)       // Logo yükleme.
+	upload.Post("/favicon", uploadH.UploadFavicon) // Favicon yükleme.
+	upload.Post("/image", uploadH.UploadImage)     // Genel amaçlı resim yükleme.
 
-	// Serve uploaded files (public access)
+	// Yüklenen dosyaların sunulması için statik bir yol. Herkese açıktır.
 	app.Static("/uploads", "./uploads")
 
-	// User routes (authentication required)
+	// User (Kullanıcı) rotaları, kimlik doğrulaması gerektirir.
 	users := v1.Group("/users", middleware.AuthMiddleware(cfg.Auth.JWTSecret))
-	users.Post("/", userH.Create)                      // Create user (admin only)
-	users.Get("/stats", userH.GetStats)                // User statistics
-	users.Get("/:id", userH.GetByID)                   // Get user by ID
-	users.Get("/", userH.List)                         // List users
-	users.Patch("/:id", userH.Update)                  // Update user
-	users.Post("/:id/password", userH.UpdatePassword)  // Update password
-	users.Post("/:id/role", userH.UpdateRole)          // Update role (admin only)
-	users.Post("/:id/suspend", userH.Suspend)          // Suspend user (admin only)
-	users.Post("/:id/activate", userH.Activate)        // Activate user (admin only)
-	users.Post("/:id/verify-email", userH.VerifyEmail) // Verify email
-	users.Delete("/:id", userH.Delete)                 // Delete user (admin only)
+	users.Post("/", userH.Create)                      // Yeni kullanıcı oluşturma (sadece admin).
+	users.Get("/stats", userH.GetStats)                // Kullanıcı istatistikleri.
+	users.Get("/:id", userH.GetByID)                   // ID ile kullanıcı getirme.
+	users.Get("/", userH.List)                         // Tüm kullanıcıları listeleme.
+	users.Patch("/:id", userH.Update)                  // Kullanıcı bilgilerini güncelleme.
+	users.Post("/:id/password", userH.UpdatePassword)  // Kullanıcı şifresini güncelleme.
+	users.Post("/:id/role", userH.UpdateRole)          // Kullanıcı rolünü güncelleme (sadece admin).
+	users.Post("/:id/suspend", userH.Suspend)          // Kullanıcıyı askıya alma (sadece admin).
+	users.Post("/:id/activate", userH.Activate)        // Kullanıcıyı aktif etme (sadece admin).
+	users.Post("/:id/verify-email", userH.VerifyEmail) // Kullanıcı e-postasını doğrulama.
+	users.Delete("/:id", userH.Delete)                 // Kullanıcıyı silme (sadece admin).
 
-	// Website routes (tenant-scoped)
+	// Website (Web Sitesi) rotaları, kiracıya özeldir.
 	websites := v1.Group("/websites", middleware.AuthMiddleware(cfg.Auth.JWTSecret))
-	websites.Get("/", websiteH.List)
-	websites.Post("/", websiteH.Create)
-	websites.Get("/:id", websiteH.GetByID)
-	websites.Patch("/:id", websiteH.Update)
-	websites.Delete("/:id", websiteH.Delete)
-	websites.Post("/:id/publish", websiteH.Publish)
-	websites.Post("/:id/archive", websiteH.Archive)
+	websites.Get("/", websiteH.List)             // Web sitelerini listeler.
+	websites.Post("/", websiteH.Create)          // Yeni web sitesi oluşturur.
+	websites.Get("/:id", websiteH.GetByID)       // ID ile web sitesi getirir.
+	websites.Patch("/:id", websiteH.Update)      // Web sitesini günceller.
+	websites.Delete("/:id", websiteH.Delete)     // Web sitesini siler.
+	websites.Post("/:id/publish", websiteH.Publish) // Web sitesini yayınlar.
+	websites.Post("/:id/archive", websiteH.Archive) // Web sitesini arşivler.
 
-	// Student routes (Lessons module - tenant-scoped)
+	// Student (Öğrenci) rotaları, Dersler modülüne aittir ve kiracıya özeldir.
 	students := v1.Group("/students", middleware.AuthMiddleware(cfg.Auth.JWTSecret))
-	students.Post("/", studentH.Create)         // Create student
-	students.Get("/stats", studentH.GetStats)   // Student statistics
-	students.Get("/email", studentH.GetByEmail) // Get by email
-	students.Get("/:id", studentH.GetByID)      // Get student by ID
-	students.Get("/", studentH.List)            // List students
-	students.Put("/:id", studentH.Update)       // Update student
-	students.Delete("/:id", studentH.Delete)    // Delete student
+	students.Post("/", studentH.Create)         // Yeni öğrenci oluşturur.
+	students.Get("/stats", studentH.GetStats)   // Öğrenci istatistikleri.
+	students.Get("/email", studentH.GetByEmail) // E-posta ile öğrenci bulur.
+	students.Get("/:id", studentH.GetByID)      // ID ile öğrenci bulur.
+	students.Get("/", studentH.List)            // Öğrencileri listeler.
+	students.Put("/:id", studentH.Update)       // Öğrenci bilgilerini günceller.
+	students.Delete("/:id", studentH.Delete)    // Öğrenciyi siler.
 
-	// Lesson routes (Lessons module - tenant-scoped)
+	// Lesson (Ders) rotaları, Dersler modülüne aittir ve kiracıya özeldir.
 	lessons := v1.Group("/lessons", middleware.AuthMiddleware(cfg.Auth.JWTSecret))
-	lessons.Post("/", lessonH.Create)             // Create lesson
-	lessons.Get("/stats", lessonH.GetStats)       // Lesson statistics
-	lessons.Get("/upcoming", lessonH.GetUpcoming) // Get upcoming lessons
-	lessons.Get("/:id", lessonH.GetByID)          // Get lesson by ID
-	lessons.Get("/", lessonH.List)                // List lessons
-	lessons.Put("/:id", lessonH.Update)           // Update lesson
-	lessons.Delete("/:id", lessonH.Delete)        // Delete lesson
+	lessons.Post("/", lessonH.Create)             // Yeni ders oluşturur.
+	lessons.Get("/stats", lessonH.GetStats)       // Ders istatistikleri.
+	lessons.Get("/upcoming", lessonH.GetUpcoming) // Yaklaşan dersleri getirir.
+	lessons.Get("/:id", lessonH.GetByID)          // ID ile ders bulur.
+	lessons.Get("/", lessonH.List)                // Dersleri listeler.
+	lessons.Put("/:id", lessonH.Update)           // Dersi günceller.
+	lessons.Delete("/:id", lessonH.Delete)        // Dersi siler.
 
-	// Student-specific lesson routes
-	students.Get("/:student_id/lessons", lessonH.GetByStudent) // Get lessons by student
+	// Öğrenciye özel ders rotaları.
+	students.Get("/:student_id/lessons", lessonH.GetByStudent) // Bir öğrencinin tüm derslerini getirir.
 
-	// Assignment routes (Lessons module - tenant-scoped)
+	// Assignment (Ödev) rotaları, Dersler modülüne aittir ve kiracıya özeldir.
 	assignments := v1.Group("/assignments", middleware.AuthMiddleware(cfg.Auth.JWTSecret))
-	assignments.Post("/", assignmentH.Create)           // Create assignment
-	assignments.Get("/stats", assignmentH.GetStats)     // Assignment statistics
-	assignments.Get("/overdue", assignmentH.GetOverdue) // Get overdue assignments
-	assignments.Get("/:id", assignmentH.GetByID)        // Get assignment by ID
-	assignments.Get("/", assignmentH.List)              // List assignments
-	assignments.Put("/:id", assignmentH.Update)         // Update assignment
-	assignments.Delete("/:id", assignmentH.Delete)      // Delete assignment
+	assignments.Post("/", assignmentH.Create)           // Yeni ödev oluşturur.
+	assignments.Get("/stats", assignmentH.GetStats)     // Ödev istatistikleri.
+	assignments.Get("/overdue", assignmentH.GetOverdue) // Gecikmiş ödevleri getirir.
+	assignments.Get("/:id", assignmentH.GetByID)        // ID ile ödev bulur.
+	assignments.Get("/", assignmentH.List)              // Ödevleri listeler.
+	assignments.Put("/:id", assignmentH.Update)         // Ödevi günceller.
+	assignments.Delete("/:id", assignmentH.Delete)      // Ödevi siler.
 
-	// Student-specific assignment routes
-	students.Get("/:student_id/assignments", assignmentH.GetByStudent) // Get assignments by student
+	// Öğrenciye özel ödev rotaları.
+	students.Get("/:student_id/assignments", assignmentH.GetByStudent) // Bir öğrencinin tüm ödevlerini getirir.
 
-	// Availability routes (Booking module - tenant-scoped)
+	// Availability (Müsaitlik) rotaları, Rezervasyon modülüne aittir ve kiracıya özeldir.
 	availabilities := v1.Group("/availabilities", middleware.AuthMiddleware(cfg.Auth.JWTSecret))
-	availabilities.Post("/", availabilityH.Create)                  // Create availability
-	availabilities.Get("/stats", availabilityH.GetStats)            // Availability statistics
-	availabilities.Get("/date-range", availabilityH.GetByDateRange) // Get by date range
-	availabilities.Get("/:id", availabilityH.GetByID)               // Get availability by ID
-	availabilities.Get("/", availabilityH.List)                     // List availabilities
-	availabilities.Put("/:id", availabilityH.Update)                // Update availability
-	availabilities.Delete("/:id", availabilityH.Delete)             // Delete availability
+	availabilities.Post("/", availabilityH.Create)                  // Yeni müsaitlik durumu oluşturur.
+	availabilities.Get("/stats", availabilityH.GetStats)            // Müsaitlik istatistikleri.
+	availabilities.Get("/date-range", availabilityH.GetByDateRange) // Belirli bir tarih aralığındaki müsaitlikleri getirir.
+	availabilities.Get("/:id", availabilityH.GetByID)               // ID ile müsaitlik durumu bulur.
+	availabilities.Get("/", availabilityH.List)                     // Müsaitlik durumlarını listeler.
+	availabilities.Put("/:id", availabilityH.Update)                // Müsaitlik durumunu günceller.
+	availabilities.Delete("/:id", availabilityH.Delete)             // Müsaitlik durumunu siler.
 
-	// User-specific availability routes
-	availabilities.Get("/user/:user_id", availabilityH.GetByUser) // Get availabilities by user
+	// Kullanıcıya özel müsaitlik rotaları.
+	availabilities.Get("/user/:user_id", availabilityH.GetByUser) // Bir kullanıcının müsaitlik durumlarını getirir.
 
-	// Appointment routes (Booking module - tenant-scoped)
+	// Appointment (Randevu) rotaları, Rezervasyon modülüne aittir ve kiracıya özeldir.
 	appointments := v1.Group("/appointments", middleware.AuthMiddleware(cfg.Auth.JWTSecret))
-	appointments.Post("/", appointmentH.Create)                  // Create appointment
-	appointments.Get("/stats", appointmentH.GetStats)            // Appointment statistics
-	appointments.Get("/upcoming", appointmentH.GetUpcoming)      // Get upcoming appointments
-	appointments.Get("/date-range", appointmentH.GetByDateRange) // Get by date range
-	appointments.Get("/client", appointmentH.GetByClient)        // Get by client email
-	appointments.Get("/:id", appointmentH.GetByID)               // Get appointment by ID
-	appointments.Get("/", appointmentH.List)                     // List appointments
-	appointments.Put("/:id", appointmentH.Update)                // Update appointment
-	appointments.Post("/:id/confirm", appointmentH.Confirm)      // Confirm appointment
-	appointments.Post("/:id/cancel", appointmentH.Cancel)        // Cancel appointment
-	appointments.Post("/:id/complete", appointmentH.Complete)    // Complete appointment
-	appointments.Delete("/:id", appointmentH.Delete)             // Delete appointment
+	appointments.Post("/", appointmentH.Create)                  // Yeni randevu oluşturur.
+	appointments.Get("/stats", appointmentH.GetStats)            // Randevu istatistikleri.
+	appointments.Get("/upcoming", appointmentH.GetUpcoming)      // Yaklaşan randevuları getirir.
+	appointments.Get("/date-range", appointmentH.GetByDateRange) // Belirli bir tarih aralığındaki randevuları getirir.
+	appointments.Get("/client", appointmentH.GetByClient)        // Müşteri e-postasına göre randevuları getirir.
+	appointments.Get("/:id", appointmentH.GetByID)               // ID ile randevu bulur.
+	appointments.Get("/", appointmentH.List)                     // Randevuları listeler.
+	appointments.Put("/:id", appointmentH.Update)                // Randevuyu günceller.
+	appointments.Post("/:id/confirm", appointmentH.Confirm)      // Randevuyu onaylar.
+	appointments.Post("/:id/cancel", appointmentH.Cancel)        // Randevuyu iptal eder.
+	appointments.Post("/:id/complete", appointmentH.Complete)    // Randevuyu tamamlandı olarak işaretler.
+	appointments.Delete("/:id", appointmentH.Delete)             // Randevuyu siler.
 
-	// User-specific appointment routes
+	// Kullanıcıya özel randevu rotaları.
+	appointments.Get("/user/:user_id", appointmentH.GetByUser) // Bir kullanıcının randevularını getirir.
 
-	// Service routes (tenant-scoped)
+	// Service (Hizmet) rotaları, kiracıya özeldir.
 	services := v1.Group("/services", middleware.AuthMiddleware(cfg.Auth.JWTSecret))
-	services.Post("/", serviceH.Create)                        // Create service
-	services.Get("/stats", serviceH.GetStats)                  // Service statistics
-	services.Get("/featured", serviceH.GetFeatured)            // Get featured services
-	services.Get("/slug/:slug", serviceH.GetBySlug)            // Get by slug
-	services.Get("/:id", serviceH.GetByID)                     // Get service by ID
-	services.Get("/", serviceH.List)                           // List services
-	services.Put("/:id", serviceH.Update)                      // Update service
-	services.Delete("/:id", serviceH.Delete)                   // Delete service
-	appointments.Get("/user/:user_id", appointmentH.GetByUser) // Get appointments by user
+	services.Post("/", serviceH.Create)                        // Yeni hizmet oluşturur.
+	services.Get("/stats", serviceH.GetStats)                  // Hizmet istatistikleri.
+	services.Get("/featured", serviceH.GetFeatured)            // Öne çıkan hizmetleri getirir.
+	services.Get("/slug/:slug", serviceH.GetBySlug)            // 'slug' ile hizmet bulur.
+	services.Get("/:id", serviceH.GetByID)                     // ID ile hizmet bulur.
+	services.Get("/", serviceH.List)                           // Hizmetleri listeler.
+	services.Put("/:id", serviceH.Update)                      // Hizmeti günceller.
+	services.Delete("/:id", serviceH.Delete)                   // Hizmeti siler.
 
-	// Blog Category routes (tenant-scoped)
+	// Blog Category (Blog Kategori) rotaları, kiracıya özeldir.
 	categories := v1.Group("/blog/categories", middleware.AuthMiddleware(cfg.Auth.JWTSecret))
-	categories.Post("/", categoryH.Create)             // Create category
-	categories.Get("/slug/:slug", categoryH.GetBySlug) // Get by slug
-	categories.Get("/:id", categoryH.GetByID)          // Get category by ID
-	categories.Get("/", categoryH.List)                // List categories
-	categories.Put("/:id", categoryH.Update)           // Update category
-	categories.Delete("/:id", categoryH.Delete)        // Delete category
+	categories.Post("/", categoryH.Create)             // Yeni kategori oluşturur.
+	categories.Get("/slug/:slug", categoryH.GetBySlug) // 'slug' ile kategori bulur.
+	categories.Get("/:id", categoryH.GetByID)          // ID ile kategori bulur.
+	categories.Get("/", categoryH.List)                // Kategorileri listeler.
+	categories.Put("/:id", categoryH.Update)           // Kategoriyi günceller.
+	categories.Delete("/:id", categoryH.Delete)        // Kategoriyi siler.
 
-	// Blog Post routes (tenant-scoped)
+	// Blog Post (Blog Yazısı) rotaları, kiracıya özeldir.
 	posts := v1.Group("/blog/posts", middleware.AuthMiddleware(cfg.Auth.JWTSecret))
-	posts.Post("/", postH.Create)             // Create post
-	posts.Get("/featured", postH.GetFeatured) // Get featured posts
-	posts.Get("/slug/:slug", postH.GetBySlug) // Get by slug
-	posts.Get("/tag/:tag", postH.GetByTag)    // Get by tag
-	posts.Get("/:id", postH.GetByID)          // Get post by ID
-	posts.Get("/", postH.List)                // List posts
-	posts.Put("/:id", postH.Update)           // Update post
-	posts.Post("/:id/publish", postH.Publish) // Publish post
-	posts.Post("/:id/archive", postH.Archive) // Archive post
-	posts.Delete("/:id", postH.Delete)        // Delete post
+	posts.Post("/", postH.Create)             // Yeni yazı oluşturur.
+	posts.Get("/featured", postH.GetFeatured) // Öne çıkan yazıları getirir.
+	posts.Get("/slug/:slug", postH.GetBySlug) // 'slug' ile yazı bulur.
+	posts.Get("/tag/:tag", postH.GetByTag)    // Etikete göre yazıları getirir.
+	posts.Get("/:id", postH.GetByID)          // ID ile yazı bulur.
+	posts.Get("/", postH.List)                // Yazıları listeler.
+	posts.Put("/:id", postH.Update)           // Yazıyı günceller.
+	posts.Post("/:id/publish", postH.Publish) // Yazıyı yayınlar.
+	posts.Post("/:id/archive", postH.Archive) // Yazıyı arşivler.
+	posts.Delete("/:id", postH.Delete)        // Yazıyı siler.
 
-	// Category-specific post routes
-	categories.Get("/:category_id/posts", postH.GetByCategoryID) // Get posts by category
+	// Kategoriye özel yazı rotaları.
+	categories.Get("/:category_id/posts", postH.GetByCategoryID) // Bir kategoriye ait yazıları getirir.
 
-	// Payment routes (tenant-scoped, authentication required)
+	// Payment (Ödeme) rotaları, kiracıya özeldir ve kimlik doğrulaması gerektirir.
 	payments := v1.Group("/payments", middleware.AuthMiddleware(cfg.Auth.JWTSecret))
-	payments.Post("/", paymentH.CreatePayment)                // Create payment
-	payments.Post("/complete-3ds", paymentH.Complete3DSPayment) // Complete 3DS authentication
-	payments.Get("/:id", paymentH.GetPayment)                  // Get payment by ID
-	payments.Get("/", paymentH.ListPayments)                   // List payments
-	payments.Post("/:id/refund", paymentH.CreateRefund)        // Create refund
+	payments.Post("/", paymentH.CreatePayment)                // Yeni bir ödeme işlemi başlatır.
+	payments.Post("/complete-3ds", paymentH.Complete3DSPayment) // 3D Secure doğrulamasını tamamlar.
+	payments.Get("/:id", paymentH.GetPayment)                  // ID ile ödeme detayını getirir.
+	payments.Get("/", paymentH.ListPayments)                   // Ödemeleri listeler.
+	payments.Post("/:id/refund", paymentH.CreateRefund)        // Bir ödeme için iade talebi oluşturur.
 
-	// Webhook routes (public, no authentication)
+	// Webhook rotaları, ödeme sağlayıcılardan gelen anlık bildirimleri işlemek için kullanılır. Halka açıktır.
 	webhooks := v1.Group("/webhooks/payment")
-	webhooks.Post("/:provider", webhookH.HandleWebhook)                 // Generic webhook (provider-specific)
-	webhooks.Post("/iyzico/:tenant_id", webhookH.HandleIyzicoWebhook)   // iyzico webhook (tenant-specific URL)
-	webhooks.Post("/checkout/:tenant_id", webhookH.HandleCheckoutWebhook) // Checkout.com webhook (tenant-specific URL)
+	webhooks.Post("/:provider", webhookH.HandleWebhook)                 // Sağlayıcıya özel genel webhook işleyicisi.
+	webhooks.Post("/iyzico/:tenant_id", webhookH.HandleIyzicoWebhook)   // Iyzico'dan gelen bildirimleri işler.
+	webhooks.Post("/checkout/:tenant_id", webhookH.HandleCheckoutWebhook) // Checkout.com'dan gelen bildirimleri işler.
 
-	// Registry routes - Module & Tool Marketplace
+	// Registry (Kayıt Merkezi) rotaları, Modül ve Araç Pazaryeri'ni yönetir.
 	registry := v1.Group("/registry")
 
-	// Public module catalog (no authentication)
-	registry.Get("/modules", moduleCatalogH.ListPublicModules)           // List public modules
-	registry.Get("/modules/search", moduleCatalogH.SearchModules)        // Search modules
-	registry.Get("/modules/popular", moduleCatalogH.GetPopularModules)   // Popular modules
-	registry.Get("/modules/top-rated", moduleCatalogH.GetTopRatedModules) // Top rated modules
-	registry.Get("/modules/new", moduleCatalogH.GetNewModules)           // New modules
-	registry.Get("/modules/free", moduleCatalogH.GetFreeModules)         // Free modules
-	registry.Get("/modules/category/:category", moduleCatalogH.GetModulesByCategory) // Modules by category
-	registry.Get("/modules/slug/:slug", moduleCatalogH.GetModuleBySlug) // Get module by slug
-	registry.Get("/modules/:id", moduleCatalogH.GetModuleByID)           // Get module by ID
+	// Halka açık modül kataloğu rotaları, kimlik doğrulaması gerektirmez.
+	registry.Get("/modules", moduleCatalogH.ListPublicModules)           // Herkese açık modülleri listeler.
+	registry.Get("/modules/search", moduleCatalogH.SearchModules)        // Modüllerde arama yapar.
+	registry.Get("/modules/popular", moduleCatalogH.GetPopularModules)   // Popüler modülleri getirir.
+	registry.Get("/modules/top-rated", moduleCatalogH.GetTopRatedModules) // En yüksek puanlı modülleri getirir.
+	registry.Get("/modules/new", moduleCatalogH.GetNewModules)           // Yeni eklenen modülleri getirir.
+	registry.Get("/modules/free", moduleCatalogH.GetFreeModules)         // Ücretsiz modülleri getirir.
+	registry.Get("/modules/category/:category", moduleCatalogH.GetModulesByCategory) // Kategoriye göre modülleri getirir.
+	registry.Get("/modules/slug/:slug", moduleCatalogH.GetModuleBySlug) // 'slug' ile modül bulur.
+	registry.Get("/modules/:id", moduleCatalogH.GetModuleByID)           // ID ile modül bulur.
 
-	// Public tool catalog (no authentication)
-	registry.Get("/tools", toolCatalogH.ListPublicTools)           // List public tools
-	registry.Get("/tools/search", toolCatalogH.SearchTools)        // Search tools
-	registry.Get("/tools/popular", toolCatalogH.GetPopularTools)   // Popular tools
-	registry.Get("/tools/top-rated", toolCatalogH.GetTopRatedTools) // Top rated tools
-	registry.Get("/tools/new", toolCatalogH.GetNewTools)           // New tools
-	registry.Get("/tools/free", toolCatalogH.GetFreeTools)         // Free tools
-	registry.Get("/tools/category/:category", toolCatalogH.GetToolsByCategory) // Tools by category
-	registry.Get("/tools/slug/:slug", toolCatalogH.GetToolBySlug) // Get tool by slug
-	registry.Get("/tools/:id", toolCatalogH.GetToolByID)           // Get tool by ID
+	// Halka açık araç kataloğu rotaları, kimlik doğrulaması gerektirmez.
+	registry.Get("/tools", toolCatalogH.ListPublicTools)           // Herkese açık araçları listeler.
+	registry.Get("/tools/search", toolCatalogH.SearchTools)        // Araçlarda arama yapar.
+	registry.Get("/tools/popular", toolCatalogH.GetPopularTools)   // Popüler araçları getirir.
+	registry.Get("/tools/top-rated", toolCatalogH.GetTopRatedTools) // En yüksek puanlı araçları getirir.
+	registry.Get("/tools/new", toolCatalogH.GetNewTools)           // Yeni eklenen araçları getirir.
+	registry.Get("/tools/free", toolCatalogH.GetFreeTools)         // Ücretsiz araçları getirir.
+	registry.Get("/tools/category/:category", toolCatalogH.GetToolsByCategory) // Kategoriye göre araçları getirir.
+	registry.Get("/tools/slug/:slug", toolCatalogH.GetToolBySlug) // 'slug' ile araç bulur.
+	registry.Get("/tools/:id", toolCatalogH.GetToolByID)           // ID ile araç bulur.
 
-	// Tenant-specific activation routes (authentication required)
+	// Kiracıya özel aktivasyon rotaları, kimlik doğrulaması gerektirir.
 	tenantRegistry := v1.Group("/registry/tenant", middleware.AuthMiddleware(cfg.Auth.JWTSecret))
 
-	// Module activation for current tenant
-	tenantRegistry.Get("/modules", activationH.GetActivatedModules)                        // List activated modules
-	tenantRegistry.Post("/modules/install", activationH.InstallModule)                     // Install module
-	tenantRegistry.Post("/modules/:module_id/activate", activationH.ActivateModule)        // Activate module
-	tenantRegistry.Post("/modules/:module_id/deactivate", activationH.DeactivateModule)    // Deactivate module
-	tenantRegistry.Delete("/modules/:module_id", activationH.UninstallModule)              // Uninstall module
-	tenantRegistry.Post("/modules/:module_id/complete-setup", activationH.CompleteModuleSetup) // Complete module setup
-	tenantRegistry.Get("/modules/:module_id/dependencies", activationH.CheckModuleDependencies) // Check module dependencies
+	// Mevcut kiracı için modül aktivasyon işlemleri.
+	tenantRegistry.Get("/modules", activationH.GetActivatedModules)                        // Kiracının aktif modüllerini listeler.
+	tenantRegistry.Post("/modules/install", activationH.InstallModule)                     // Bir modülü kurar (veritabanı kaydı).
+	tenantRegistry.Post("/modules/:module_id/activate", activationH.ActivateModule)        // Bir modülü aktif hale getirir.
+	tenantRegistry.Post("/modules/:module_id/deactivate", activationH.DeactivateModule)    // Bir modülü pasif hale getirir.
+	tenantRegistry.Delete("/modules/:module_id", activationH.UninstallModule)              // Bir modülü kaldırır.
+	tenantRegistry.Post("/modules/:module_id/complete-setup", activationH.CompleteModuleSetup) // Modül kurulumunun son adımlarını tamamlar.
+	tenantRegistry.Get("/modules/:module_id/dependencies", activationH.CheckModuleDependencies) // Modülün bağımlılıklarını kontrol eder.
 
-	// Tool activation for current tenant
-	tenantRegistry.Get("/tools", activationH.GetActivatedTools)                          // List activated tools
-	tenantRegistry.Post("/tools/install", activationH.InstallTool)                       // Install tool
-	tenantRegistry.Post("/tools/:tool_id/activate", activationH.ActivateTool)            // Activate tool
-	tenantRegistry.Post("/tools/:tool_id/deactivate", activationH.DeactivateTool)        // Deactivate tool
-	tenantRegistry.Delete("/tools/:tool_id", activationH.UninstallTool)                  // Uninstall tool
-	tenantRegistry.Post("/tools/:tool_id/complete-setup", activationH.CompleteToolSetup) // Complete tool setup
-	tenantRegistry.Get("/tools/:tool_id/dependencies", activationH.CheckToolDependencies) // Check tool dependencies
+	// Mevcut kiracı için araç aktivasyon işlemleri.
+	tenantRegistry.Get("/tools", activationH.GetActivatedTools)                          // Kiracının aktif araçlarını listeler.
+	tenantRegistry.Post("/tools/install", activationH.InstallTool)                       // Bir aracı kurar.
+	tenantRegistry.Post("/tools/:tool_id/activate", activationH.ActivateTool)            // Bir aracı aktif hale getirir.
+	tenantRegistry.Post("/tools/:tool_id/deactivate", activationH.DeactivateTool)        // Bir aracı pasif hale getirir.
+	tenantRegistry.Delete("/tools/:tool_id", activationH.UninstallTool)                  // Bir aracı kaldırır.
+	tenantRegistry.Post("/tools/:tool_id/complete-setup", activationH.CompleteToolSetup) // Araç kurulumunun son adımlarını tamamlar.
+	tenantRegistry.Get("/tools/:tool_id/dependencies", activationH.CheckToolDependencies) // Aracın bağımlılıklarını kontrol eder.
 }

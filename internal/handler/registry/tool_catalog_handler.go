@@ -9,29 +9,27 @@ import (
 	registryService "nexpaces-api/internal/service/registry"
 )
 
-// ToolCatalogHandler handles tool catalog HTTP requests
+// ToolCatalogHandler, araç kataloğu (pazaryeri) ile ilgili halka açık HTTP isteklerini yönetir.
 type ToolCatalogHandler struct {
 	catalogService *registryService.ToolCatalogService
 }
 
-// NewToolCatalogHandler creates a new tool catalog handler
+// NewToolCatalogHandler, yeni bir ToolCatalogHandler örneği oluşturur.
 func NewToolCatalogHandler(catalogService *registryService.ToolCatalogService) *ToolCatalogHandler {
 	return &ToolCatalogHandler{
 		catalogService: catalogService,
 	}
 }
 
-// ListPublicTools retrieves public tools for marketplace
+// ListPublicTools, pazaryerindeki halka açık araçları listeler.
 // GET /api/v1/registry/tools
 func (h *ToolCatalogHandler) ListPublicTools(c *fiber.Ctx) error {
 	var req dto.ToolListRequest
 	if err := c.QueryParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "Invalid query parameters",
-		})
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Geçersiz sorgu parametreleri"})
 	}
 
-	// Set defaults
+	// Sayfalama için varsayılan değerleri ayarla.
 	if req.Page < 1 {
 		req.Page = 1
 	}
@@ -39,17 +37,15 @@ func (h *ToolCatalogHandler) ListPublicTools(c *fiber.Ctx) error {
 		req.PerPage = 20
 	}
 
-	// Build filters
+	// İstekten gelen parametrelere göre filtreleri oluştur.
 	filters := buildToolFilters(req)
 
 	tools, err := h.catalogService.ListPublicTools(c.Context(), filters)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": err.Error(),
-		})
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
 
-	// Convert to response
+	// Veritabanından gelen araçları HTTP cevap formatına dönüştür.
 	response := make([]dto.ToolResponse, len(tools))
 	for i, tool := range tools {
 		response[i] = dto.ToToolResponse(tool)
@@ -60,29 +56,25 @@ func (h *ToolCatalogHandler) ListPublicTools(c *fiber.Ctx) error {
 		"pagination": dto.PaginationMeta{
 			Page:       req.Page,
 			PerPage:    req.PerPage,
-			TotalItems: len(response),
+			TotalItems: len(response), // Not: Bu, toplam öğe sayısı değil, mevcut sayfadaki öğe sayısıdır. Gerçek toplam için ayrı bir sorgu gerekir.
 			TotalPages: (len(response) + req.PerPage - 1) / req.PerPage,
 		},
 	})
 }
 
-// SearchTools searches tools in marketplace
+// SearchTools, pazaryerindeki araçlar içinde arama yapar.
 // GET /api/v1/registry/tools/search
 func (h *ToolCatalogHandler) SearchTools(c *fiber.Ctx) error {
 	var req dto.ToolSearchRequest
 	if err := c.QueryParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "Invalid query parameters",
-		})
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Geçersiz sorgu parametreleri"})
 	}
 
 	if req.Query == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "Search query is required",
-		})
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Arama sorgusu zorunludur"})
 	}
 
-	// Set defaults
+	// Sayfalama için varsayılan değerleri ayarla.
 	if req.Page < 1 {
 		req.Page = 1
 	}
@@ -90,7 +82,7 @@ func (h *ToolCatalogHandler) SearchTools(c *fiber.Ctx) error {
 		req.PerPage = 20
 	}
 
-	// Build filters
+	// Arama ve filtreleme için filtreleri oluştur.
 	filters := registry.ToolFilters{
 		SortBy:    req.SortBy,
 		SortOrder: req.SortOrder,
@@ -115,12 +107,10 @@ func (h *ToolCatalogHandler) SearchTools(c *fiber.Ctx) error {
 
 	tools, err := h.catalogService.SearchTools(c.Context(), req.Query, filters)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": err.Error(),
-		})
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
 
-	// Convert to response
+	// Sonuçları HTTP cevap formatına dönüştür.
 	response := make([]dto.ToolResponse, len(tools))
 	for i, tool := range tools {
 		response[i] = dto.ToToolResponse(tool)
@@ -137,76 +127,64 @@ func (h *ToolCatalogHandler) SearchTools(c *fiber.Ctx) error {
 	})
 }
 
-// GetToolByID retrieves a tool by ID
+// GetToolByID, belirtilen ID'ye sahip aracı getirir.
 // GET /api/v1/registry/tools/:id
 func (h *ToolCatalogHandler) GetToolByID(c *fiber.Ctx) error {
 	id := c.Params("id")
 
 	tool, err := h.catalogService.GetToolByID(c.Context(), id)
 	if err != nil {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
-			"error": "Tool not found",
-		})
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Araç bulunamadı"})
 	}
 
 	response := dto.ToToolDetailResponse(tool)
 
-	return c.JSON(fiber.Map{
-		"data": response,
-	})
+	return c.JSON(fiber.Map{"data": response})
 }
 
-// GetToolBySlug retrieves a tool by slug
+// GetToolBySlug, belirtilen 'slug' (kısa isme) sahip aracı getirir.
 // GET /api/v1/registry/tools/slug/:slug
 func (h *ToolCatalogHandler) GetToolBySlug(c *fiber.Ctx) error {
 	slug := c.Params("slug")
 
 	tool, err := h.catalogService.GetToolBySlug(c.Context(), slug)
 	if err != nil {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
-			"error": "Tool not found",
-		})
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Araç bulunamadı"})
 	}
 
 	response := dto.ToToolDetailResponse(tool)
 
-	return c.JSON(fiber.Map{
-		"data": response,
-	})
+	return c.JSON(fiber.Map{"data": response})
 }
 
-// GetPopularTools retrieves popular tools
+// GetPopularTools, en popüler araçları listeler.
 // GET /api/v1/registry/tools/popular
 func (h *ToolCatalogHandler) GetPopularTools(c *fiber.Ctx) error {
-	limit := 10
+	limit := 10 // Varsayılan olarak 10 araç getir.
 	if limitParam := c.Query("limit"); limitParam != "" {
 		if parsedLimit, err := strconv.Atoi(limitParam); err == nil && parsedLimit > 0 && parsedLimit <= 50 {
-			limit = parsedLimit
+			limit = parsedLimit // Sorgu parametresi varsa ve geçerliyse limiti güncelle.
 		}
 	}
 
 	tools, err := h.catalogService.GetPopularTools(c.Context(), limit)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": err.Error(),
-		})
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
 
-	// Convert to response
+	// Sonuçları HTTP cevap formatına dönüştür.
 	response := make([]dto.ToolResponse, len(tools))
 	for i, tool := range tools {
 		response[i] = dto.ToToolResponse(tool)
 	}
 
-	return c.JSON(fiber.Map{
-		"data": response,
-	})
+	return c.JSON(fiber.Map{"data": response})
 }
 
-// GetTopRatedTools retrieves top rated tools
+// GetTopRatedTools, en yüksek puanlı araçları listeler.
 // GET /api/v1/registry/tools/top-rated
 func (h *ToolCatalogHandler) GetTopRatedTools(c *fiber.Ctx) error {
-	limit := 10
+	limit := 10 // Varsayılan limit.
 	if limitParam := c.Query("limit"); limitParam != "" {
 		if parsedLimit, err := strconv.Atoi(limitParam); err == nil && parsedLimit > 0 && parsedLimit <= 50 {
 			limit = parsedLimit
@@ -215,23 +193,19 @@ func (h *ToolCatalogHandler) GetTopRatedTools(c *fiber.Ctx) error {
 
 	tools, err := h.catalogService.GetTopRatedTools(c.Context(), limit)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": err.Error(),
-		})
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
 
-	// Convert to response
+	// Sonuçları HTTP cevap formatına dönüştür.
 	response := make([]dto.ToolResponse, len(tools))
 	for i, tool := range tools {
 		response[i] = dto.ToToolResponse(tool)
 	}
 
-	return c.JSON(fiber.Map{
-		"data": response,
-	})
+	return c.JSON(fiber.Map{"data": response})
 }
 
-// GetToolsByCategory retrieves tools by category
+// GetToolsByCategory, belirli bir kategorideki araçları listeler.
 // GET /api/v1/registry/tools/category/:category
 func (h *ToolCatalogHandler) GetToolsByCategory(c *fiber.Ctx) error {
 	categoryParam := c.Params("category")
@@ -239,12 +213,10 @@ func (h *ToolCatalogHandler) GetToolsByCategory(c *fiber.Ctx) error {
 
 	var req dto.ToolListRequest
 	if err := c.QueryParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "Invalid query parameters",
-		})
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Geçersiz sorgu parametreleri"})
 	}
 
-	// Set defaults
+	// Sayfalama için varsayılan değerleri ayarla.
 	if req.Page < 1 {
 		req.Page = 1
 	}
@@ -256,12 +228,10 @@ func (h *ToolCatalogHandler) GetToolsByCategory(c *fiber.Ctx) error {
 
 	tools, err := h.catalogService.GetToolsByCategory(c.Context(), category, filters)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": err.Error(),
-		})
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
 
-	// Convert to response
+	// Sonuçları HTTP cevap formatına dönüştür.
 	response := make([]dto.ToolResponse, len(tools))
 	for i, tool := range tools {
 		response[i] = dto.ToToolResponse(tool)
@@ -278,17 +248,15 @@ func (h *ToolCatalogHandler) GetToolsByCategory(c *fiber.Ctx) error {
 	})
 }
 
-// GetFreeTools retrieves free tools
+// GetFreeTools, ücretsiz olan araçları listeler.
 // GET /api/v1/registry/tools/free
 func (h *ToolCatalogHandler) GetFreeTools(c *fiber.Ctx) error {
 	var req dto.ToolListRequest
 	if err := c.QueryParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "Invalid query parameters",
-		})
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Geçersiz sorgu parametreleri"})
 	}
 
-	// Set defaults
+	// Sayfalama için varsayılan değerleri ayarla.
 	if req.Page < 1 {
 		req.Page = 1
 	}
@@ -300,12 +268,10 @@ func (h *ToolCatalogHandler) GetFreeTools(c *fiber.Ctx) error {
 
 	tools, err := h.catalogService.GetFreeTools(c.Context(), filters)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": err.Error(),
-		})
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
 
-	// Convert to response
+	// Sonuçları HTTP cevap formatına dönüştür.
 	response := make([]dto.ToolResponse, len(tools))
 	for i, tool := range tools {
 		response[i] = dto.ToToolResponse(tool)
@@ -322,10 +288,10 @@ func (h *ToolCatalogHandler) GetFreeTools(c *fiber.Ctx) error {
 	})
 }
 
-// GetNewTools retrieves recently added tools
+// GetNewTools, pazaryerine yeni eklenmiş araçları listeler.
 // GET /api/v1/registry/tools/new
 func (h *ToolCatalogHandler) GetNewTools(c *fiber.Ctx) error {
-	limit := 10
+	limit := 10 // Varsayılan limit.
 	if limitParam := c.Query("limit"); limitParam != "" {
 		if parsedLimit, err := strconv.Atoi(limitParam); err == nil && parsedLimit > 0 && parsedLimit <= 50 {
 			limit = parsedLimit
@@ -334,23 +300,20 @@ func (h *ToolCatalogHandler) GetNewTools(c *fiber.Ctx) error {
 
 	tools, err := h.catalogService.GetNewTools(c.Context(), limit)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": err.Error(),
-		})
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
 
-	// Convert to response
+	// Sonuçları HTTP cevap formatına dönüştür.
 	response := make([]dto.ToolResponse, len(tools))
 	for i, tool := range tools {
 		response[i] = dto.ToToolResponse(tool)
 	}
 
-	return c.JSON(fiber.Map{
-		"data": response,
-	})
+	return c.JSON(fiber.Map{"data": response})
 }
 
-// Helper function to build tool filters from request
+// buildToolFilters, HTTP isteğindeki sorgu parametrelerinden (query params) veritabanı sorgusu için bir filtre nesnesi oluşturur.
+// Bu yardımcı fonksiyon, kod tekrarını önler ve filtreleme mantığını merkezileştirir.
 func buildToolFilters(req dto.ToolListRequest) registry.ToolFilters {
 	filters := registry.ToolFilters{
 		SortBy:    req.SortBy,
@@ -361,6 +324,7 @@ func buildToolFilters(req dto.ToolListRequest) registry.ToolFilters {
 		IsBeta:    req.IsBeta,
 	}
 
+	// String gelen filtre parametrelerini, domain katmanındaki özel tiplere dönüştür.
 	if req.Category != "" {
 		category := registry.ToolCategory(req.Category)
 		filters.Category = &category

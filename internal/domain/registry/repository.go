@@ -46,7 +46,7 @@ type ToolRepository interface {
 type TenantModuleRepository interface {
 	// CRUD operations
 	Create(ctx context.Context, tenantModule *TenantModule) error
-	GetByID(ctx context.Context, id string) error
+	GetByID(ctx context.Context, id string) (*TenantModule, error)
 	GetByTenantAndModule(ctx context.Context, tenantID, moduleID string) (*TenantModule, error)
 	Update(ctx context.Context, tenantModule *TenantModule) error
 	Delete(ctx context.Context, id string) error

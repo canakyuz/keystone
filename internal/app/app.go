@@ -51,91 +51,97 @@ import (
 	"nexpaces-api/pkg/validator"
 )
 
-// Application holds the application dependencies
+// Application struct'ı, uygulamanın temel bağımlılıklarını (konfigürasyon, veritabanı bağlantısı, web framework) bir arada tutar.
+// Bu, bağımlılıkların uygulama genelinde düzenli bir şekilde yönetilmesini sağlar.
 type Application struct {
 	config *config.Config
 	db     *sql.DB
 	app    *fiber.App
 }
 
-// NewApplication creates and initializes a new application
+// NewApplication, yeni bir uygulama örneği oluşturur ve başlatır.
+// Bu "yapıcı" (constructor) fonksiyon, uygulamanın çalışması için gereken tüm bileşenleri (veritabanı, loglama, rotalar vb.) birbirine bağlar.
 func NewApplication(cfg *config.Config) (*Application, error) {
-	// Initialize database
+	// Veritabanını başlat.
 	db, err := database.NewPostgresDB(cfg.Database)
 	if err != nil {
-		return nil, fmt.Errorf("failed to connect to database: %w", err)
+		return nil, fmt.Errorf("veritabanına bağlanırken hata oluştu: %w", err)
 	}
 
-	// Create Fiber app
+	// Fiber (web framework) uygulamasını oluştur.
 	app := fiber.New(fiber.Config{
 		ReadTimeout:  cfg.Server.ReadTimeout,
 		WriteTimeout: cfg.Server.WriteTimeout,
 		IdleTimeout:  cfg.Server.IdleTimeout,
-		ErrorHandler: customErrorHandler,
+		ErrorHandler: customErrorHandler, // Hata yönetimi için özel bir fonksiyon belirle.
 	})
 
-	// Global middleware
-	app.Use(recover.New())
-	app.Use(helmet.New())
-	app.Use(logger.New(logger.Config{
+	// Global Middleware (Ara Katman) tanımlamaları.
+	// Bu middleware'ler gelen her istek için çalıştırılır.
+	app.Use(recover.New()) // Panik durumlarında sunucunun çökmesini engeller ve 500 hatası döner.
+	app.Use(helmet.New())  // Güvenlikle ilgili temel HTTP başlıklarını (header) ekler.
+	app.Use(logger.New(logger.Config{ // Gelen istekleri konsola loglar.
 		Format: "[${time}] ${status} - ${latency} ${method} ${path}\n",
 	}))
-	app.Use(cors.New(cors.Config{
+	app.Use(cors.New(cors.Config{ // Cross-Origin Resource Sharing ayarları. Farklı domain'lerden gelen isteklere izin verir.
 		AllowOrigins:     cfg.Security.AllowedOrigins,
 		AllowCredentials: cfg.Security.AllowCredentials,
 	}))
-	app.Use(limiter.New(limiter.Config{
+	app.Use(limiter.New(limiter.Config{ // İstek limiti (rate limiting) uygular, brute-force saldırılarını önler.
 		Max:        cfg.Security.RateLimit.Requests,
 		Expiration: cfg.Security.RateLimit.Duration,
 	}))
 
+	// OpenAPI (Swagger) tanımına göre istekleri doğrulayan middleware'i ayarla.
 	openAPIMiddleware, err := newOpenAPIMiddleware("api/openapi.yaml")
 	if err != nil {
-		return nil, fmt.Errorf("setup OpenAPI middleware: %w", err)
+		return nil, fmt.Errorf("OpenAPI middleware oluşturulamadı: %w", err)
 	}
 	app.Use(openAPIMiddleware)
 
-	// Initialize shared dependencies
-	appLogger := pkgLogger.New(pkgLogger.Config{
+	// Paylaşılan bağımlılıkları başlat.
+	appLogger := pkgLogger.New(pkgLogger.Config{ // Uygulama genelinde kullanılacak loglama servisi.
 		Level:       cfg.Server.Environment,
 		Environment: cfg.Server.Environment,
 	})
-	appValidator := validator.New()
+	appValidator := validator.New() // Veri doğrulama (validation) servisi.
 
-	// Initialize repositories
+	// Repository (Veri Erişim Katmanı) katmanını başlat.
+	// Repository'ler veritabanı ile doğrudan iletişim kuran yapılardır.
 	tenantRepository := tenantRepo.NewPostgresRepository(db)
 	userRepository := userRepo.NewPostgresRepository(db)
 	websiteRepository := websiteRepo.NewPostgresRepository(db)
 
-	// Lesson module repositories
+	// Dersler modülü için repository'ler.
 	studentRepository := lessonRepo.NewStudentPostgresRepository(db)
 	lessonRepository := lessonRepo.NewLessonPostgresRepository(db)
 	assignmentRepository := lessonRepo.NewAssignmentPostgresRepository(db)
 
-	// Booking module repositories
+	// Rezervasyon modülü için repository'ler.
 	availabilityRepository := bookingRepo.NewAvailabilityPostgresRepository(db)
 	appointmentRepository := bookingRepo.NewAppointmentPostgresRepository(db)
 
-	// Service module repositories
+	// Hizmet modülü için repository'ler.
 	serviceRepository := serviceRepo.NewServicePostgresRepository(db)
 
-	// Blog module repositories
+	// Blog modülü için repository'ler.
 	postRepository := blogRepo.NewPostRepository(db)
 	categoryRepository := blogRepo.NewCategoryRepository(db)
 
-	// Payment module repository
+	// Ödeme modülü için repository.
 	paymentRepository := paymentRepo.NewPostgresRepository(db)
 
-	// Registry repositories
+	// Kayıt Merkezi (Registry) modülü için repository'ler.
 	moduleRepository := registryRepo.NewModuleRepository(db)
 	toolRepository := registryRepo.NewToolRepository(db)
 	tenantModuleRepository := registryRepo.NewTenantModuleRepository(db)
 	tenantToolRepository := registryRepo.NewTenantToolRepository(db)
 
-	// Initialize payment orchestrator
+	// Ödeme Orkestratörünü (Payment Orchestrator) başlat.
+	// Bu yapı, birden fazla ödeme sağlayıcısını (Iyzico, Checkout.com vb.) yönetir.
 	paymentOrchestrator := providerPayment.NewOrchestrator(&cfg.Payment)
 
-	// Register payment providers
+	// Yapılandırmada aktif olan ödeme sağlayıcılarını kaydet.
 	if cfg.Payment.Iyzico.Enabled {
 		iyzicoProvider := providerPayment.NewIyzicoProvider(&cfg.Payment.Iyzico)
 		paymentOrchestrator.RegisterProvider("iyzico", iyzicoProvider)
@@ -145,71 +151,73 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 		paymentOrchestrator.RegisterProvider("checkout", checkoutProvider)
 	}
 
-	// Initialize services
+	// Service/Usecase (İş Mantığı Katmanı) katmanını başlat.
+	// Usecase'ler, uygulamanın iş kurallarını ve mantığını içerir.
 	tenantService := tenantUsecase.NewService(tenantRepository, appValidator, appLogger)
 	userService := userUsecase.NewService(userRepository, appValidator, appLogger, cfg.Auth.JWTSecret)
 	websiteService := websiteUsecase.NewService(websiteRepository)
 
-	// Lesson module services
+	// Dersler modülü için servisler.
 	studentService := lessonUsecase.NewStudentService(studentRepository, *appLogger)
 	lessonService := lessonUsecase.NewLessonService(lessonRepository, *appLogger)
 	assignmentService := lessonUsecase.NewAssignmentService(assignmentRepository, *appLogger)
 
-	// Booking module services
+	// Rezervasyon modülü için servisler.
 	availabilityService := bookingUsecase.NewAvailabilityService(availabilityRepository, *appLogger)
 	appointmentService := bookingUsecase.NewAppointmentService(appointmentRepository, *appLogger)
 
-	// Service module services
+	// Hizmet modülü için servisler.
 	serviceService := serviceUsecase.NewServiceService(serviceRepository, *appLogger)
 
-	// Blog module services
+	// Blog modülü için servisler.
 	postService := blogUsecase.NewPostService(postRepository, *appLogger)
 	categoryService := blogUsecase.NewCategoryService(categoryRepository, *appLogger)
 
-	// Payment service
+	// Ödeme servisi.
 	paymentService := paymentUsecase.NewService(paymentRepository, paymentOrchestrator)
 
-	// Registry services
+	// Kayıt Merkezi (Registry) servisleri.
 	moduleCatalogService := registryService.NewModuleCatalogService(moduleRepository)
 	toolCatalogService := registryService.NewToolCatalogService(toolRepository)
 	dependencyCheckerService := registryService.NewDependencyCheckerService(db, moduleRepository, toolRepository, tenantModuleRepository, tenantToolRepository)
 	tenantActivationService := registryService.NewTenantActivationService(moduleRepository, toolRepository, tenantModuleRepository, tenantToolRepository, dependencyCheckerService)
 
-	// Initialize HTTP handlers
+	// Handler (Sunum Katmanı) katmanını başlat.
+	// Handler'lar, HTTP isteklerini alır, ilgili servisleri çağırır ve HTTP cevapları döner.
 	authHTTPHandler := authHandler.NewHandler(userService)
 	tenantHTTPHandler := tenantHandler.NewHandler(tenantService)
 	userHTTPHandler := userHandler.NewHandler(userService)
 	websiteHTTPHandler := websiteHandler.NewHandler(websiteService)
 
-	// Lesson module handlers
+	// Dersler modülü için handler'lar.
 	studentHTTPHandler := lessonHandler.NewStudentHandler(studentService)
 	lessonHTTPHandler := lessonHandler.NewLessonHandler(lessonService)
 	assignmentHTTPHandler := lessonHandler.NewAssignmentHandler(assignmentService)
 
-	// Booking module handlers
+	// Rezervasyon modülü için handler'lar.
 	availabilityHTTPHandler := bookingHandler.NewAvailabilityHandler(availabilityService)
 	appointmentHTTPHandler := bookingHandler.NewAppointmentHandler(appointmentService)
 
-	// Service module handlers
+	// Hizmet modülü için handler'lar.
 	serviceHTTPHandler := serviceHandler.NewServiceHandler(serviceService)
 
-	// Blog module handlers
+	// Blog modülü için handler'lar.
 	postHTTPHandler := blogHandler.NewPostHandler(postService, *appLogger)
 	categoryHTTPHandler := blogHandler.NewCategoryHandler(categoryService, *appLogger)
 
-	// Upload handler
+	// Dosya yükleme handler'ı.
 	uploadHTTPHandler := uploadHandler.NewHandler(appLogger)
 
-	// Payment handlers
+	// Ödeme handler'ları.
 	paymentHTTPHandler := paymentHandler.NewHandler(paymentService)
 	webhookHTTPHandler := paymentHandler.NewWebhookHandler(paymentService)
 
-	// Registry handlers
+	// Kayıt Merkezi (Registry) handler'ları.
 	moduleCatalogHTTPHandler := registryHandler.NewModuleCatalogHandler(moduleCatalogService)
 	toolCatalogHTTPHandler := registryHandler.NewToolCatalogHandler(toolCatalogService)
 	activationHTTPHandler := registryHandler.NewActivationHandler(tenantActivationService, dependencyCheckerService)
 
-	// Setup routes
+	// Rotaları ayarla. Bu fonksiyon, hangi endpoint'in hangi handler'a gideceğini belirler.
 	setupRoutes(app, cfg, authHTTPHandler, tenantHTTPHandler, userHTTPHandler, uploadHTTPHandler, websiteHTTPHandler,
 		studentHTTPHandler, lessonHTTPHandler, assignmentHTTPHandler,
 		availabilityHTTPHandler, appointmentHTTPHandler,
@@ -218,6 +226,7 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 		paymentHTTPHandler, webhookHTTPHandler,
 		moduleCatalogHTTPHandler, toolCatalogHTTPHandler, activationHTTPHandler)
 
+	// Hazırlanan uygulama örneğini geri döndür.
 	return &Application{
 		config: cfg,
 		db:     db,
@@ -225,47 +234,52 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 	}, nil
 }
 
-// Start starts the application server
+// Start, uygulama sunucusunu başlatır.
 func (a *Application) Start() error {
-	// Graceful shutdown
+	// Graceful Shutdown (Zarif Kapatma) mekanizmasını ayarla.
+	// Bu, sunucu kapanırken mevcut işlemleri bitirmesi için zaman tanır.
 	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
+	signal.Notify(quit, os.Interrupt, syscall.SIGTERM) // Kesme (Ctrl+C) veya Terminate sinyallerini dinle.
 
-	// Start server in goroutine
+	// Sunucuyu ayrı bir goroutine içinde başlat. Bu, ana thread'i bloklamaz.
 	go func() {
 		addr := fmt.Sprintf("%s:%s", a.config.Server.Host, a.config.Server.Port)
-		log.Printf("🚀 Server starting on %s (environment: %s)", addr, a.config.Server.Environment)
+		log.Printf("🚀 Sunucu %s üzerinde başlatılıyor (ortam: %s)", addr, a.config.Server.Environment)
 		if err := a.app.Listen(addr); err != nil {
-			log.Printf("❌ Server error: %v", err)
+			log.Printf("❌ Sunucu hatası: %v", err)
 		}
 	}()
 
-	// Wait for interrupt signal
+	// Kapatma sinyali gelene kadar bekle.
 	<-quit
-	log.Println("🛑 Shutting down server...")
+	log.Println("🛑 Sunucu kapatılıyor...")
 
-	// Graceful shutdown
+	// Fiber sunucusunu zarif bir şekilde kapat.
 	if err := a.app.Shutdown(); err != nil {
-		return fmt.Errorf("server shutdown error: %w", err)
+		return fmt.Errorf("sunucu kapatma hatası: %w", err)
 	}
 
-	// Close database connection
+	// Veritabanı bağlantısını kapat.
 	if err := database.Close(a.db); err != nil {
-		return fmt.Errorf("database close error: %w", err)
+		return fmt.Errorf("veritabanı kapatma hatası: %w", err)
 	}
 
-	log.Println("✅ Server gracefully stopped")
+	log.Println("✅ Sunucu zarif bir şekilde durduruldu")
 	return nil
 }
 
-// customErrorHandler handles errors globally
+// customErrorHandler, uygulama genelinde oluşan hataları yakalayan ve standart bir formatta JSON cevabı dönen fonksiyondur.
 func customErrorHandler(c *fiber.Ctx, err error) error {
+	// Varsayılan hata kodu 500 (Internal Server Error).
 	code := fiber.StatusInternalServerError
 
+	// Gelen hatanın bir Fiber hatası olup olmadığını kontrol et.
+	// Eğer öyleyse, o hatanın kendi kodunu kullan (örn: 404 Not Found).
 	if e, ok := err.(*fiber.Error); ok {
 		code = e.Code
 	}
 
+	// Hata detaylarını içeren JSON cevabını oluştur ve gönder.
 	return c.Status(code).JSON(fiber.Map{
 		"error":  err.Error(),
 		"code":   code,

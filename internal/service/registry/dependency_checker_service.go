@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+
+	"nexpaces-api/internal/domain/registry"
 )
 
 // DependencyInfo represents dependency information

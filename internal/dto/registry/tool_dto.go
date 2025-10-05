@@ -63,9 +63,11 @@ type ToolResponse struct {
 	DemoURL                  string                `json:"demo_url,omitempty"`
 	DocumentationURL         string                `json:"documentation_url,omitempty"`
 	IntegrationType          registry.IntegrationType `json:"integration_type"`
-	ProviderSlug             string                `json:"provider_slug,omitempty"`
-	ProviderName             string                `json:"provider_name,omitempty"`
+	IntegrationProvider      string                `json:"integration_provider,omitempty"`
 	RequiresAPIKeys          bool                  `json:"requires_api_keys"`
+	RequiresWebhook          bool                  `json:"requires_webhook"`
+	RequiresStorage          bool                  `json:"requires_storage"`
+	RequiresDatabase         bool                  `json:"requires_database"`
 	InstallCount             int                   `json:"install_count"`
 	Rating                   float64               `json:"rating,omitempty"`
 	ReviewCount              int                   `json:"review_count"`
@@ -76,16 +78,14 @@ type ToolResponse struct {
 // ToolDetailResponse represents detailed tool response
 type ToolDetailResponse struct {
 	ToolResponse
-	APICredentialsSchema interface{} `json:"api_credentials_schema,omitempty"`
-	WebhookConfig        interface{} `json:"webhook_config,omitempty"`
-	SupportedTriggers    []string    `json:"supported_triggers,omitempty"`
-	DefaultConfig        interface{} `json:"default_config,omitempty"`
+	Features             interface{} `json:"features,omitempty"`
+	Capabilities         interface{} `json:"capabilities,omitempty"`
+	APIEndpoints         interface{} `json:"api_endpoints,omitempty"`
 	DefaultLimits        interface{} `json:"default_limits,omitempty"`
-	InstallationNotes    string      `json:"installation_notes,omitempty"`
+	RateLimits           interface{} `json:"rate_limits,omitempty"`
 	ConfigurationSchema  interface{} `json:"configuration_schema,omitempty"`
-	SupportedEvents      []string    `json:"supported_events,omitempty"`
-	CodeExamples         interface{} `json:"code_examples,omitempty"`
-	SDKInfo              interface{} `json:"sdk_info,omitempty"`
+	DefaultConfiguration interface{} `json:"default_configuration,omitempty"`
+	DatabaseTables       []string    `json:"database_tables,omitempty"`
 	Tags                 []string    `json:"tags,omitempty"`
 	Metadata             interface{} `json:"metadata,omitempty"`
 }
@@ -122,9 +122,11 @@ func ToToolResponse(t *registry.Tool) ToolResponse {
 		Icon:                     t.Icon,
 		CoverImage:               t.CoverImage,
 		IntegrationType:          t.IntegrationType,
-		ProviderSlug:             t.ProviderSlug,
-		ProviderName:             t.ProviderName,
+		IntegrationProvider:      t.IntegrationProvider,
 		RequiresAPIKeys:          t.RequiresAPIKeys,
+		RequiresWebhook:          t.RequiresWebhook,
+		RequiresStorage:          t.RequiresStorage,
+		RequiresDatabase:         t.RequiresDatabase,
 		InstallCount:             t.InstallCount,
 		Rating:                   t.Rating,
 		ReviewCount:              t.ReviewCount,
@@ -136,7 +138,16 @@ func ToToolResponse(t *registry.Tool) ToolResponse {
 // ToToolDetailResponse converts domain tool to detailed response
 func ToToolDetailResponse(t *registry.Tool) ToolDetailResponse {
 	return ToolDetailResponse{
-		ToolResponse:      ToToolResponse(t),
-		InstallationNotes: t.InstallationNotes,
+		ToolResponse:         ToToolResponse(t),
+		Features:             t.Features,
+		Capabilities:         t.Capabilities,
+		APIEndpoints:         t.APIEndpoints,
+		DefaultLimits:        t.DefaultLimits,
+		RateLimits:           t.RateLimits,
+		ConfigurationSchema:  t.ConfigurationSchema,
+		DefaultConfiguration: t.DefaultConfiguration,
+		DatabaseTables:       t.DatabaseTables,
+		Tags:                 t.Tags,
+		Metadata:             t.Metadata,
 	}
 }

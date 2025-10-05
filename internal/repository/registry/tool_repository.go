@@ -27,10 +27,10 @@ func (r *toolRepository) Create(ctx context.Context, tool *registry.Tool) error 
 			version, min_platform_version, pricing_model, base_price, currency, billing_cycle,
 			transaction_fee_percentage, transaction_fee_fixed,
 			features, capabilities, icon, cover_image, screenshots, demo_url, documentation_url,
-			integration_type, provider_slug, provider_name, requires_api_keys,
-			api_credentials_schema, webhook_config, supported_triggers,
-			default_config, default_limits, installation_notes, configuration_schema,
-			supported_events, code_examples, sdk_info, tags, metadata,
+			requires_api_keys, requires_webhook, requires_storage, requires_database, database_tables,
+			integration_provider, integration_type, api_endpoints,
+			default_limits, rate_limits, configuration_schema, default_configuration,
+			tags, metadata,
 			install_count, rating, review_count,
 			created_at, updated_at, created_by, updated_by
 		) VALUES (
@@ -46,10 +46,10 @@ func (r *toolRepository) Create(ctx context.Context, tool *registry.Tool) error 
 		tool.Version, tool.MinPlatformVersion, tool.PricingModel, tool.BasePrice, tool.Currency, tool.BillingCycle,
 		tool.TransactionFeePercentage, tool.TransactionFeeFixed,
 		tool.Features, tool.Capabilities, tool.Icon, tool.CoverImage, tool.Screenshots, tool.DemoURL, tool.DocumentationURL,
-		tool.IntegrationType, tool.ProviderSlug, tool.ProviderName, tool.RequiresAPIKeys,
-		tool.APICredentialsSchema, tool.WebhookConfig, tool.SupportedTriggers,
-		tool.DefaultConfig, tool.DefaultLimits, tool.InstallationNotes, tool.ConfigurationSchema,
-		tool.SupportedEvents, tool.CodeExamples, tool.SDKInfo, tool.Tags, tool.Metadata,
+		tool.RequiresAPIKeys, tool.RequiresWebhook, tool.RequiresStorage, tool.RequiresDatabase, tool.DatabaseTables,
+		tool.IntegrationProvider, tool.IntegrationType, tool.APIEndpoints,
+		tool.DefaultLimits, tool.RateLimits, tool.ConfigurationSchema, tool.DefaultConfiguration,
+		tool.Tags, tool.Metadata,
 		tool.InstallCount, tool.Rating, tool.ReviewCount,
 		tool.CreatedAt, tool.UpdatedAt, tool.CreatedBy, tool.UpdatedBy,
 	)
@@ -65,10 +65,10 @@ func (r *toolRepository) GetByID(ctx context.Context, id string) (*registry.Tool
 			version, min_platform_version, pricing_model, base_price, currency, billing_cycle,
 			transaction_fee_percentage, transaction_fee_fixed,
 			features, capabilities, icon, cover_image, screenshots, demo_url, documentation_url,
-			integration_type, provider_slug, provider_name, requires_api_keys,
-			api_credentials_schema, webhook_config, supported_triggers,
-			default_config, default_limits, installation_notes, configuration_schema,
-			supported_events, code_examples, sdk_info, tags, metadata,
+			requires_api_keys, requires_webhook, requires_storage, requires_database, database_tables,
+			integration_provider, integration_type, api_endpoints,
+			default_limits, rate_limits, configuration_schema, default_configuration,
+			tags, metadata,
 			install_count, rating, review_count,
 			created_at, updated_at, deleted_at, created_by, updated_by
 		FROM tools
@@ -82,10 +82,10 @@ func (r *toolRepository) GetByID(ctx context.Context, id string) (*registry.Tool
 		&tool.Version, &tool.MinPlatformVersion, &tool.PricingModel, &tool.BasePrice, &tool.Currency, &tool.BillingCycle,
 		&tool.TransactionFeePercentage, &tool.TransactionFeeFixed,
 		&tool.Features, &tool.Capabilities, &tool.Icon, &tool.CoverImage, &tool.Screenshots, &tool.DemoURL, &tool.DocumentationURL,
-		&tool.IntegrationType, &tool.ProviderSlug, &tool.ProviderName, &tool.RequiresAPIKeys,
-		&tool.APICredentialsSchema, &tool.WebhookConfig, &tool.SupportedTriggers,
-		&tool.DefaultConfig, &tool.DefaultLimits, &tool.InstallationNotes, &tool.ConfigurationSchema,
-		&tool.SupportedEvents, &tool.CodeExamples, &tool.SDKInfo, &tool.Tags, &tool.Metadata,
+		&tool.RequiresAPIKeys, &tool.RequiresWebhook, &tool.RequiresStorage, &tool.RequiresDatabase, &tool.DatabaseTables,
+		&tool.IntegrationProvider, &tool.IntegrationType, &tool.APIEndpoints,
+		&tool.DefaultLimits, &tool.RateLimits, &tool.ConfigurationSchema, &tool.DefaultConfiguration,
+		&tool.Tags, &tool.Metadata,
 		&tool.InstallCount, &tool.Rating, &tool.ReviewCount,
 		&tool.CreatedAt, &tool.UpdatedAt, &tool.DeletedAt, &tool.CreatedBy, &tool.UpdatedBy,
 	)
@@ -105,10 +105,10 @@ func (r *toolRepository) GetByCode(ctx context.Context, code string) (*registry.
 			version, min_platform_version, pricing_model, base_price, currency, billing_cycle,
 			transaction_fee_percentage, transaction_fee_fixed,
 			features, capabilities, icon, cover_image, screenshots, demo_url, documentation_url,
-			integration_type, provider_slug, provider_name, requires_api_keys,
-			api_credentials_schema, webhook_config, supported_triggers,
-			default_config, default_limits, installation_notes, configuration_schema,
-			supported_events, code_examples, sdk_info, tags, metadata,
+			requires_api_keys, requires_webhook, requires_storage, requires_database, database_tables,
+			integration_provider, integration_type, api_endpoints,
+			default_limits, rate_limits, configuration_schema, default_configuration,
+			tags, metadata,
 			install_count, rating, review_count,
 			created_at, updated_at, deleted_at, created_by, updated_by
 		FROM tools
@@ -122,10 +122,10 @@ func (r *toolRepository) GetByCode(ctx context.Context, code string) (*registry.
 		&tool.Version, &tool.MinPlatformVersion, &tool.PricingModel, &tool.BasePrice, &tool.Currency, &tool.BillingCycle,
 		&tool.TransactionFeePercentage, &tool.TransactionFeeFixed,
 		&tool.Features, &tool.Capabilities, &tool.Icon, &tool.CoverImage, &tool.Screenshots, &tool.DemoURL, &tool.DocumentationURL,
-		&tool.IntegrationType, &tool.ProviderSlug, &tool.ProviderName, &tool.RequiresAPIKeys,
-		&tool.APICredentialsSchema, &tool.WebhookConfig, &tool.SupportedTriggers,
-		&tool.DefaultConfig, &tool.DefaultLimits, &tool.InstallationNotes, &tool.ConfigurationSchema,
-		&tool.SupportedEvents, &tool.CodeExamples, &tool.SDKInfo, &tool.Tags, &tool.Metadata,
+		&tool.RequiresAPIKeys, &tool.RequiresWebhook, &tool.RequiresStorage, &tool.RequiresDatabase, &tool.DatabaseTables,
+		&tool.IntegrationProvider, &tool.IntegrationType, &tool.APIEndpoints,
+		&tool.DefaultLimits, &tool.RateLimits, &tool.ConfigurationSchema, &tool.DefaultConfiguration,
+		&tool.Tags, &tool.Metadata,
 		&tool.InstallCount, &tool.Rating, &tool.ReviewCount,
 		&tool.CreatedAt, &tool.UpdatedAt, &tool.DeletedAt, &tool.CreatedBy, &tool.UpdatedBy,
 	)
@@ -145,10 +145,10 @@ func (r *toolRepository) GetBySlug(ctx context.Context, slug string) (*registry.
 			version, min_platform_version, pricing_model, base_price, currency, billing_cycle,
 			transaction_fee_percentage, transaction_fee_fixed,
 			features, capabilities, icon, cover_image, screenshots, demo_url, documentation_url,
-			integration_type, provider_slug, provider_name, requires_api_keys,
-			api_credentials_schema, webhook_config, supported_triggers,
-			default_config, default_limits, installation_notes, configuration_schema,
-			supported_events, code_examples, sdk_info, tags, metadata,
+			requires_api_keys, requires_webhook, requires_storage, requires_database, database_tables,
+			integration_provider, integration_type, api_endpoints,
+			default_limits, rate_limits, configuration_schema, default_configuration,
+			tags, metadata,
 			install_count, rating, review_count,
 			created_at, updated_at, deleted_at, created_by, updated_by
 		FROM tools
@@ -162,10 +162,10 @@ func (r *toolRepository) GetBySlug(ctx context.Context, slug string) (*registry.
 		&tool.Version, &tool.MinPlatformVersion, &tool.PricingModel, &tool.BasePrice, &tool.Currency, &tool.BillingCycle,
 		&tool.TransactionFeePercentage, &tool.TransactionFeeFixed,
 		&tool.Features, &tool.Capabilities, &tool.Icon, &tool.CoverImage, &tool.Screenshots, &tool.DemoURL, &tool.DocumentationURL,
-		&tool.IntegrationType, &tool.ProviderSlug, &tool.ProviderName, &tool.RequiresAPIKeys,
-		&tool.APICredentialsSchema, &tool.WebhookConfig, &tool.SupportedTriggers,
-		&tool.DefaultConfig, &tool.DefaultLimits, &tool.InstallationNotes, &tool.ConfigurationSchema,
-		&tool.SupportedEvents, &tool.CodeExamples, &tool.SDKInfo, &tool.Tags, &tool.Metadata,
+		&tool.RequiresAPIKeys, &tool.RequiresWebhook, &tool.RequiresStorage, &tool.RequiresDatabase, &tool.DatabaseTables,
+		&tool.IntegrationProvider, &tool.IntegrationType, &tool.APIEndpoints,
+		&tool.DefaultLimits, &tool.RateLimits, &tool.ConfigurationSchema, &tool.DefaultConfiguration,
+		&tool.Tags, &tool.Metadata,
 		&tool.InstallCount, &tool.Rating, &tool.ReviewCount,
 		&tool.CreatedAt, &tool.UpdatedAt, &tool.DeletedAt, &tool.CreatedBy, &tool.UpdatedBy,
 	)
@@ -186,9 +186,9 @@ func (r *toolRepository) Update(ctx context.Context, tool *registry.Tool) error 
 			version = $12, pricing_model = $13, base_price = $14, billing_cycle = $15,
 			transaction_fee_percentage = $16, transaction_fee_fixed = $17,
 			features = $18, capabilities = $19, icon = $20, cover_image = $21,
-			provider_name = $22, default_config = $23, default_limits = $24,
-			tags = $25, metadata = $26, rating = $27,
-			updated_at = $28, updated_by = $29
+			integration_provider = $22, integration_type = $23, default_configuration = $24, default_limits = $25,
+			tags = $26, metadata = $27, rating = $28,
+			updated_at = $29, updated_by = $30
 		WHERE id = $1 AND deleted_at IS NULL
 	`
 
@@ -198,7 +198,7 @@ func (r *toolRepository) Update(ctx context.Context, tool *registry.Tool) error 
 		tool.Version, tool.PricingModel, tool.BasePrice, tool.BillingCycle,
 		tool.TransactionFeePercentage, tool.TransactionFeeFixed,
 		tool.Features, tool.Capabilities, tool.Icon, tool.CoverImage,
-		tool.ProviderName, tool.DefaultConfig, tool.DefaultLimits,
+		tool.IntegrationProvider, tool.IntegrationType, tool.DefaultConfiguration, tool.DefaultLimits,
 		tool.Tags, tool.Metadata, tool.Rating,
 		tool.UpdatedAt, tool.UpdatedBy,
 	)
@@ -243,17 +243,41 @@ func (r *toolRepository) List(ctx context.Context, filters registry.ToolFilters)
 	var tools []*registry.Tool
 	for rows.Next() {
 		tool := &registry.Tool{}
+		var transactionFeePercentage, transactionFeeFixed, basePrice, rating sql.NullFloat64
+		var icon, currency sql.NullString
+
 		err := rows.Scan(
 			&tool.ID, &tool.Name, &tool.Slug, &tool.Code, &tool.DisplayName, &tool.Description,
 			&tool.Category, &tool.ToolType, &tool.Scope, &tool.Status, &tool.IsPublic, &tool.IsBeta,
-			&tool.Version, &tool.PricingModel, &tool.BasePrice, &tool.Currency,
-			&tool.TransactionFeePercentage, &tool.TransactionFeeFixed,
-			&tool.Icon, &tool.InstallCount, &tool.Rating, &tool.ReviewCount,
+			&tool.Version, &tool.PricingModel, &basePrice, &currency,
+			&transactionFeePercentage, &transactionFeeFixed,
+			&icon, &tool.InstallCount, &rating, &tool.ReviewCount,
 			&tool.CreatedAt, &tool.UpdatedAt,
 		)
 		if err != nil {
 			return nil, err
 		}
+
+		// Handle NULL values
+		if basePrice.Valid {
+			tool.BasePrice = basePrice.Float64
+		}
+		if currency.Valid {
+			tool.Currency = currency.String
+		}
+		if transactionFeePercentage.Valid {
+			tool.TransactionFeePercentage = transactionFeePercentage.Float64
+		}
+		if transactionFeeFixed.Valid {
+			tool.TransactionFeeFixed = transactionFeeFixed.Float64
+		}
+		if icon.Valid {
+			tool.Icon = icon.String
+		}
+		if rating.Valid {
+			tool.Rating = rating.Float64
+		}
+
 		tools = append(tools, tool)
 	}
 
@@ -281,7 +305,8 @@ func (r *toolRepository) Search(ctx context.Context, query string, filters regis
 		  AND (name ILIKE $1 OR description ILIKE $1 OR ARRAY_TO_STRING(tags, ' ') ILIKE $1)
 	`
 
-	conditions, args := r.buildFilterConditions(filters)
+	// $1 is used for search pattern, so filter conditions start at $2
+	conditions, args := r.buildFilterConditionsWithOffset(filters, 2)
 	searchPattern := "%" + query + "%"
 	allArgs := append([]interface{}{searchPattern}, args...)
 
@@ -301,17 +326,41 @@ func (r *toolRepository) Search(ctx context.Context, query string, filters regis
 	var tools []*registry.Tool
 	for rows.Next() {
 		tool := &registry.Tool{}
+		var transactionFeePercentage, transactionFeeFixed, basePrice, rating sql.NullFloat64
+		var icon, currency sql.NullString
+
 		err := rows.Scan(
 			&tool.ID, &tool.Name, &tool.Slug, &tool.Code, &tool.DisplayName, &tool.Description,
 			&tool.Category, &tool.ToolType, &tool.Scope, &tool.Status, &tool.IsPublic, &tool.IsBeta,
-			&tool.Version, &tool.PricingModel, &tool.BasePrice, &tool.Currency,
-			&tool.TransactionFeePercentage, &tool.TransactionFeeFixed,
-			&tool.Icon, &tool.InstallCount, &tool.Rating, &tool.ReviewCount,
+			&tool.Version, &tool.PricingModel, &basePrice, &currency,
+			&transactionFeePercentage, &transactionFeeFixed,
+			&icon, &tool.InstallCount, &rating, &tool.ReviewCount,
 			&tool.CreatedAt, &tool.UpdatedAt,
 		)
 		if err != nil {
 			return nil, err
 		}
+
+		// Handle NULL values
+		if basePrice.Valid {
+			tool.BasePrice = basePrice.Float64
+		}
+		if currency.Valid {
+			tool.Currency = currency.String
+		}
+		if transactionFeePercentage.Valid {
+			tool.TransactionFeePercentage = transactionFeePercentage.Float64
+		}
+		if transactionFeeFixed.Valid {
+			tool.TransactionFeeFixed = transactionFeeFixed.Float64
+		}
+		if icon.Valid {
+			tool.Icon = icon.String
+		}
+		if rating.Valid {
+			tool.Rating = rating.Float64
+		}
+
 		tools = append(tools, tool)
 	}
 
@@ -335,9 +384,13 @@ func (r *toolRepository) UpdateInstallCount(ctx context.Context, toolID string, 
 
 // Helper functions
 func (r *toolRepository) buildFilterConditions(filters registry.ToolFilters) ([]string, []interface{}) {
+	return r.buildFilterConditionsWithOffset(filters, 1)
+}
+
+func (r *toolRepository) buildFilterConditionsWithOffset(filters registry.ToolFilters, startParam int) ([]string, []interface{}) {
 	var conditions []string
 	var args []interface{}
-	paramCount := 1
+	paramCount := startParam
 
 	if filters.Category != nil {
 		conditions = append(conditions, fmt.Sprintf("category = $%d", paramCount))

@@ -159,7 +159,7 @@ func (s *ToolCatalogService) GetToolsByPricingModel(ctx context.Context, pricing
 
 // GetFreeTools retrieves all free tools
 func (s *ToolCatalogService) GetFreeTools(ctx context.Context, filters registry.ToolFilters) ([]*registry.Tool, error) {
-	pricingModel := registry.PricingModelFree
+	pricingModel := registry.PricingFree
 	return s.GetToolsByPricingModel(ctx, pricingModel, filters)
 }
 

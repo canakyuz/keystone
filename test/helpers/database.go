@@ -3,7 +3,9 @@ package helpers
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
+	"strings"
 	"testing"
 
 	pq "github.com/lib/pq"
@@ -38,49 +40,48 @@ func SetupTestDB(t *testing.T) *sql.DB {
 
 	cfg := DefaultTestDBConfig()
 
-	// Connect to postgres database to create test database
-	connStr := fmt.Sprintf(
+	adminConnStr := fmt.Sprintf(
 		"host=%s port=%s user=%s password=%s dbname=postgres sslmode=%s",
 		cfg.Host, cfg.Port, cfg.User, cfg.Password, cfg.SSLMode,
 	)
 
-	db, err := sql.Open("postgres", connStr)
-	require.NoError(t, err)
-	defer db.Close()
+	adminDB := openDBOrSkip(t, adminConnStr)
+	if adminDB == nil {
+		return nil
+	}
+	defer adminDB.Close()
 
-	// Drop test database if exists
-	_, err = db.Exec(fmt.Sprintf("DROP DATABASE IF EXISTS %s", cfg.DBName))
-	require.NoError(t, err)
+	if _, err := adminDB.Exec(fmt.Sprintf("DROP DATABASE IF EXISTS %s", cfg.DBName)); skipIfConnectionError(t, err) {
+		return nil
+	} else {
+		require.NoError(t, err)
+	}
 
-	// Create test database
-	_, err = db.Exec(fmt.Sprintf("CREATE DATABASE %s", cfg.DBName))
-	require.NoError(t, err)
+	if _, err := adminDB.Exec(fmt.Sprintf("CREATE DATABASE %s", cfg.DBName)); skipIfConnectionError(t, err) {
+		return nil
+	} else {
+		require.NoError(t, err)
+	}
 
-	// Connect to test database
 	testConnStr := fmt.Sprintf(
 		"host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
 		cfg.Host, cfg.Port, cfg.User, cfg.Password, cfg.DBName, cfg.SSLMode,
 	)
 
-	testDB, err := sql.Open("postgres", testConnStr)
-	require.NoError(t, err)
+	testDB := openDBOrSkip(t, testConnStr)
+	if testDB == nil {
+		return nil
+	}
 
-	// Verify connection
-	err = testDB.Ping()
-	require.NoError(t, err)
-
-	// Run migrations
 	runMigrations(t, testDB)
 
-	// Cleanup function
 	t.Cleanup(func() {
 		testDB.Close()
 
-		// Drop test database
-		db, err := sql.Open("postgres", connStr)
-		if err == nil {
-			defer db.Close()
-			db.Exec(fmt.Sprintf("DROP DATABASE IF EXISTS %s", cfg.DBName))
+		admin := openDBOrSkip(t, adminConnStr)
+		if admin != nil {
+			defer admin.Close()
+			_, _ = admin.Exec(fmt.Sprintf("DROP DATABASE IF EXISTS %s", cfg.DBName))
 		}
 	})
 
@@ -158,6 +159,9 @@ func runMigrations(t *testing.T, db *sql.DB) {
 		END;
 		$$ LANGUAGE plpgsql;
 	`)
+	if skipIfConnectionError(t, err) {
+		return
+	}
 	require.NoError(t, err)
 
 	// Migration 002: Create users table
@@ -203,6 +207,9 @@ func runMigrations(t *testing.T, db *sql.DB) {
 			FOR ALL
 			USING (tenant_id = current_setting('app.current_tenant', TRUE)::UUID);
 	`)
+	if skipIfConnectionError(t, err) {
+		return
+	}
 	require.NoError(t, err)
 
 	// Migration 003: Create websites table
@@ -246,6 +253,9 @@ func runMigrations(t *testing.T, db *sql.DB) {
 			FOR SELECT
 			USING (status = 'published' AND deleted_at IS NULL);
 	`)
+	if skipIfConnectionError(t, err) {
+		return
+	}
 	require.NoError(t, err)
 }
 
@@ -285,6 +295,55 @@ func WithTenantContext(ctx context.Context, db *sql.DB, tenantID string, fn func
 	defer ClearTenantContext(ctx, db)
 
 	return fn()
+}
+
+func openDBOrSkip(t *testing.T, connStr string) *sql.DB {
+	db, err := sql.Open("postgres", connStr)
+	if skipIfConnectionError(t, err) {
+		return nil
+	}
+	require.NoError(t, err)
+
+	if err := db.Ping(); err != nil {
+		if isConnectionError(err) {
+			db.Close()
+			t.Skipf("Skipping database-backed test: %v", err)
+			return nil
+		}
+		require.NoError(t, err)
+	}
+
+	return db
+}
+
+func skipIfConnectionError(t *testing.T, err error) bool {
+	if err == nil {
+		return false
+	}
+
+	if isConnectionError(err) {
+		t.Skipf("Skipping database-backed test: %v", err)
+		return true
+	}
+
+	return false
+}
+
+func isConnectionError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	if errors.Is(err, context.DeadlineExceeded) {
+		return true
+	}
+
+	msg := err.Error()
+	return strings.Contains(msg, "connect: operation not permitted") ||
+		strings.Contains(msg, "connect: permission denied") ||
+		strings.Contains(msg, "connect: connection refused") ||
+		strings.Contains(msg, "no such host") ||
+		strings.Contains(msg, "could not connect to server")
 }
 
 func fetchTenantSchemaName(ctx context.Context, db *sql.DB, tenantID string) (string, error) {

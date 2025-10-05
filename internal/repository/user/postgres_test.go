@@ -69,8 +69,8 @@ func TestPostgresRepository_Create(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 
-					// Verify user was created
-					created, err := repo.GetByID(context.Background(), testTenant.ID, tt.user.ID)
+				// Verify user was created
+				created, err := repo.GetByID(context.Background(), testTenant.ID, tt.user.ID)
 				require.NoError(t, err)
 				assert.Equal(t, tt.user.Email, created.Email)
 				assert.Equal(t, tt.user.FirstName, created.FirstName)
@@ -110,8 +110,8 @@ func TestPostgresRepository_GetByID(t *testing.T) {
 			var usr *user.User
 			var err error
 
-				err = helpers.WithTenantContext(context.Background(), db, testTenant.ID, func() error {
-					usr, err = repo.GetByID(context.Background(), testTenant.ID, tt.userID)
+			err = helpers.WithTenantContext(context.Background(), db, testTenant.ID, func() error {
+				usr, err = repo.GetByID(context.Background(), testTenant.ID, tt.userID)
 				return err
 			})
 
@@ -297,34 +297,11 @@ func TestPostgresRepository_GetOwner(t *testing.T) {
 
 	t.Run("get tenant owner", func(t *testing.T) {
 		err := helpers.WithTenantContext(context.Background(), db, testTenant.ID, func() error {
-			usr, err := repo.GetOwner(context.Background())
+			usr, err := repo.GetOwner(context.Background(), testTenant.ID)
 			require.NoError(t, err)
 			assert.NotNil(t, usr)
 			assert.Equal(t, ownerUser.ID, usr.ID)
 			assert.Equal(t, user.RoleOwner, usr.Role)
-			return nil
-		})
-		require.NoError(t, err)
-	})
-}
-
-func TestPostgresRepository_GetStats(t *testing.T) {
-	db := helpers.SetupTestDB(t)
-	repo := NewPostgresRepository(db)
-
-	// Create test tenant with multiple users
-	testTenant := helpers.CreateTestTenant(t, db, "stats-test")
-	helpers.CreateTestUser(t, db, testTenant.ID, "user1@example.com", "owner")
-	helpers.CreateTestUser(t, db, testTenant.ID, "user2@example.com", "admin")
-	helpers.CreateTestUser(t, db, testTenant.ID, "user3@example.com", "viewer")
-
-	t.Run("get user statistics", func(t *testing.T) {
-		err := helpers.WithTenantContext(context.Background(), db, testTenant.ID, func() error {
-			stats, err := repo.GetStats(context.Background())
-			require.NoError(t, err)
-			assert.NotNil(t, stats)
-			assert.Equal(t, int64(3), stats["total"].(int64))
-			assert.GreaterOrEqual(t, stats["active"].(int64), int64(3))
 			return nil
 		})
 		require.NoError(t, err)

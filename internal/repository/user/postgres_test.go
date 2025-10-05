@@ -110,8 +110,8 @@ func TestPostgresRepository_GetByID(t *testing.T) {
 			var usr *user.User
 			var err error
 
-			err = helpers.WithTenantContext(context.Background(), db, testTenant.ID, func() error {
-				usr, err = repo.GetByID(context.Background(), tt.userID)
+				err = helpers.WithTenantContext(context.Background(), db, testTenant.ID, func() error {
+					usr, err = repo.GetByID(context.Background(), testTenant.ID, tt.userID)
 				return err
 			})
 

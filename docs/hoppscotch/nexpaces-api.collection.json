@@ -1,0 +1,552 @@
+{
+  "v": 1,
+  "name": "NexSpaces API",
+  "variables": [
+    { "key": "base_url", "value": "http://localhost:8080" },
+    { "key": "access_token", "value": "" },
+    { "key": "tenant_id", "value": "" },
+    { "key": "user_id", "value": "" },
+    { "key": "website_id", "value": "" },
+    { "key": "student_id", "value": "" },
+    { "key": "lesson_id", "value": "" },
+    { "key": "assignment_id", "value": "" },
+    { "key": "availability_id", "value": "" },
+    { "key": "appointment_id", "value": "" },
+    { "key": "service_id", "value": "" },
+    { "key": "category_id", "value": "" },
+    { "key": "post_id", "value": "" },
+    { "key": "payment_id", "value": "" },
+    { "key": "module_id", "value": "" },
+    { "key": "tool_id", "value": "" }
+  ],
+  "requests": [
+    {
+      "id": "health-check",
+      "name": "System • Health Check",
+      "method": "GET",
+      "url": "{{base_url}}/health",
+      "headers": [],
+      "params": [],
+      "body": { "type": "none", "raw": "", "form": [], "files": [] }
+    },
+    {
+      "id": "auth-register",
+      "name": "Auth • Register",
+      "method": "POST",
+      "url": "{{base_url}}/api/v1/auth/register",
+      "headers": [
+        { "key": "Content-Type", "value": "application/json", "active": true }
+      ],
+      "params": [],
+      "body": {
+        "type": "json",
+        "raw": "{\n  \"name\": \"Admin User\",\n  \"email\": \"admin@example.com\",\n  \"password\": \"Secret123!\"\n}",
+        "form": [],
+        "files": []
+      }
+    },
+    {
+      "id": "auth-login",
+      "name": "Auth • Login",
+      "method": "POST",
+      "url": "{{base_url}}/api/v1/auth/login",
+      "headers": [
+        { "key": "Content-Type", "value": "application/json", "active": true }
+      ],
+      "params": [],
+      "body": {
+        "type": "json",
+        "raw": "{\n  \"email\": \"admin@example.com\",\n  \"password\": \"Secret123!\"\n}",
+        "form": [],
+        "files": []
+      },
+      "testScripts": [
+        "const json = response.body?.json();\nif (json?.access_token) {\n  setEnvVar(\"access_token\", json.access_token);\n  setEnvVar(\"tenant_id\", json?.user?.tenant_id || \"\");\n}"
+      ]
+    },
+    {
+      "id": "auth-me",
+      "name": "Auth • Me",
+      "method": "GET",
+      "url": "{{base_url}}/api/v1/auth/me",
+      "headers": [
+        { "key": "Authorization", "value": "Bearer {{access_token}}", "active": true }
+      ],
+      "params": [],
+      "body": { "type": "none", "raw": "", "form": [], "files": [] }
+    },
+    {
+      "id": "auth-logout",
+      "name": "Auth • Logout",
+      "method": "POST",
+      "url": "{{base_url}}/api/v1/auth/logout",
+      "headers": [
+        { "key": "Authorization", "value": "Bearer {{access_token}}", "active": true }
+      ],
+      "params": [],
+      "body": { "type": "none", "raw": "", "form": [], "files": [] }
+    },
+    {
+      "id": "tenants-create",
+      "name": "Tenants • Create",
+      "method": "POST",
+      "url": "{{base_url}}/api/v1/tenants",
+      "headers": [
+        { "key": "Content-Type", "value": "application/json", "active": true },
+        { "key": "Authorization", "value": "Bearer {{access_token}}", "active": true }
+      ],
+      "params": [],
+      "body": {
+        "type": "json",
+        "raw": "{\n  \"name\": \"Acme Corp\",\n  \"slug\": \"acme-corp\",\n  \"email\": \"owner@acme.com\",\n  \"plan\": \"starter\"\n}",
+        "form": [],
+        "files": []
+      }
+    },
+    {
+      "id": "tenants-list",
+      "name": "Tenants • List",
+      "method": "GET",
+      "url": "{{base_url}}/api/v1/tenants",
+      "headers": [
+        { "key": "Authorization", "value": "Bearer {{access_token}}", "active": true }
+      ],
+      "params": [
+        { "key": "page", "value": "1", "active": true },
+        { "key": "per_page", "value": "20", "active": true }
+      ],
+      "body": { "type": "none", "raw": "", "form": [], "files": [] }
+    },
+    {
+      "id": "tenants-current",
+      "name": "Tenants • Current",
+      "method": "GET",
+      "url": "{{base_url}}/api/v1/tenants/current",
+      "headers": [
+        { "key": "Authorization", "value": "Bearer {{access_token}}", "active": true }
+      ],
+      "params": [],
+      "body": { "type": "none", "raw": "", "form": [], "files": [] }
+    },
+    {
+      "id": "tenants-stats",
+      "name": "Tenants • Stats",
+      "method": "GET",
+      "url": "{{base_url}}/api/v1/tenants/stats",
+      "headers": [
+        { "key": "Authorization", "value": "Bearer {{access_token}}", "active": true }
+      ],
+      "params": [],
+      "body": { "type": "none", "raw": "", "form": [], "files": [] }
+    },
+    {
+      "id": "tenants-get",
+      "name": "Tenants • Get By ID",
+      "method": "GET",
+      "url": "{{base_url}}/api/v1/tenants/{{tenant_id}}",
+      "headers": [
+        { "key": "Authorization", "value": "Bearer {{access_token}}", "active": true }
+      ],
+      "params": [],
+      "body": { "type": "none", "raw": "", "form": [], "files": [] }
+    },
+    {
+      "id": "tenants-update",
+      "name": "Tenants • Update",
+      "method": "PATCH",
+      "url": "{{base_url}}/api/v1/tenants/{{tenant_id}}",
+      "headers": [
+        { "key": "Content-Type", "value": "application/json", "active": true },
+        { "key": "Authorization", "value": "Bearer {{access_token}}", "active": true }
+      ],
+      "params": [],
+      "body": {
+        "type": "json",
+        "raw": "{\n  \"name\": \"Acme Corp Intl\",\n  \"email\": \"admin@acme.com\"\n}",
+        "form": [],
+        "files": []
+      }
+    },
+    {
+      "id": "tenants-suspend",
+      "name": "Tenants • Suspend",
+      "method": "POST",
+      "url": "{{base_url}}/api/v1/tenants/{{tenant_id}}/suspend",
+      "headers": [
+        { "key": "Content-Type", "value": "application/json", "active": true },
+        { "key": "Authorization", "value": "Bearer {{access_token}}", "active": true }
+      ],
+      "params": [],
+      "body": {
+        "type": "json",
+        "raw": "{\n  \"reason\": \"billing_issue\"\n}",
+        "form": [],
+        "files": []
+      }
+    },
+    {
+      "id": "tenants-activate",
+      "name": "Tenants • Activate",
+      "method": "POST",
+      "url": "{{base_url}}/api/v1/tenants/{{tenant_id}}/activate",
+      "headers": [
+        { "key": "Authorization", "value": "Bearer {{access_token}}", "active": true }
+      ],
+      "params": [],
+      "body": { "type": "none", "raw": "", "form": [], "files": [] }
+    },
+    {
+      "id": "tenants-upgrade",
+      "name": "Tenants • Upgrade Plan",
+      "method": "POST",
+      "url": "{{base_url}}/api/v1/tenants/{{tenant_id}}/upgrade",
+      "headers": [
+        { "key": "Content-Type", "value": "application/json", "active": true },
+        { "key": "Authorization", "value": "Bearer {{access_token}}", "active": true }
+      ],
+      "params": [],
+      "body": {
+        "type": "json",
+        "raw": "{\n  \"plan\": \"pro\"\n}",
+        "form": [],
+        "files": []
+      }
+    },
+    {
+      "id": "tenants-domain-set",
+      "name": "Tenants • Set Domain",
+      "method": "POST",
+      "url": "{{base_url}}/api/v1/tenants/{{tenant_id}}/domain",
+      "headers": [
+        { "key": "Content-Type", "value": "application/json", "active": true },
+        { "key": "Authorization", "value": "Bearer {{access_token}}", "active": true }
+      ],
+      "params": [],
+      "body": {
+        "type": "json",
+        "raw": "{\n  \"domain\": \"app.acme.com\"\n}",
+        "form": [],
+        "files": []
+      }
+    },
+    {
+      "id": "tenants-domain-verify",
+      "name": "Tenants • Verify Domain",
+      "method": "POST",
+      "url": "{{base_url}}/api/v1/tenants/{{tenant_id}}/domain/verify",
+      "headers": [
+        { "key": "Authorization", "value": "Bearer {{access_token}}", "active": true }
+      ],
+      "params": [],
+      "body": { "type": "none", "raw": "", "form": [], "files": [] }
+    },
+    {
+      "id": "tenants-branding",
+      "name": "Tenants • Update Branding",
+      "method": "PATCH",
+      "url": "{{base_url}}/api/v1/tenants/{{tenant_id}}/branding",
+      "headers": [
+        { "key": "Content-Type", "value": "application/json", "active": true },
+        { "key": "Authorization", "value": "Bearer {{access_token}}", "active": true }
+      ],
+      "params": [],
+      "body": {
+        "type": "json",
+        "raw": "{\n  \"primary_color\": \"#0055FF\",\n  \"logo\": \"https://cdn.example.com/logo.png\"\n}",
+        "form": [],
+        "files": []
+      }
+    },
+    {
+      "id": "tenants-delete",
+      "name": "Tenants • Delete",
+      "method": "DELETE",
+      "url": "{{base_url}}/api/v1/tenants/{{tenant_id}}",
+      "headers": [
+        { "key": "Authorization", "value": "Bearer {{access_token}}", "active": true }
+      ],
+      "params": [],
+      "body": { "type": "none", "raw": "", "form": [], "files": [] }
+    },
+    {
+      "id": "upload-logo",
+      "name": "Upload • Logo",
+      "method": "POST",
+      "url": "{{base_url}}/api/v1/upload/logo",
+      "headers": [
+        { "key": "Authorization", "value": "Bearer {{access_token}}", "active": true }
+      ],
+      "params": [],
+      "body": {
+        "type": "form-data",
+        "raw": "",
+        "form": [
+          { "key": "file", "value": "", "type": "file", "description": "logo.png" }
+        ],
+        "files": []
+      }
+    },
+    {
+      "id": "users-create",
+      "name": "Users • Create",
+      "method": "POST",
+      "url": "{{base_url}}/api/v1/users",
+      "headers": [
+        { "key": "Content-Type", "value": "application/json", "active": true },
+        { "key": "Authorization", "value": "Bearer {{access_token}}", "active": true },
+        { "key": "X-Tenant-ID", "value": "{{tenant_id}}", "active": true }
+      ],
+      "params": [],
+      "body": {
+        "type": "json",
+        "raw": "{\n  \"email\": \"member@acme.com\",\n  \"password\": \"Secret123!\",\n  \"first_name\": \"Jane\",\n  \"last_name\": \"Doe\",\n  \"role\": \"admin\"\n}",
+        "form": [],
+        "files": []
+      }
+    },
+    {
+      "id": "users-list",
+      "name": "Users • List",
+      "method": "GET",
+      "url": "{{base_url}}/api/v1/users",
+      "headers": [
+        { "key": "Authorization", "value": "Bearer {{access_token}}", "active": true },
+        { "key": "X-Tenant-ID", "value": "{{tenant_id}}", "active": true }
+      ],
+      "params": [
+        { "key": "page", "value": "1", "active": true },
+        { "key": "per_page", "value": "20", "active": true }
+      ],
+      "body": { "type": "none", "raw": "", "form": [], "files": [] }
+    },
+    {
+      "id": "users-stats",
+      "name": "Users • Stats",
+      "method": "GET",
+      "url": "{{base_url}}/api/v1/users/stats",
+      "headers": [
+        { "key": "Authorization", "value": "Bearer {{access_token}}", "active": true },
+        { "key": "X-Tenant-ID", "value": "{{tenant_id}}", "active": true }
+      ],
+      "params": [],
+      "body": { "type": "none", "raw": "", "form": [], "files": [] }
+    },
+    {
+      "id": "users-get",
+      "name": "Users • Get By ID",
+      "method": "GET",
+      "url": "{{base_url}}/api/v1/users/{{user_id}}",
+      "headers": [
+        { "key": "Authorization", "value": "Bearer {{access_token}}", "active": true },
+        { "key": "X-Tenant-ID", "value": "{{tenant_id}}", "active": true }
+      ],
+      "params": [],
+      "body": { "type": "none", "raw": "", "form": [], "files": [] }
+    },
+    {
+      "id": "users-update",
+      "name": "Users • Update",
+      "method": "PATCH",
+      "url": "{{base_url}}/api/v1/users/{{user_id}}",
+      "headers": [
+        { "key": "Content-Type", "value": "application/json", "active": true },
+        { "key": "Authorization", "value": "Bearer {{access_token}}", "active": true },
+        { "key": "X-Tenant-ID", "value": "{{tenant_id}}", "active": true }
+      ],
+      "params": [],
+      "body": {
+        "type": "json",
+        "raw": "{\n  \"first_name\": \"Updated\",\n  \"last_name\": \"User\"\n}",
+        "form": [],
+        "files": []
+      }
+    },
+    {
+      "id": "users-update-password",
+      "name": "Users • Update Password",
+      "method": "POST",
+      "url": "{{base_url}}/api/v1/users/{{user_id}}/password",
+      "headers": [
+        { "key": "Content-Type", "value": "application/json", "active": true },
+        { "key": "Authorization", "value": "Bearer {{access_token}}", "active": true },
+        { "key": "X-Tenant-ID", "value": "{{tenant_id}}", "active": true }
+      ],
+      "params": [],
+      "body": {
+        "type": "json",
+        "raw": "{\n  \"password\": \"NewPass123!\"\n}",
+        "form": [],
+        "files": []
+      }
+    },
+    {
+      "id": "users-update-role",
+      "name": "Users • Update Role",
+      "method": "POST",
+      "url": "{{base_url}}/api/v1/users/{{user_id}}/role",
+      "headers": [
+        { "key": "Content-Type", "value": "application/json", "active": true },
+        { "key": "Authorization", "value": "Bearer {{access_token}}", "active": true },
+        { "key": "X-Tenant-ID", "value": "{{tenant_id}}", "active": true }
+      ],
+      "params": [],
+      "body": {
+        "type": "json",
+        "raw": "{\n  \"role\": \"editor\"\n}",
+        "form": [],
+        "files": []
+      }
+    },
+    {
+      "id": "users-suspend",
+      "name": "Users • Suspend",
+      "method": "POST",
+      "url": "{{base_url}}/api/v1/users/{{user_id}}/suspend",
+      "headers": [
+        { "key": "Content-Type", "value": "application/json", "active": true },
+        { "key": "Authorization", "value": "Bearer {{access_token}}", "active": true },
+        { "key": "X-Tenant-ID", "value": "{{tenant_id}}", "active": true }
+      ],
+      "params": [],
+      "body": {
+        "type": "json",
+        "raw": "{\n  \"reason\": \"inactive\"\n}",
+        "form": [],
+        "files": []
+      }
+    },
+    {
+      "id": "users-activate",
+      "name": "Users • Activate",
+      "method": "POST",
+      "url": "{{base_url}}/api/v1/users/{{user_id}}/activate",
+      "headers": [
+        { "key": "Authorization", "value": "Bearer {{access_token}}", "active": true },
+        { "key": "X-Tenant-ID", "value": "{{tenant_id}}", "active": true }
+      ],
+      "params": [],
+      "body": { "type": "none", "raw": "", "form": [], "files": [] }
+    },
+    {
+      "id": "users-verify-email",
+      "name": "Users • Verify Email",
+      "method": "POST",
+      "url": "{{base_url}}/api/v1/users/{{user_id}}/verify-email",
+      "headers": [
+        { "key": "Authorization", "value": "Bearer {{access_token}}", "active": true },
+        { "key": "X-Tenant-ID", "value": "{{tenant_id}}", "active": true }
+      ],
+      "params": [],
+      "body": { "type": "none", "raw": "", "form": [], "files": [] }
+    },
+    {
+      "id": "users-delete",
+      "name": "Users • Delete",
+      "method": "DELETE",
+      "url": "{{base_url}}/api/v1/users/{{user_id}}",
+      "headers": [
+        { "key": "Authorization", "value": "Bearer {{access_token}}", "active": true },
+        { "key": "X-Tenant-ID", "value": "{{tenant_id}}", "active": true }
+      ],
+      "params": [],
+      "body": { "type": "none", "raw": "", "form": [], "files": [] }
+    },
+    {
+      "id": "websites-create",
+      "name": "Websites • Create",
+      "method": "POST",
+      "url": "{{base_url}}/api/v1/websites",
+      "headers": [
+        { "key": "Content-Type", "value": "application/json", "active": true },
+        { "key": "Authorization", "value": "Bearer {{access_token}}", "active": true },
+        { "key": "X-Tenant-ID", "value": "{{tenant_id}}", "active": true }
+      ],
+      "params": [],
+      "body": {
+        "type": "json",
+        "raw": "{\n  \"name\": \"Main Site\",\n  \"slug\": \"main-site\",\n  \"template_id\": \"cms-basic\"\n}",
+        "form": [],
+        "files": []
+      }
+    },
+    {
+      "id": "websites-list",
+      "name": "Websites • List",
+      "method": "GET",
+      "url": "{{base_url}}/api/v1/websites",
+      "headers": [
+        { "key": "Authorization", "value": "Bearer {{access_token}}", "active": true },
+        { "key": "X-Tenant-ID", "value": "{{tenant_id}}", "active": true }
+      ],
+      "params": [],
+      "body": { "type": "none", "raw": "", "form": [], "files": [] }
+    },
+    {
+      "id": "websites-get",
+      "name": "Websites • Get By ID",
+      "method": "GET",
+      "url": "{{base_url}}/api/v1/websites/{{website_id}}",
+      "headers": [
+        { "key": "Authorization", "value": "Bearer {{access_token}}", "active": true },
+        { "key": "X-Tenant-ID", "value": "{{tenant_id}}", "active": true }
+      ],
+      "params": [],
+      "body": { "type": "none", "raw": "", "form": [], "files": [] }
+    },
+    {
+      "id": "websites-update",
+      "name": "Websites • Update",
+      "method": "PATCH",
+      "url": "{{base_url}}/api/v1/websites/{{website_id}}",
+      "headers": [
+        { "key": "Content-Type", "value": "application/json", "active": true },
+        { "key": "Authorization", "value": "Bearer {{access_token}}", "active": true },
+        { "key": "X-Tenant-ID", "value": "{{tenant_id}}", "active": true }
+      ],
+      "params": [],
+      "body": {
+        "type": "json",
+        "raw": "{\n  \"name\": \"Main Site (Updated)\",\n  \"status\": \"published\"\n}",
+        "form": [],
+        "files": []
+      }
+    },
+    {
+      "id": "websites-publish",
+      "name": "Websites • Publish",
+      "method": "POST",
+      "url": "{{base_url}}/api/v1/websites/{{website_id}}/publish",
+      "headers": [
+        { "key": "Authorization", "value": "Bearer {{access_token}}", "active": true },
+        { "key": "X-Tenant-ID", "value": "{{tenant_id}}", "active": true }
+      ],
+      "params": [],
+      "body": { "type": "none", "raw": "", "form": [], "files": [] }
+    },
+    {
+      "id": "websites-archive",
+      "name": "Websites • Archive",
+      "method": "POST",
+      "url": "{{base_url}}/api/v1/websites/{{website_id}}/archive",
+      "headers": [
+        { "key": "Authorization", "value": "Bearer {{access_token}}", "active": true },
+        { "key": "X-Tenant-ID", "value": "{{tenant_id}}", "active": true }
+      ],
+      "params": [],
+      "body": { "type": "none", "raw": "", "form": [], "files": [] }
+    },
+    {
+      "id": "websites-delete",
+      "name": "Websites • Delete",
+      "method": "DELETE",
+      "url": "{{base_url}}/api/v1/websites/{{website_id}}",
+      "headers": [
+        { "key": "Authorization", "value": "Bearer {{access_token}}", "active": true },
+        { "key": "X-Tenant-ID", "value": "{{tenant_id}}", "active": true }
+      ],
+      "params": [],
+      "body": { "type": "none", "raw": "", "form": [], "files": [] }
+    }
+    /* Additional requests omitted for brevity */
+  ]
+}

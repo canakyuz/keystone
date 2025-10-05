@@ -775,7 +775,7 @@ PUT    /api/v1/tenants/:id/dashboard/config # Update dashboard layout
 ```
 
 ### Projects, Lessons, Bookings, Services, Blog
-See [IMPLEMENTATION_ROADMAP.md](doc/IMPLEMENTATION_ROADMAP.md) for complete endpoint list.
+See [IMPLEMENTATION_ROADMAP.md](docs/IMPLEMENTATION_ROADMAP.md) for complete endpoint list.
 
 ### Documentation
 ```bash
@@ -1227,7 +1227,7 @@ go test -v ./internal/domain/tenant
 | Handler | 0% | 60%+ |
 | **Total** | ~10% | **75%+** |
 
-See [IMPLEMENTATION_ROADMAP.md](doc/IMPLEMENTATION_ROADMAP.md) Phase 11 for test plan.
+See [IMPLEMENTATION_ROADMAP.md](docs/IMPLEMENTATION_ROADMAP.md) Phase 11 for test plan.
 
 ---
 
@@ -1650,7 +1650,7 @@ Real-time monitoring of tool performance and usage:
 - Write performance tests to measure the impact of a large number of schemas.
 - Begin implementation of enterprise modules (HMS, ERP) on top of the new, unified architecture once rollout gating criteria are met.
 
-See [IMPLEMENTATION_ROADMAP.md](doc/IMPLEMENTATION_ROADMAP.md) for a more detailed plan.
+See [IMPLEMENTATION_ROADMAP.md](docs/IMPLEMENTATION_ROADMAP.md) for a more detailed plan.
 
 ---
 
@@ -1676,8 +1676,8 @@ See [IMPLEMENTATION_ROADMAP.md](doc/IMPLEMENTATION_ROADMAP.md) for a more detail
 
 ## 📚 Documentation
 
-- **[IMPLEMENTATION_ROADMAP.md](doc/IMPLEMENTATION_ROADMAP.md):** Detailed implementation plan, all phases
-- **[LEARNING_GUIDE.md](doc/LEARNING_GUIDE.md):** Tutorial for learning Go + backend development
+- **[IMPLEMENTATION_ROADMAP.md](docs/IMPLEMENTATION_ROADMAP.md):** Detailed implementation plan, all phases
+- **[LEARNING_GUIDE.md](docs/LEARNING_GUIDE.md):** Tutorial for learning Go + backend development
 - **[API Documentation](http://localhost:8080/docs):** Interactive Swagger UI
 - **[OpenAPI Spec](./api/openapi.yaml):** Machine-readable API definition
 
@@ -1712,7 +1712,7 @@ Copyright © 2025 NexSpaces. All rights reserved.
 
 - **Issues:** Create GitHub/Bitbucket issues
 - **Email:** support@nexpaces.com
-- **Documentation:** [IMPLEMENTATION_ROADMAP.md](doc/IMPLEMENTATION_ROADMAP.md)
+- **Documentation:** [IMPLEMENTATION_ROADMAP.md](docs/IMPLEMENTATION_ROADMAP.md)
 
 ---
 

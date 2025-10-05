@@ -12,17 +12,19 @@ import (
 
 // Service handles tenant business logic
 type Service struct {
-	repo      tenantRepo.Repository
-	validator *validator.Validator
-	logger    *logger.Logger
+	repo        tenantRepo.Repository
+	validator   *validator.Validator
+	logger      *logger.Logger
+	provisioner *ProvisioningService
 }
 
 // NewService creates a new tenant service
-func NewService(repo tenantRepo.Repository, val *validator.Validator, log *logger.Logger) *Service {
+func NewService(repo tenantRepo.Repository, val *validator.Validator, log *logger.Logger, provisioner *ProvisioningService) *Service {
 	return &Service{
-		repo:      repo,
-		validator: val,
-		logger:    log,
+		repo:        repo,
+		validator:   val,
+		logger:      log,
+		provisioner: provisioner,
 	}
 }
 
@@ -59,10 +61,30 @@ func (s *Service) Create(ctx context.Context, req *CreateTenantRequest) (*Tenant
 		return nil, err
 	}
 
+	if s.provisioner == nil {
+		return nil, fmt.Errorf("tenant provisioning service is not configured")
+	}
+
+	schemaName, err := s.provisioner.GenerateSchemaName(ctx, req.Slug)
+	if err != nil {
+		s.logger.ErrorWithErr(err, "failed to generate tenant schema name")
+		return nil, fmt.Errorf("failed to generate tenant schema: %w", err)
+	}
+
+	if err := t.SetSchemaName(schemaName); err != nil {
+		return nil, err
+	}
+
 	// Save to repository
 	if err := s.repo.Create(ctx, t); err != nil {
 		s.logger.ErrorWithErr(err, "failed to create tenant")
 		return nil, fmt.Errorf("failed to create tenant: %w", err)
+	}
+
+	if err := s.provisioner.ProvisionTenantSchema(ctx, t); err != nil {
+		s.logger.ErrorWithErr(err, "failed to provision tenant schema")
+		_ = s.repo.Delete(ctx, t.ID)
+		return nil, fmt.Errorf("failed to provision tenant schema: %w", err)
 	}
 
 	s.logger.WithFields(logger.Fields{

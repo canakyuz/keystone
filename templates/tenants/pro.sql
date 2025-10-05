@@ -1,0 +1,2 @@
+-- Pro plan tenant schema template
+-- Extend this file with pro tier-specific tables or materialized views.

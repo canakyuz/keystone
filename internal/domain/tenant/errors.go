@@ -5,14 +5,16 @@ import "errors"
 // Domain-specific errors for tenant operations
 var (
 	// Validation errors
-	ErrInvalidTenantID       = errors.New("invalid tenant ID")
-	ErrTenantNameRequired    = errors.New("tenant name is required")
-	ErrInvalidTenantName     = errors.New("tenant name must be between 2 and 100 characters")
-	ErrTenantSlugRequired    = errors.New("tenant slug is required")
-	ErrInvalidTenantSlug     = errors.New("tenant slug must be between 2 and 50 characters")
-	ErrTenantEmailRequired   = errors.New("tenant email is required")
-	ErrInvalidTenantStatus   = errors.New("invalid tenant status")
-	ErrInvalidSubscriptionPlan = errors.New("invalid subscription plan")
+	ErrInvalidTenantID          = errors.New("invalid tenant ID")
+	ErrTenantNameRequired       = errors.New("tenant name is required")
+	ErrInvalidTenantName        = errors.New("tenant name must be between 2 and 100 characters")
+	ErrTenantSlugRequired       = errors.New("tenant slug is required")
+	ErrInvalidTenantSlug        = errors.New("tenant slug must be between 2 and 50 characters")
+	ErrTenantEmailRequired      = errors.New("tenant email is required")
+	ErrInvalidTenantStatus      = errors.New("invalid tenant status")
+	ErrInvalidSubscriptionPlan  = errors.New("invalid subscription plan")
+	ErrTenantSchemaNameRequired = errors.New("tenant schema name is required")
+	ErrInvalidTenantSchemaName  = errors.New("invalid tenant schema name")
 
 	// Business logic errors
 	ErrTenantNotFound         = errors.New("tenant not found")
@@ -26,11 +28,11 @@ var (
 	ErrTrialExpired           = errors.New("trial period has expired")
 
 	// Subscription errors
-	ErrSameSubscriptionPlan   = errors.New("tenant is already on this subscription plan")
-	ErrInvalidPlanUpgrade     = errors.New("invalid plan upgrade")
-	ErrSubscriptionExpired    = errors.New("subscription has expired")
-	ErrFeatureNotAvailable    = errors.New("feature not available in current plan")
-	ErrQuotaExceeded          = errors.New("quota exceeded for current plan")
+	ErrSameSubscriptionPlan = errors.New("tenant is already on this subscription plan")
+	ErrInvalidPlanUpgrade   = errors.New("invalid plan upgrade")
+	ErrSubscriptionExpired  = errors.New("subscription has expired")
+	ErrFeatureNotAvailable  = errors.New("feature not available in current plan")
+	ErrQuotaExceeded        = errors.New("quota exceeded for current plan")
 
 	// Custom domain errors
 	ErrInvalidCustomDomain         = errors.New("invalid custom domain")

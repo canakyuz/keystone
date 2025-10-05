@@ -1,0 +1,2 @@
+-- Free plan tenant schema template (inherits from default)
+-- Add LMS-lite tables or views specific to the free tier here.

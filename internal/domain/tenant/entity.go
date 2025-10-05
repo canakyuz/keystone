@@ -1,6 +1,7 @@
 package tenant
 
 import (
+	"regexp"
 	"time"
 
 	"github.com/google/uuid"
@@ -28,14 +29,15 @@ const (
 
 // Tenant represents a tenant in the multi-tenant system
 type Tenant struct {
-	ID        string    `json:"id"`
-	Name      string    `json:"name"`
-	Slug      string    `json:"slug"` // URL-friendly identifier
-	Email     string    `json:"email"`
-	Phone     string    `json:"phone,omitempty"`
-	Status    TenantStatus `json:"status"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	ID         string       `json:"id"`
+	Name       string       `json:"name"`
+	Slug       string       `json:"slug"` // URL-friendly identifier
+	Email      string       `json:"email"`
+	Phone      string       `json:"phone,omitempty"`
+	SchemaName string       `json:"schema_name"`
+	Status     TenantStatus `json:"status"`
+	CreatedAt  time.Time    `json:"created_at"`
+	UpdatedAt  time.Time    `json:"updated_at"`
 
 	// Subscription
 	Plan              SubscriptionPlan `json:"plan"`
@@ -44,13 +46,13 @@ type Tenant struct {
 	TrialEndsAt       *time.Time       `json:"trial_ends_at,omitempty"`
 
 	// Custom domain
-	CustomDomain         string     `json:"custom_domain,omitempty"`
-	CustomDomainVerified bool       `json:"custom_domain_verified"`
+	CustomDomain           string     `json:"custom_domain,omitempty"`
+	CustomDomainVerified   bool       `json:"custom_domain_verified"`
 	CustomDomainVerifiedAt *time.Time `json:"custom_domain_verified_at,omitempty"`
 
 	// Metadata
-	Settings  map[string]interface{} `json:"settings,omitempty"`
-	Metadata  map[string]interface{} `json:"metadata,omitempty"`
+	Settings map[string]interface{} `json:"settings,omitempty"`
+	Metadata map[string]interface{} `json:"metadata,omitempty"`
 
 	// Audit
 	CreatedBy string `json:"created_by,omitempty"`
@@ -62,17 +64,17 @@ func New(name, slug, email string, plan SubscriptionPlan) (*Tenant, error) {
 	now := time.Now()
 
 	tenant := &Tenant{
-		ID:        uuid.New().String(),
-		Name:      name,
-		Slug:      slug,
-		Email:     email,
-		Status:    TenantStatusActive,
-		Plan:      plan,
-		CreatedAt: now,
-		UpdatedAt: now,
+		ID:                   uuid.New().String(),
+		Name:                 name,
+		Slug:                 slug,
+		Email:                email,
+		Status:               TenantStatusActive,
+		Plan:                 plan,
+		CreatedAt:            now,
+		UpdatedAt:            now,
 		CustomDomainVerified: false,
-		Settings:  make(map[string]interface{}),
-		Metadata:  make(map[string]interface{}),
+		Settings:             make(map[string]interface{}),
+		Metadata:             make(map[string]interface{}),
 	}
 
 	// Set trial period for free/starter plans
@@ -124,6 +126,37 @@ func (t *Tenant) Validate() error {
 		return ErrInvalidSubscriptionPlan
 	}
 
+	if t.SchemaName != "" {
+		if err := ValidateSchemaName(t.SchemaName); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+var schemaNamePattern = regexp.MustCompile(`^[a-z][a-z0-9_]{0,62}$`)
+
+// ValidateSchemaName ensures tenant schemas comply with PostgreSQL identifier rules.
+func ValidateSchemaName(name string) error {
+	if name == "" {
+		return ErrTenantSchemaNameRequired
+	}
+
+	if !schemaNamePattern.MatchString(name) {
+		return ErrInvalidTenantSchemaName
+	}
+
+	return nil
+}
+
+// SetSchemaName assigns the generated schema name to the tenant entity
+func (t *Tenant) SetSchemaName(name string) error {
+	if err := ValidateSchemaName(name); err != nil {
+		return err
+	}
+
+	t.SchemaName = name
 	return nil
 }
 
@@ -337,11 +370,11 @@ func (p SubscriptionPlan) GetFeatureLimits() FeatureLimits {
 
 // FeatureLimits represents feature limits for a subscription plan
 type FeatureLimits struct {
-	MaxUsers     int  `json:"max_users"`     // -1 for unlimited
-	MaxWebsites  int  `json:"max_websites"`  // -1 for unlimited
-	MaxStorage   int64 `json:"max_storage"`   // in bytes, -1 for unlimited
-	CustomDomain bool `json:"custom_domain"`
-	APIAccess    bool `json:"api_access"`
+	MaxUsers     int   `json:"max_users"`    // -1 for unlimited
+	MaxWebsites  int   `json:"max_websites"` // -1 for unlimited
+	MaxStorage   int64 `json:"max_storage"`  // in bytes, -1 for unlimited
+	CustomDomain bool  `json:"custom_domain"`
+	APIAccess    bool  `json:"api_access"`
 }
 
 // HasFeature checks if a feature is available in the limits

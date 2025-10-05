@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"testing"
 
+	pq "github.com/lib/pq"
 	"github.com/stretchr/testify/require"
-	_ "github.com/lib/pq"
 )
 
 // TestDBConfig holds test database configuration
@@ -100,6 +100,7 @@ func runMigrations(t *testing.T, db *sql.DB) {
 			name VARCHAR(100) NOT NULL,
 			slug VARCHAR(50) UNIQUE NOT NULL,
 			email VARCHAR(255) NOT NULL,
+			schema_name VARCHAR(63) UNIQUE NOT NULL,
 			status VARCHAR(20) NOT NULL DEFAULT 'active',
 			plan VARCHAR(20) NOT NULL DEFAULT 'free',
 			settings JSONB DEFAULT '{}'::JSONB,
@@ -118,6 +119,7 @@ func runMigrations(t *testing.T, db *sql.DB) {
 		CREATE INDEX IF NOT EXISTS idx_tenants_email ON tenants(email);
 		CREATE INDEX IF NOT EXISTS idx_tenants_status ON tenants(status);
 		CREATE INDEX IF NOT EXISTS idx_tenants_plan ON tenants(plan);
+		CREATE UNIQUE INDEX IF NOT EXISTS idx_tenants_schema_name ON tenants(schema_name);
 
 		ALTER TABLE tenants ENABLE ROW LEVEL SECURITY;
 
@@ -125,6 +127,36 @@ func runMigrations(t *testing.T, db *sql.DB) {
 		CREATE POLICY tenant_isolation_policy ON tenants
 			FOR ALL
 			USING (id = current_setting('app.current_tenant', TRUE)::UUID);
+
+		CREATE OR REPLACE FUNCTION generate_schema_name(base TEXT)
+		RETURNS TEXT AS $$
+		DECLARE
+			slug TEXT;
+			candidate TEXT;
+			counter INT := 0;
+		BEGIN
+			IF base IS NULL OR LENGTH(TRIM(base)) = 0 THEN
+				raise exception 'base value cannot be empty';
+			END IF;
+
+			slug := lower(regexp_replace(base, '[^a-zA-Z0-9]+', '_', 'g'));
+			slug := regexp_replace(slug, '_+', '_', 'g');
+			slug := trim(both '_' FROM slug);
+			IF slug = '' THEN
+				slug := 'tenant';
+			END IF;
+
+			candidate := 'tenant_' || slug;
+
+			WHILE EXISTS (SELECT 1 FROM pg_namespace WHERE nspname = candidate)
+				OR EXISTS (SELECT 1 FROM tenants WHERE schema_name = candidate) LOOP
+				counter := counter + 1;
+				candidate := 'tenant_' || slug || '_' || counter;
+			END LOOP;
+
+			RETURN candidate;
+		END;
+		$$ LANGUAGE plpgsql;
 	`)
 	require.NoError(t, err)
 
@@ -219,13 +251,29 @@ func runMigrations(t *testing.T, db *sql.DB) {
 
 // SetTenantContext sets the tenant context for RLS
 func SetTenantContext(ctx context.Context, db *sql.DB, tenantID string) error {
-	_, err := db.ExecContext(ctx, "SET app.current_tenant = $1", tenantID)
-	return err
+	if _, err := db.ExecContext(ctx, "SELECT set_config('app.current_tenant', $1, true)", tenantID); err != nil {
+		return err
+	}
+
+	schemaName, err := fetchTenantSchemaName(ctx, db, tenantID)
+	if err != nil {
+		return err
+	}
+
+	stmt := fmt.Sprintf("SET search_path TO %s, public", pq.QuoteIdentifier(schemaName))
+	if _, err := db.ExecContext(ctx, stmt); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // ClearTenantContext clears the tenant context
 func ClearTenantContext(ctx context.Context, db *sql.DB) error {
-	_, err := db.ExecContext(ctx, "RESET app.current_tenant")
+	if _, err := db.ExecContext(ctx, "SELECT set_config('app.current_tenant', '', true)"); err != nil {
+		return err
+	}
+	_, err := db.ExecContext(ctx, "RESET search_path")
 	return err
 }
 
@@ -237,4 +285,12 @@ func WithTenantContext(ctx context.Context, db *sql.DB, tenantID string, fn func
 	defer ClearTenantContext(ctx, db)
 
 	return fn()
+}
+
+func fetchTenantSchemaName(ctx context.Context, db *sql.DB, tenantID string) (string, error) {
+	var schemaName string
+	if err := db.QueryRowContext(ctx, "SELECT schema_name FROM tenants WHERE id = $1", tenantID).Scan(&schemaName); err != nil {
+		return "", err
+	}
+	return schemaName, nil
 }

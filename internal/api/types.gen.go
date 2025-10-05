@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	BearerAuthScopes = "BearerAuth.Scopes"sen duzeltır mısın lutfen 
+	BearerAuthScopes = "BearerAuth.Scopes"
 )
 
 // Student defines model for Student.

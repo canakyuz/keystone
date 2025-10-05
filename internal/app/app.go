@@ -27,25 +27,27 @@ import (
 	uploadHandler "nexpaces-api/internal/handler/upload"
 	userHandler "nexpaces-api/internal/handler/user"
 	websiteHandler "nexpaces-api/internal/handler/website"
+	"nexpaces-api/internal/middleware"
+	providerPayment "nexpaces-api/internal/provider/payment"
 	blogRepo "nexpaces-api/internal/repository/blog"
 	bookingRepo "nexpaces-api/internal/repository/booking"
 	lessonRepo "nexpaces-api/internal/repository/lesson"
 	paymentRepo "nexpaces-api/internal/repository/payment"
 	registryRepo "nexpaces-api/internal/repository/registry"
 	serviceRepo "nexpaces-api/internal/repository/service"
+	templateRepo "nexpaces-api/internal/repository/template"
 	tenantRepo "nexpaces-api/internal/repository/tenant"
 	userRepo "nexpaces-api/internal/repository/user"
 	websiteRepo "nexpaces-api/internal/repository/website"
+	registryService "nexpaces-api/internal/service/registry"
 	blogUsecase "nexpaces-api/internal/usecase/blog"
 	bookingUsecase "nexpaces-api/internal/usecase/booking"
 	lessonUsecase "nexpaces-api/internal/usecase/lesson"
 	paymentUsecase "nexpaces-api/internal/usecase/payment"
-	registryService "nexpaces-api/internal/service/registry"
 	serviceUsecase "nexpaces-api/internal/usecase/service"
 	tenantUsecase "nexpaces-api/internal/usecase/tenant"
 	userUsecase "nexpaces-api/internal/usecase/user"
 	websiteUsecase "nexpaces-api/internal/usecase/website"
-	providerPayment "nexpaces-api/internal/provider/payment"
 	"nexpaces-api/pkg/database"
 	pkgLogger "nexpaces-api/pkg/logger"
 	"nexpaces-api/pkg/validator"
@@ -78,8 +80,8 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 
 	// Global Middleware (Ara Katman) tanımlamaları.
 	// Bu middleware'ler gelen her istek için çalıştırılır.
-	app.Use(recover.New()) // Panik durumlarında sunucunun çökmesini engeller ve 500 hatası döner.
-	app.Use(helmet.New())  // Güvenlikle ilgili temel HTTP başlıklarını (header) ekler.
+	app.Use(recover.New())            // Panik durumlarında sunucunun çökmesini engeller ve 500 hatası döner.
+	app.Use(helmet.New())             // Güvenlikle ilgili temel HTTP başlıklarını (header) ekler.
 	app.Use(logger.New(logger.Config{ // Gelen istekleri konsola loglar.
 		Format: "[${time}] ${status} - ${latency} ${method} ${path}\n",
 	}))
@@ -153,7 +155,9 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 
 	// Service/Usecase (İş Mantığı Katmanı) katmanını başlat.
 	// Usecase'ler, uygulamanın iş kurallarını ve mantığını içerir.
-	tenantService := tenantUsecase.NewService(tenantRepository, appValidator, appLogger)
+	schemaTemplateRepository := templateRepo.NewFileSystemRepository("templates/tenants")
+	tenantProvisioningService := tenantUsecase.NewProvisioningService(db, schemaTemplateRepository, appLogger)
+	tenantService := tenantUsecase.NewService(tenantRepository, appValidator, appLogger, tenantProvisioningService)
 	userService := userUsecase.NewService(userRepository, appValidator, appLogger, cfg.Auth.JWTSecret)
 	websiteService := websiteUsecase.NewService(websiteRepository)
 
@@ -181,6 +185,9 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 	toolCatalogService := registryService.NewToolCatalogService(toolRepository)
 	dependencyCheckerService := registryService.NewDependencyCheckerService(db, moduleRepository, toolRepository, tenantModuleRepository, tenantToolRepository)
 	tenantActivationService := registryService.NewTenantActivationService(moduleRepository, toolRepository, tenantModuleRepository, tenantToolRepository, dependencyCheckerService)
+
+	tenantManager := database.NewTenantManager(db)
+	tenantScopeMiddleware := middleware.TenantScope(tenantRepository, tenantManager)
 
 	// Handler (Sunum Katmanı) katmanını başlat.
 	// Handler'lar, HTTP isteklerini alır, ilgili servisleri çağırır ve HTTP cevapları döner.
@@ -224,7 +231,7 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 		serviceHTTPHandler,
 		postHTTPHandler, categoryHTTPHandler,
 		paymentHTTPHandler, webhookHTTPHandler,
-		moduleCatalogHTTPHandler, toolCatalogHTTPHandler, activationHTTPHandler)
+		moduleCatalogHTTPHandler, toolCatalogHTTPHandler, activationHTTPHandler, tenantScopeMiddleware)
 
 	// Hazırlanan uygulama örneğini geri döndür.
 	return &Application{

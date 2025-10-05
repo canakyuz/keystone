@@ -40,37 +40,38 @@ type SetCustomDomainRequest struct {
 
 // BrandingSettings represents branding configuration
 type BrandingSettings struct {
-	Logo          string `json:"logo,omitempty"`
-	Favicon       string `json:"favicon,omitempty"`
-	PrimaryColor  string `json:"primary_color,omitempty" validate:"omitempty,hexcolor|rgb|rgba"`
+	Logo           string `json:"logo,omitempty"`
+	Favicon        string `json:"favicon,omitempty"`
+	PrimaryColor   string `json:"primary_color,omitempty" validate:"omitempty,hexcolor|rgb|rgba"`
 	SecondaryColor string `json:"secondary_color,omitempty" validate:"omitempty,hexcolor|rgb|rgba"`
-	AccentColor   string `json:"accent_color,omitempty" validate:"omitempty,hexcolor|rgb|rgba"`
-	FontFamily    string `json:"font_family,omitempty"`
-	CustomCSS     string `json:"custom_css,omitempty" validate:"omitempty,max=50000"`
+	AccentColor    string `json:"accent_color,omitempty" validate:"omitempty,hexcolor|rgb|rgba"`
+	FontFamily     string `json:"font_family,omitempty"`
+	CustomCSS      string `json:"custom_css,omitempty" validate:"omitempty,max=50000"`
 }
 
 // UpdateBrandingRequest represents request to update branding settings
 type UpdateBrandingRequest struct {
-	Logo          *string `json:"logo,omitempty"`
-	Favicon       *string `json:"favicon,omitempty"`
-	PrimaryColor  *string `json:"primary_color,omitempty" validate:"omitempty,hexcolor|rgb|rgba"`
+	Logo           *string `json:"logo,omitempty"`
+	Favicon        *string `json:"favicon,omitempty"`
+	PrimaryColor   *string `json:"primary_color,omitempty" validate:"omitempty,hexcolor|rgb|rgba"`
 	SecondaryColor *string `json:"secondary_color,omitempty" validate:"omitempty,hexcolor|rgb|rgba"`
-	AccentColor   *string `json:"accent_color,omitempty" validate:"omitempty,hexcolor|rgb|rgba"`
-	FontFamily    *string `json:"font_family,omitempty"`
-	CustomCSS     *string `json:"custom_css,omitempty" validate:"omitempty,max=50000"`
+	AccentColor    *string `json:"accent_color,omitempty" validate:"omitempty,hexcolor|rgb|rgba"`
+	FontFamily     *string `json:"font_family,omitempty"`
+	CustomCSS      *string `json:"custom_css,omitempty" validate:"omitempty,max=50000"`
 }
 
 // TenantResponse represents tenant response
 type TenantResponse struct {
-	ID        string    `json:"id"`
-	Name      string    `json:"name"`
-	Slug      string    `json:"slug"`
-	Email     string    `json:"email"`
-	Phone     string    `json:"phone,omitempty"`
-	Status    string    `json:"status"`
-	Plan      string    `json:"plan"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	ID         string    `json:"id"`
+	Name       string    `json:"name"`
+	Slug       string    `json:"slug"`
+	Email      string    `json:"email"`
+	Phone      string    `json:"phone,omitempty"`
+	SchemaName string    `json:"schema_name"`
+	Status     string    `json:"status"`
+	Plan       string    `json:"plan"`
+	CreatedAt  time.Time `json:"created_at"`
+	UpdatedAt  time.Time `json:"updated_at"`
 
 	// Subscription
 	SubscriptionStart *time.Time `json:"subscription_start,omitempty"`
@@ -78,8 +79,8 @@ type TenantResponse struct {
 	TrialEndsAt       *time.Time `json:"trial_ends_at,omitempty"`
 
 	// Custom domain
-	CustomDomain         string     `json:"custom_domain,omitempty"`
-	CustomDomainVerified bool       `json:"custom_domain_verified"`
+	CustomDomain           string     `json:"custom_domain,omitempty"`
+	CustomDomainVerified   bool       `json:"custom_domain_verified"`
 	CustomDomainVerifiedAt *time.Time `json:"custom_domain_verified_at,omitempty"`
 
 	// Branding
@@ -117,6 +118,7 @@ func ToResponse(t *tenant.Tenant) *TenantResponse {
 		Slug:                   t.Slug,
 		Email:                  t.Email,
 		Phone:                  t.Phone,
+		SchemaName:             t.SchemaName,
 		Status:                 string(t.Status),
 		Plan:                   string(t.Plan),
 		CreatedAt:              t.CreatedAt,

@@ -54,6 +54,9 @@ func TestPostgresRepository_Create(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			schemaName := generateSchemaName(t, db, tt.tenant.Slug)
+			require.NoError(t, tt.tenant.SetSchemaName(schemaName))
+
 			err := repo.Create(context.Background(), tt.tenant)
 
 			if tt.wantErr {
@@ -67,6 +70,7 @@ func TestPostgresRepository_Create(t *testing.T) {
 				assert.Equal(t, tt.tenant.Name, created.Name)
 				assert.Equal(t, tt.tenant.Slug, created.Slug)
 				assert.Equal(t, tt.tenant.Email, created.Email)
+				assert.Equal(t, tt.tenant.SchemaName, created.SchemaName)
 			}
 		})
 	}
@@ -107,6 +111,7 @@ func TestPostgresRepository_GetByID(t *testing.T) {
 				require.NoError(t, err)
 				assert.NotNil(t, tn)
 				assert.Equal(t, tt.tenantID, tn.ID)
+				assert.NotEmpty(t, tn.SchemaName)
 			}
 		})
 	}
@@ -210,6 +215,16 @@ func TestPostgresRepository_Delete(t *testing.T) {
 		require.NoError(t, err)
 		assert.True(t, deletedAt.Valid)
 	})
+}
+
+func generateSchemaName(t *testing.T, db *sql.DB, base string) string {
+	t.Helper()
+
+	var schemaName string
+	err := db.QueryRowContext(context.Background(), "SELECT generate_schema_name($1)", base).Scan(&schemaName)
+	require.NoError(t, err)
+
+	return schemaName
 }
 
 func TestPostgresRepository_SetCustomDomain(t *testing.T) {

@@ -1,0 +1,2 @@
+-- Starter plan tenant schema template
+-- Extend this file with starter tier-specific tables or seed data.

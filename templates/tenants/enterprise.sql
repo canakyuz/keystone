@@ -1,0 +1,2 @@
+-- Enterprise plan tenant schema template
+-- Extend this file with enterprise-specific tables, policies, or partitions.

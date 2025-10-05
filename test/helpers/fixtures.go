@@ -3,21 +3,24 @@ package helpers
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"testing"
 
 	"github.com/google/uuid"
+	pq "github.com/lib/pq"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/bcrypt"
 )
 
 // TestTenant represents a test tenant fixture
 type TestTenant struct {
-	ID     string
-	Name   string
-	Slug   string
-	Email  string
-	Status string
-	Plan   string
+	ID         string
+	Name       string
+	Slug       string
+	Email      string
+	Status     string
+	Plan       string
+	SchemaName string
 }
 
 // TestUser represents a test user fixture
@@ -55,18 +58,29 @@ func CreateTestTenant(t *testing.T, db *sql.DB, slug string) *TestTenant {
 		Plan:   "free",
 	}
 
+	var schemaName string
+	err := db.QueryRowContext(context.Background(), "SELECT generate_schema_name($1)", tenant.Slug).Scan(&schemaName)
+	require.NoError(t, err)
+
+	tenant.SchemaName = schemaName
+
+	createSchema := fmt.Sprintf("CREATE SCHEMA IF NOT EXISTS %s", pq.QuoteIdentifier(schemaName))
+	_, err = db.ExecContext(context.Background(), createSchema)
+	require.NoError(t, err)
+
 	query := `
-		INSERT INTO tenants (id, name, slug, email, status, plan, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())
+		INSERT INTO tenants (id, name, slug, email, schema_name, status, plan, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), NOW())
 	`
 
-	_, err := db.ExecContext(
+	_, err = db.ExecContext(
 		context.Background(),
 		query,
 		tenant.ID,
 		tenant.Name,
 		tenant.Slug,
 		tenant.Email,
+		tenant.SchemaName,
 		tenant.Status,
 		tenant.Plan,
 	)

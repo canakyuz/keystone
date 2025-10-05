@@ -25,19 +25,19 @@ func NewPostgresRepository(db *sql.DB) *PostgresRepository {
 func (r *PostgresRepository) Create(ctx context.Context, t *tenant.Tenant) error {
 	query := `
 		INSERT INTO tenants (
-			id, name, slug, email, phone,
+			id, name, slug, email, phone, schema_name,
 			status, plan,
 			subscription_start, subscription_end, trial_ends_at,
 			custom_domain, custom_domain_verified, custom_domain_verified_at,
 			settings, metadata,
 			created_at, updated_at, created_by, updated_by
 		) VALUES (
-			$1, $2, $3, $4, $5,
-			$6, $7,
-			$8, $9, $10,
-			$11, $12, $13,
-			$14, $15,
-			$16, $17, $18, $19
+			$1, $2, $3, $4, $5, $6,
+			$7, $8,
+			$9, $10, $11,
+			$12, $13, $14,
+			$15, $16,
+			$17, $18, $19, $20
 		)
 	`
 
@@ -52,7 +52,7 @@ func (r *PostgresRepository) Create(ctx context.Context, t *tenant.Tenant) error
 	}
 
 	_, err = r.db.ExecContext(ctx, query,
-		t.ID, t.Name, t.Slug, t.Email, t.Phone,
+		t.ID, t.Name, t.Slug, t.Email, t.Phone, t.SchemaName,
 		t.Status, t.Plan,
 		t.SubscriptionStart, t.SubscriptionEnd, t.TrialEndsAt,
 		t.CustomDomain, t.CustomDomainVerified, t.CustomDomainVerifiedAt,
@@ -71,7 +71,7 @@ func (r *PostgresRepository) Create(ctx context.Context, t *tenant.Tenant) error
 func (r *PostgresRepository) GetByID(ctx context.Context, id string) (*tenant.Tenant, error) {
 	query := `
 		SELECT
-			id, name, slug, email, phone,
+			id, name, slug, email, phone, schema_name,
 			status, plan,
 			subscription_start, subscription_end, trial_ends_at,
 			custom_domain, custom_domain_verified, custom_domain_verified_at,
@@ -85,7 +85,7 @@ func (r *PostgresRepository) GetByID(ctx context.Context, id string) (*tenant.Te
 	var settingsJSON, metadataJSON []byte
 
 	err := r.db.QueryRowContext(ctx, query, id).Scan(
-		&t.ID, &t.Name, &t.Slug, &t.Email, &t.Phone,
+		&t.ID, &t.Name, &t.Slug, &t.Email, &t.Phone, &t.SchemaName,
 		&t.Status, &t.Plan,
 		&t.SubscriptionStart, &t.SubscriptionEnd, &t.TrialEndsAt,
 		&t.CustomDomain, &t.CustomDomainVerified, &t.CustomDomainVerifiedAt,
@@ -115,7 +115,7 @@ func (r *PostgresRepository) GetByID(ctx context.Context, id string) (*tenant.Te
 func (r *PostgresRepository) GetBySlug(ctx context.Context, slug string) (*tenant.Tenant, error) {
 	query := `
 		SELECT
-			id, name, slug, email, phone,
+			id, name, slug, email, phone, schema_name,
 			status, plan,
 			subscription_start, subscription_end, trial_ends_at,
 			custom_domain, custom_domain_verified, custom_domain_verified_at,
@@ -129,7 +129,7 @@ func (r *PostgresRepository) GetBySlug(ctx context.Context, slug string) (*tenan
 	var settingsJSON, metadataJSON []byte
 
 	err := r.db.QueryRowContext(ctx, query, slug).Scan(
-		&t.ID, &t.Name, &t.Slug, &t.Email, &t.Phone,
+		&t.ID, &t.Name, &t.Slug, &t.Email, &t.Phone, &t.SchemaName,
 		&t.Status, &t.Plan,
 		&t.SubscriptionStart, &t.SubscriptionEnd, &t.TrialEndsAt,
 		&t.CustomDomain, &t.CustomDomainVerified, &t.CustomDomainVerifiedAt,
@@ -159,7 +159,7 @@ func (r *PostgresRepository) GetBySlug(ctx context.Context, slug string) (*tenan
 func (r *PostgresRepository) GetByEmail(ctx context.Context, email string) (*tenant.Tenant, error) {
 	query := `
 		SELECT
-			id, name, slug, email, phone,
+			id, name, slug, email, phone, schema_name,
 			status, plan,
 			subscription_start, subscription_end, trial_ends_at,
 			custom_domain, custom_domain_verified, custom_domain_verified_at,
@@ -173,7 +173,7 @@ func (r *PostgresRepository) GetByEmail(ctx context.Context, email string) (*ten
 	var settingsJSON, metadataJSON []byte
 
 	err := r.db.QueryRowContext(ctx, query, email).Scan(
-		&t.ID, &t.Name, &t.Slug, &t.Email, &t.Phone,
+		&t.ID, &t.Name, &t.Slug, &t.Email, &t.Phone, &t.SchemaName,
 		&t.Status, &t.Plan,
 		&t.SubscriptionStart, &t.SubscriptionEnd, &t.TrialEndsAt,
 		&t.CustomDomain, &t.CustomDomainVerified, &t.CustomDomainVerifiedAt,
@@ -203,7 +203,7 @@ func (r *PostgresRepository) GetByEmail(ctx context.Context, email string) (*ten
 func (r *PostgresRepository) GetByCustomDomain(ctx context.Context, domain string) (*tenant.Tenant, error) {
 	query := `
 		SELECT
-			id, name, slug, email, phone,
+			id, name, slug, email, phone, schema_name,
 			status, plan,
 			subscription_start, subscription_end, trial_ends_at,
 			custom_domain, custom_domain_verified, custom_domain_verified_at,
@@ -217,7 +217,7 @@ func (r *PostgresRepository) GetByCustomDomain(ctx context.Context, domain strin
 	var settingsJSON, metadataJSON []byte
 
 	err := r.db.QueryRowContext(ctx, query, domain).Scan(
-		&t.ID, &t.Name, &t.Slug, &t.Email, &t.Phone,
+		&t.ID, &t.Name, &t.Slug, &t.Email, &t.Phone, &t.SchemaName,
 		&t.Status, &t.Plan,
 		&t.SubscriptionStart, &t.SubscriptionEnd, &t.TrialEndsAt,
 		&t.CustomDomain, &t.CustomDomainVerified, &t.CustomDomainVerifiedAt,
@@ -268,7 +268,7 @@ func (r *PostgresRepository) List(ctx context.Context, filters ListFilters) ([]*
 
 	query := fmt.Sprintf(`
 		SELECT
-			id, name, slug, email, phone,
+			id, name, slug, email, phone, schema_name,
 			status, plan,
 			subscription_start, subscription_end, trial_ends_at,
 			custom_domain, custom_domain_verified, custom_domain_verified_at,
@@ -294,7 +294,7 @@ func (r *PostgresRepository) List(ctx context.Context, filters ListFilters) ([]*
 		var settingsJSON, metadataJSON []byte
 
 		err := rows.Scan(
-			&t.ID, &t.Name, &t.Slug, &t.Email, &t.Phone,
+			&t.ID, &t.Name, &t.Slug, &t.Email, &t.Phone, &t.SchemaName,
 			&t.Status, &t.Plan,
 			&t.SubscriptionStart, &t.SubscriptionEnd, &t.TrialEndsAt,
 			&t.CustomDomain, &t.CustomDomainVerified, &t.CustomDomainVerifiedAt,

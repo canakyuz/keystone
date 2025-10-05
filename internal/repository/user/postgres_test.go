@@ -69,8 +69,8 @@ func TestPostgresRepository_Create(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 
-				// Verify user was created
-				created, err := repo.GetByID(context.Background(), tt.user.ID)
+					// Verify user was created
+					created, err := repo.GetByID(context.Background(), testTenant.ID, tt.user.ID)
 				require.NoError(t, err)
 				assert.Equal(t, tt.user.Email, created.Email)
 				assert.Equal(t, tt.user.FirstName, created.FirstName)
@@ -158,7 +158,7 @@ func TestPostgresRepository_GetByEmail(t *testing.T) {
 			var err error
 
 			err = helpers.WithTenantContext(context.Background(), db, testTenant.ID, func() error {
-				usr, err = repo.GetByEmail(context.Background(), tt.email)
+				usr, err = repo.GetByEmail(context.Background(), testTenant.ID, tt.email)
 				return err
 			})
 
@@ -183,7 +183,7 @@ func TestPostgresRepository_GetByEmailGlobal(t *testing.T) {
 	testUser := helpers.CreateTestUser(t, db, testTenant.ID, "global@example.com", "owner")
 
 	t.Run("get user by email globally (no tenant context)", func(t *testing.T) {
-		usr, err := repo.GetByEmailGlobal(context.Background(), testUser.Email, testTenant.ID)
+		usr, err := repo.GetByEmailGlobal(context.Background(), testUser.Email)
 		require.NoError(t, err)
 		assert.NotNil(t, usr)
 		assert.Equal(t, testUser.Email, usr.Email)
@@ -191,7 +191,7 @@ func TestPostgresRepository_GetByEmailGlobal(t *testing.T) {
 	})
 
 	t.Run("get user by non-existent email globally", func(t *testing.T) {
-		usr, err := repo.GetByEmailGlobal(context.Background(), "nonexistent@example.com", testTenant.ID)
+		usr, err := repo.GetByEmailGlobal(context.Background(), "nonexistent@example.com")
 		assert.Error(t, err)
 		assert.Nil(t, usr)
 	})
@@ -208,7 +208,7 @@ func TestPostgresRepository_Update(t *testing.T) {
 	t.Run("update user successfully", func(t *testing.T) {
 		err := helpers.WithTenantContext(context.Background(), db, testTenant.ID, func() error {
 			// Get user
-			usr, err := repo.GetByID(context.Background(), testUser.ID)
+			usr, err := repo.GetByID(context.Background(), testTenant.ID, testUser.ID)
 			require.NoError(t, err)
 
 			// Update fields
@@ -224,7 +224,7 @@ func TestPostgresRepository_Update(t *testing.T) {
 
 		// Verify update
 		err = helpers.WithTenantContext(context.Background(), db, testTenant.ID, func() error {
-			updated, err := repo.GetByID(context.Background(), testUser.ID)
+			updated, err := repo.GetByID(context.Background(), testTenant.ID, testUser.ID)
 			require.NoError(t, err)
 			assert.Equal(t, "Updated", updated.FirstName)
 			assert.Equal(t, "Name", updated.LastName)
@@ -244,19 +244,17 @@ func TestPostgresRepository_UpdateLastLogin(t *testing.T) {
 	testUser := helpers.CreateTestUser(t, db, testTenant.ID, "login@example.com", "viewer")
 
 	t.Run("update last login timestamp", func(t *testing.T) {
-		now := time.Now()
-
 		err := helpers.WithTenantContext(context.Background(), db, testTenant.ID, func() error {
-			return repo.UpdateLastLogin(context.Background(), testUser.ID, now)
+			return repo.UpdateLastLogin(context.Background(), testTenant.ID, testUser.ID)
 		})
 		require.NoError(t, err)
 
 		// Verify last login was updated
 		err = helpers.WithTenantContext(context.Background(), db, testTenant.ID, func() error {
-			usr, err := repo.GetByID(context.Background(), testUser.ID)
+			usr, err := repo.GetByID(context.Background(), testTenant.ID, testUser.ID)
 			require.NoError(t, err)
 			assert.NotNil(t, usr.LastLoginAt)
-			assert.WithinDuration(t, now, *usr.LastLoginAt, time.Second)
+			assert.WithinDuration(t, time.Now(), *usr.LastLoginAt, 5*time.Second)
 			return nil
 		})
 		require.NoError(t, err)
@@ -273,13 +271,13 @@ func TestPostgresRepository_Delete(t *testing.T) {
 
 	t.Run("soft delete user", func(t *testing.T) {
 		err := helpers.WithTenantContext(context.Background(), db, testTenant.ID, func() error {
-			return repo.Delete(context.Background(), testUser.ID)
+			return repo.Delete(context.Background(), testTenant.ID, testUser.ID)
 		})
 		require.NoError(t, err)
 
 		// Verify user is soft deleted
 		err = helpers.WithTenantContext(context.Background(), db, testTenant.ID, func() error {
-			usr, err := repo.GetByID(context.Background(), testUser.ID)
+			usr, err := repo.GetByID(context.Background(), testTenant.ID, testUser.ID)
 			assert.Error(t, err)
 			assert.Nil(t, usr)
 			return nil
@@ -347,7 +345,7 @@ func TestPostgresRepository_MultiTenantIsolation(t *testing.T) {
 	t.Run("same email in different tenants should be isolated", func(t *testing.T) {
 		// Access user1 in tenant1 context
 		err := helpers.WithTenantContext(context.Background(), db, tenant1.ID, func() error {
-			usr, err := repo.GetByEmail(context.Background(), "same@example.com")
+			usr, err := repo.GetByEmail(context.Background(), tenant1.ID, "same@example.com")
 			require.NoError(t, err)
 			assert.Equal(t, user1.ID, usr.ID)
 			assert.Equal(t, tenant1.ID, usr.TenantID)
@@ -357,7 +355,7 @@ func TestPostgresRepository_MultiTenantIsolation(t *testing.T) {
 
 		// Access user2 in tenant2 context
 		err = helpers.WithTenantContext(context.Background(), db, tenant2.ID, func() error {
-			usr, err := repo.GetByEmail(context.Background(), "same@example.com")
+			usr, err := repo.GetByEmail(context.Background(), tenant2.ID, "same@example.com")
 			require.NoError(t, err)
 			assert.Equal(t, user2.ID, usr.ID)
 			assert.Equal(t, tenant2.ID, usr.TenantID)
@@ -369,7 +367,7 @@ func TestPostgresRepository_MultiTenantIsolation(t *testing.T) {
 	t.Run("cross-tenant access should fail with RLS", func(t *testing.T) {
 		// Try to access tenant2's user in tenant1 context
 		err := helpers.WithTenantContext(context.Background(), db, tenant1.ID, func() error {
-			usr, err := repo.GetByID(context.Background(), user2.ID)
+			usr, err := repo.GetByID(context.Background(), tenant1.ID, user2.ID)
 			assert.Error(t, err) // Should fail due to RLS
 			assert.Nil(t, usr)
 			return nil

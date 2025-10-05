@@ -26,7 +26,7 @@ func (m *TenantManager) SetTenantScope(ctx context.Context, schemaName string) e
 		return fmt.Errorf("schema name is required")
 	}
 
-	stmt := fmt.Sprintf("SET LOCAL search_path TO %s, public", pq.QuoteIdentifier(schemaName))
+	stmt := fmt.Sprintf("SET search_path TO %s, public", pq.QuoteIdentifier(schemaName))
 	if _, err := m.db.ExecContext(ctx, stmt); err != nil {
 		return fmt.Errorf("failed to set tenant search_path: %w", err)
 	}

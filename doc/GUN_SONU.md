@@ -533,9 +533,9 @@ Test Coverage:      40%+
 
 ## 🔗 Bağlantılar
 
-- **Roadmap:** [IMPLEMENTATION_ROADMAP.md](./IMPLEMENTATION_ROADMAP.md)
+- **Roadmap:** [IMPLEMENTATION_ROADMAP.md](doc/IMPLEMENTATION_ROADMAP.md)
 - **README:** [README.md](./README.md)
-- **Learning Guide:** [LEARNING_GUIDE.md](./LEARNING_GUIDE.md)
+- **Learning Guide:** [LEARNING_GUIDE.md](doc/LEARNING_GUIDE.md)
 - **OpenAPI Spec:** [api/openapi.yaml](./api/openapi.yaml)
 - **Swagger UI:** http://localhost:8080/docs
 
@@ -949,9 +949,9 @@ Test Coverage:      75%+
 
 ## 🔗 Bağlantılar
 
-- **Roadmap:** [IMPLEMENTATION_ROADMAP.md](./IMPLEMENTATION_ROADMAP.md)
+- **Roadmap:** [IMPLEMENTATION_ROADMAP.md](doc/IMPLEMENTATION_ROADMAP.md)
 - **README:** [README.md](./README.md)
-- **Learning Guide:** [LEARNING_GUIDE.md](./LEARNING_GUIDE.md)
+- **Learning Guide:** [LEARNING_GUIDE.md](doc/LEARNING_GUIDE.md)
 - **OpenAPI Spec:** [api/openapi.yaml](./api/openapi.yaml)
 - **Swagger UI:** http://localhost:8080/docs
 

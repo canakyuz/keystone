@@ -56,6 +56,21 @@ shell: ## API container’ına shell
 db-shell: ## PostgreSQL shell
 	docker compose exec -T postgres psql -U postgres -d nexspaces_dev
 
+db-reset: ## Development veritabanını sıfırla ve migrationları uygula
+	docker compose exec -T postgres psql -U postgres -d postgres -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = 'nexspaces_dev' AND pid <> pg_backend_pid();"
+	docker compose exec -T postgres psql -U postgres -d postgres -c "DROP DATABASE IF EXISTS nexspaces_dev;"
+	docker compose exec -T postgres psql -U postgres -d postgres -c "CREATE DATABASE nexspaces_dev;"
+	docker compose exec -T postgres psql -U postgres -d nexspaces_dev -c "CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\";"
+	docker compose exec -T postgres psql -U postgres -d nexspaces_dev -c "CREATE EXTENSION IF NOT EXISTS pgcrypto;"
+	APP_ENV=$(APP_ENV) $(MAKE) migrate-up
+
+seed-dev: ## Development tenant ve kullanıcı seed'lerini yükle
+	@if [ ! -f scripts/seed/dev_seed.sql ]; then \
+		echo "\033[31mSeed script bulunamadı: scripts/seed/dev_seed.sql\033[0m"; \
+		exit 1; \
+	fi
+	docker compose exec -T postgres psql -U postgres -d nexspaces_dev < scripts/seed/dev_seed.sql
+
 # ==============================================================================
 # Migration
 # ==============================================================================

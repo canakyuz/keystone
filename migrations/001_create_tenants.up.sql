@@ -85,12 +85,4 @@ COMMENT ON COLUMN tenants.status IS 'Tenant status: active, suspended, inactive,
 COMMENT ON COLUMN tenants.plan IS 'Subscription plan: free, starter, pro, enterprise';
 
 -- Insert default tenant for development
-INSERT INTO tenants (id, name, slug, email, status, plan)
-VALUES (
-    '550e8400-e29b-41d4-a716-446655440000',
-    'Default Tenant',
-    'default-tenant',
-    'admin@nexspaces.com',
-    'active',
-    'enterprise'
-) ON CONFLICT (id) DO NOTHING;
+-- Development seed artık scripts/seed/dev_seed.sql içinde yönetiliyor

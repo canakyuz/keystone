@@ -83,28 +83,4 @@ COMMENT ON COLUMN users.status IS 'User status: active, inactive, suspended, pen
 COMMENT ON COLUMN users.email_verified IS 'Email verification status';
 COMMENT ON COLUMN users.two_factor_enabled IS '2FA enabled flag';
 
--- Insert default admin user for default tenant
-INSERT INTO users (
-    id,
-    tenant_id,
-    email,
-    password,
-    first_name,
-    last_name,
-    role,
-    status,
-    email_verified,
-    email_verified_at
-)
-VALUES (
-    uuid_generate_v4(),
-    '550e8400-e29b-41d4-a716-446655440000',
-    'admin@nexspaces.com',
-    '$2a$10$rR5K3yZ8YqB5K8yZ8YqB5O', -- Default password: "nexspaces123" (should be changed)
-    'Admin',
-    'User',
-    'owner',
-    'active',
-    TRUE,
-    NOW()
-) ON CONFLICT DO NOTHING;
+-- Development kullanıcı seed'leri scripts/seed/dev_seed.sql üzerinden uygulanır

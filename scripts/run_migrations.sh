@@ -63,7 +63,7 @@ record_migration() {
 
 apply_migration() {
   local file_path="$1"
-  "${DB_CMD[@]}" -f "$file_path"
+  cat "$file_path" | "${DB_CMD[@]}"
 }
 
 main() {

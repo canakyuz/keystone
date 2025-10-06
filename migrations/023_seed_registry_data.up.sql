@@ -50,7 +50,7 @@ INSERT INTO modules (
     '{"max_lessons": 100, "max_students": 50, "max_assignments": 200}'::jsonb,
     'graduation-cap',
     ARRAY['education', 'learning', 'tutoring', 'courses', 'lessons', 'students']
-);
+) ON CONFLICT (name) DO NOTHING;
 
 -- 1.2 CMS/Blog Module
 INSERT INTO modules (
@@ -95,7 +95,7 @@ INSERT INTO modules (
     '{"max_posts": 1000, "max_categories": 50}'::jsonb,
     'newspaper',
     ARRAY['blog', 'content', 'cms', 'publishing', 'articles', 'writing']
-);
+) ON CONFLICT (name) DO NOTHING;
 
 -- 1.3 Project Management Module
 INSERT INTO modules (
@@ -140,7 +140,7 @@ INSERT INTO modules (
     '{"max_projects": 100, "max_images_per_project": 10}'::jsonb,
     'briefcase',
     ARRAY['portfolio', 'projects', 'freelance', 'agency', 'showcase']
-);
+) ON CONFLICT (name) DO NOTHING;
 
 -- 1.4 Booking/Appointment Module
 INSERT INTO modules (
@@ -185,7 +185,7 @@ INSERT INTO modules (
     '{"max_appointments": 500, "max_availability_slots": 200}'::jsonb,
     'calendar-check',
     ARRAY['booking', 'appointments', 'scheduling', 'healthcare', 'consulting', 'reservations']
-);
+) ON CONFLICT (name) DO NOTHING;
 
 -- 1.5 Service Catalog Module
 INSERT INTO modules (
@@ -230,7 +230,7 @@ INSERT INTO modules (
     '{"max_services": 100}'::jsonb,
     'box',
     ARRAY['services', 'products', 'catalog', 'pricing', 'offerings', 'ecommerce']
-);
+) ON CONFLICT (name) DO NOTHING;
 
 -- 1.6 Website Builder Module (Platform Core)
 INSERT INTO modules (
@@ -277,7 +277,7 @@ INSERT INTO modules (
     'globe',
     ARRAY['website', 'builder', 'platform', 'multi-tenant'],
     '{"is_platform_core": true, "auto_enabled": true}'::jsonb
-);
+) ON CONFLICT (name) DO NOTHING;
 
 -- ============================================================================
 -- PART 2: TOOLS (Catalog)
@@ -342,7 +342,7 @@ INSERT INTO tools (
     '{"requests_per_minute": 60}'::jsonb,
     'credit-card',
     ARRAY['payment', 'stripe', 'iyzico', 'checkout', 'gateway', 'transaction', 'billing']
-);
+) ON CONFLICT (name) DO NOTHING;
 
 -- 2.2 Refund Tool
 INSERT INTO tools (
@@ -397,7 +397,7 @@ INSERT INTO tools (
     '{"max_refunds_per_month": 100}'::jsonb,
     'rotate-ccw',
     ARRAY['refund', 'return', 'payment', 'transaction', 'reversal']
-);
+) ON CONFLICT (name) DO NOTHING;
 
 -- 2.3 Webhook Tool
 INSERT INTO tools (
@@ -450,7 +450,7 @@ INSERT INTO tools (
     '{"events_per_second": 100}'::jsonb,
     'zap',
     ARRAY['webhook', 'events', 'integration', 'notification', 'automation']
-);
+) ON CONFLICT (name) DO NOTHING;
 
 -- ============================================================================
 -- PART 3: MODULE DEPENDENCIES
@@ -478,7 +478,8 @@ SELECT
 FROM modules m
 CROSS JOIN tools t
 WHERE m.code = 'LMS'
-  AND t.code = 'PAYMENT';
+  AND t.code = 'PAYMENT'
+ON CONFLICT DO NOTHING;
 
 -- 3.2 Booking Module Dependencies
 -- Booking optionally uses Payment tool (for appointment deposits/payments)
@@ -502,7 +503,8 @@ SELECT
 FROM modules m
 CROSS JOIN tools t
 WHERE m.code = 'BOOKING'
-  AND t.code = 'PAYMENT';
+  AND t.code = 'PAYMENT'
+ON CONFLICT DO NOTHING;
 
 -- 3.3 Service Catalog Module Dependencies
 -- Service module optionally uses Payment tool (for service purchases)
@@ -512,7 +514,6 @@ INSERT INTO module_dependencies (
     dependency_type,
     dependency_scope,
     auto_install,
-    FALSE,
     priority,
     description
 )
@@ -527,7 +528,8 @@ SELECT
 FROM modules m
 CROSS JOIN tools t
 WHERE m.code = 'SERVICE'
-  AND t.code = 'PAYMENT';
+  AND t.code = 'PAYMENT'
+ON CONFLICT DO NOTHING;
 
 -- Service module optionally uses Refund tool (for service refunds)
 INSERT INTO module_dependencies (
@@ -550,7 +552,8 @@ SELECT
 FROM modules m
 CROSS JOIN tools t
 WHERE m.code = 'SERVICE'
-  AND t.code = 'REFUND';
+  AND t.code = 'REFUND'
+ON CONFLICT DO NOTHING;
 
 -- ============================================================================
 -- PART 4: TOOL DEPENDENCIES
@@ -582,7 +585,8 @@ SELECT
 FROM tools t1
 CROSS JOIN tools t2
 WHERE t1.code = 'REFUND'
-  AND t2.code = 'PAYMENT';
+  AND t2.code = 'PAYMENT'
+ON CONFLICT DO NOTHING;
 
 -- 4.2 Payment Tool Dependencies
 -- Payment recommends Webhook tool (for payment notifications)
@@ -610,7 +614,8 @@ SELECT
 FROM tools t1
 CROSS JOIN tools t2
 WHERE t1.code = 'PAYMENT'
-  AND t2.code = 'WEBHOOK';
+  AND t2.code = 'WEBHOOK'
+ON CONFLICT DO NOTHING;
 
 -- ============================================================================
 -- Success message

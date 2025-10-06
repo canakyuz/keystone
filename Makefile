@@ -1,166 +1,100 @@
-.PHONY: help
-help: ## Show help
-	@echo "\033[36m╔════════════════════════════════════════════╗\033[0m"
-	@echo "\033[36m║  \033[35mNexSpaces API - Commands\033[36m               ║\033[0m"
-	@echo "\033[36m╚════════════════════════════════════════════╝\033[0m"
-	@echo ""
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2}'
-	@echo ""
+.DEFAULT_GOAL := help
+.SILENT:
+.PHONY: help dev build run up down restart rebuild logs ps shell db-shell \
+        migrate-up migrate-down migrate-status migrate-bootstrap test fmt lint vet check clean-all
 
 # ==============================================================================
-# Development
+# Yardım
 # ==============================================================================
+help: ## Komut listesini göster
+	@awk 'BEGIN {FS=":.*##"; print "\n\033[36mAvailable Commands:\033[0m"} /^[a-zA-Z_-]+:.*##/ {printf "  \033[36m%-18s\033[0m%s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
-dev: ## Run development server
+# ==============================================================================
+# Geliştirme
+# ==============================================================================
+dev: ## Geliştirme sunucusunu çalıştır
 	go run cmd/server/main.go
 
-build: ## Build binary
+build: ## Binary oluştur
 	mkdir -p bin
 	CGO_ENABLED=0 go build -ldflags="-w -s" -o bin/nexspaces-api cmd/server/main.go
 
-run: build ## Build and run
+run: build ## Binary’i çalıştır
 	./bin/nexspaces-api
 
 # ==============================================================================
 # Docker
 # ==============================================================================
+up: ## Servisleri başlat
+	docker compose up -d
+	@echo "\033[32m✓ Services started\033[0m"
+	@echo "→ API: http://localhost:8080"
+	@echo "→ Swagger: http://localhost:8080/docs"
 
-up: ## Start all services
-	docker-compose up -d
-	@echo "\n\033[32m✓ Services started\033[0m"
-	@echo "\033[36m→ API:     http://localhost:8080\033[0m"
-	@echo "\033[36m→ Swagger: http://localhost:8080/docs\033[0m"
+down: ## Servisleri durdur
+	docker compose down
 
-down: ## Stop all services
-	docker-compose down
+restart: ## Servisleri yeniden başlat
+	docker compose down
+	@echo ”\033[32m✓ Temizlendi”
+	docker compose up -d
 
-restart: down up ## Restart services
+rebuild: ## API’yi yeniden build edip başlat
+	docker compose up -d --build api
 
-rebuild: ## Rebuild and restart API
-	docker-compose up -d --build api
+logs: ## API loglarını izle
+	docker compose logs -f api
 
-logs: ## View API logs
-	docker-compose logs -f api
+ps: ## Container durumlarını göster
+	docker compose ps
 
-logs-all: ## View all logs
-	docker-compose logs -f
+shell: ## API container’ına shell
+	docker compose exec api sh
 
-ps: ## Show containers
-	docker-compose ps
-
-shell: ## Shell into API container
-	docker-compose exec api sh
-
-db-shell: ## psql shell
-	docker-compose exec postgres psql -U postgres -d nexspaces_dev
-
-clean: ## Clean Docker resources
-	docker-compose down -v --remove-orphans
-	docker system prune -f
+db-shell: ## PostgreSQL shell
+	docker compose exec -T postgres psql -U postgres -d nexspaces_dev
 
 # ==============================================================================
-# Database
+# Migration
 # ==============================================================================
+migrate-up: ## Migrationları çalıştır (*.up.sql)
+	@echo "\033[32m✓ Başlatıldı\033[0m"
+	@scripts/run_migrations.sh
 
-DB_HOST ?= localhost
-DB_USER ?= postgres
-DB_PASSWORD ?= postgres
-DB_NAME ?= nexspaces_dev
-
-migrate-up: ## Run migrations
-	@echo "\033[32m▶ Running migrations...\033[0m"
-	@for file in migrations/*.up.sql; do \
-		[ -f "$$file" ] || continue; \
-		echo "  → $$(basename $$file)"; \
-		PGPASSWORD=$(DB_PASSWORD) psql -h $(DB_HOST) -U $(DB_USER) -d $(DB_NAME) -f $$file -q || exit 1; \
-	done
-	@echo "\033[32m✓ Migrations complete\033[0m"
-
-migrate-down: ## Rollback migrations
-	@echo "\033[33m▶ Rolling back migrations...\033[0m"
-	@for file in $$(ls -r migrations/*.down.sql 2>/dev/null); do \
-		echo "  → $$(basename $$file)"; \
-		PGPASSWORD=$(DB_PASSWORD) psql -h $(DB_HOST) -U $(DB_USER) -d $(DB_NAME) -f $$file -q || exit 1; \
+migrate-down: ## Migrationları geri al (*.down.sql)
+	@for f in $(shell ls -r migrations/*.down.sql 2>/dev/null); do \
+		echo "→ $$f" && cat $$f | docker compose exec -T postgres psql -U postgres -d nexspaces_dev; \
 	done
 	@echo "\033[33m✓ Rollback complete\033[0m"
 
-migrate-status: ## Show migration files
-	@echo "Up migrations:"
-	@ls -1 migrations/*.up.sql 2>/dev/null || echo "  None"
-	@echo "\nDown migrations:"
-	@ls -1 migrations/*.down.sql 2>/dev/null || echo "  None"
-
-docker-migrate: ## Run migrations in Docker
-	@echo "\033[32m▶ Running migrations in Docker...\033[0m"
-	@for file in migrations/*.up.sql; do \
-		[ -f "$$file" ] || continue; \
-		echo "  → $$(basename $$file)"; \
-		docker-compose exec -T postgres psql -U postgres -d nexspaces_dev < $$file || exit 1; \
-	done
-	@echo "\033[32m✓ Migrations complete\033[0m"
+migrate-status: ## Migration dosyalarını listele
+	@echo "Up migrations:";   ls -1 migrations/*.up.sql 2>/dev/null || echo "  None"
+	@echo ""; echo "Down migrations:"; ls -1 migrations/*.down.sql 2>/dev/null || echo "  None"
 
 # ==============================================================================
-# Testing
+# Test ve Kalite
 # ==============================================================================
-
-test: ## Run tests
+test: ## Testleri çalıştır
 	go test -v -race ./...
 
-test-coverage: ## Test with coverage
-	go test -v -race -coverprofile=coverage.out ./...
-	go tool cover -html=coverage.out -o coverage.html
-	@echo "\033[32m✓ Coverage: coverage.html\033[0m"
-
-test-short: ## Run short tests
-	go test -v -short ./...
-
-# ==============================================================================
-# Code Quality
-# ==============================================================================
-
-fmt: ## Format code
+fmt: ## Kod formatla
 	gofmt -s -w .
 	go mod tidy
 
-lint: ## Run linter
+lint: ## Linter çalıştır
 	golangci-lint run --timeout 5m
 
-lint-fix: ## Fix linting issues
-	golangci-lint run --fix --timeout 5m
-
-vet: ## Run go vet
+vet: ## go vet
 	go vet ./...
 
-check: fmt vet lint test ## Run all checks
+check: fmt vet lint test ## Tüm kontrolleri çalıştır
 
 # ==============================================================================
-# OpenAPI
+# Temizlik
 # ==============================================================================
-
-openapi-validate: ## Validate OpenAPI spec
-	docker run --rm -v $(CURDIR):/work -w /work stoplight/spectral:6 lint api/openapi.yaml
-
-openapi-diff: ## Compare with main branch
-	docker run --rm -v $(CURDIR):/work -w /work redocly/cli:latest diff api/openapi.yaml --branch=origin/main || true
-
-# ==============================================================================
-# Utilities
-# ==============================================================================
-
-deps: ## Install dependencies
-	go mod download
-	go mod tidy
-
-deps-upgrade: ## Upgrade dependencies
-	go get -u ./...
-	go mod tidy
-
-clean-all: clean ## Clean everything
+clean-all: ## Her şeyi temizle
 	rm -rf bin/ coverage.out coverage.html
-
-version: ## Show versions
-	@echo "Go:            $$(go version)"
-	@echo "Docker:        $$(docker --version)"
-	@echo "Docker Compose: $$(docker-compose --version)"
-
-.DEFAULT_GOAL := help
+migrate-bootstrap: ## Mevcut veritabanini schema_migrations ile esitle
+	@echo "\033[33m⚠  Bootstrap modunda schema_migrations dolduruluyor\033[0m"
+	@BOOTSTRAP_MIGRATIONS=1 scripts/run_migrations.sh
+	@echo "\033[32m✓ Bootstrap tamamlandi\033[0m"

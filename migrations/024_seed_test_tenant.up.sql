@@ -1,12 +1,24 @@
 -- Migration: Seed development/staging tenant
 -- Purpose : Populate a sample tenant with preconfigured modules/tools for testing locally.
 -- CAUTION : Not intended for production environments. Guarded to run safely multiple times.
+-- WARNING : SKIPS OUTSIDE development/staging/test environments
 
 DO $$
 DECLARE
     v_tenant_id UUID := 'aaaaaaaa-bbbb-cccc-dddd-000000000001'::UUID;
     tenant_exists BOOLEAN;
+    current_env TEXT;
 BEGIN
+    -- ⚠️ PRODUCTION GUARD: Prevent execution in production
+    current_env := COALESCE(current_setting('app.environment', true), 'production');
+
+    IF current_env NOT IN ('development', 'staging', 'test') THEN
+        RAISE NOTICE 'Skipping test tenant seed in % environment', current_env;
+        RETURN;
+    END IF;
+
+    RAISE NOTICE 'Running in % environment - proceeding with test tenant seed', current_env;
+
     SELECT EXISTS(SELECT 1 FROM tenants WHERE id = v_tenant_id) INTO tenant_exists;
 
     IF tenant_exists THEN
@@ -134,7 +146,7 @@ BEGIN
         'healthy',
         NOW(),
         NOW(),
-        '{"provider": "stripe", "api_key": "sk_test_123", "currency": "TRY", "three_ds": true}'::jsonb,
+        '{"provider": "stripe", "api_key": "REPLACE_WITH_STRIPE_TEST_KEY", "currency": "TRY", "three_ds": true}'::jsonb,
         '{"transactions": 0, "volume": 0}'::jsonb,
         'trial',
         NOW(),
@@ -179,7 +191,7 @@ BEGIN
         'healthy',
         NOW(),
         NOW(),
-        '{"endpoint": "https://api.acme.dev/webhooks/payments", "secret": "whsec_123"}'::jsonb,
+        '{"endpoint": "https://api.acme.dev/webhooks/payments", "secret": "REPLACE_WITH_WEBHOOK_SECRET"}'::jsonb,
         '{"events_processed": 0}'::jsonb,
         'trial',
         NOW(),

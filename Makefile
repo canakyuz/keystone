@@ -1,3 +1,5 @@
+APP_ENV ?= development
+
 .DEFAULT_GOAL := help
 .SILENT:
 .PHONY: help dev build run up down restart rebuild logs ps shell db-shell \
@@ -59,7 +61,7 @@ db-shell: ## PostgreSQL shell
 # ==============================================================================
 migrate-up: ## Migrationları çalıştır (*.up.sql)
 	@echo "\033[32m✓ Başlatıldı\033[0m"
-	@scripts/run_migrations.sh
+	@APP_ENV=$(APP_ENV) scripts/run_migrations.sh
 
 migrate-down: ## Migrationları geri al (*.down.sql)
 	@for f in $(shell ls -r migrations/*.down.sql 2>/dev/null); do \
@@ -96,5 +98,5 @@ clean-all: ## Her şeyi temizle
 	rm -rf bin/ coverage.out coverage.html
 migrate-bootstrap: ## Mevcut veritabanini schema_migrations ile esitle
 	@echo "\033[33m⚠  Bootstrap modunda schema_migrations dolduruluyor\033[0m"
-	@BOOTSTRAP_MIGRATIONS=1 scripts/run_migrations.sh
+	@APP_ENV=$(APP_ENV) BOOTSTRAP_MIGRATIONS=1 scripts/run_migrations.sh
 	@echo "\033[32m✓ Bootstrap tamamlandi\033[0m"

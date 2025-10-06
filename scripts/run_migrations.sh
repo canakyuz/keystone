@@ -9,7 +9,9 @@ if [ ! -d "$MIGRATIONS_DIR" ]; then
   exit 1
 fi
 
-DB_CMD=(docker compose exec -T postgres psql -v ON_ERROR_STOP=1 -U postgres -d nexspaces_dev)
+APP_ENV=${APP_ENV:-production}
+
+DB_CMD=(docker compose exec -e PGOPTIONS="-c app.environment=${APP_ENV}" -T postgres psql -v ON_ERROR_STOP=1 -U postgres -d nexspaces_dev)
 
 run_psql() {
   "${DB_CMD[@]}" -c "$1"

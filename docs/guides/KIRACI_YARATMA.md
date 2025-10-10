@@ -113,3 +113,16 @@ Test önerileri:
 6. Dokümantasyon (README, API docs) ve OpenAPI şemalarını izolasyon ve onboarding süreçlerini yansıtacak şekilde güncelleyin.
 
 Bu döküman, NexSpaces kapsamındaki panel tipleri ve modül envanteri ile uyumlu olacak şekilde tenant provisioning sürecinin nasıl yönetileceğini ortaya koyar. Kod değişiklikleri yapıldıkça `docs/tenant-provisioning.md` dosyası da güncellenmelidir.
+
+---
+
+## 8. SaaS Paneli & Mobil Uygulama Senaryosu
+
+Platformun çok kiracılı temel mimarisi, kuruluşlara kendi hizmet setlerini SaaS modeliyle sunma imkanı verir. Tenant provisioning süreci ile birlikte:
+
+- **Kuruluş Paneli:** Platform admin paneli, bir tenant’ın bağlı modüllerini ve izolasyon seviyelerini yönetir. Mobil ya da web tabanlı şirket içi paneller, aynı REST API uç noktalarını kullanarak yönetim fonksiyonlarını yeniden kullanabilir.
+- **Mobil İstemciler:** Mobil uygulamalar için tenant kimliği, JWT tabanlı oturum açma sonrası belirlenir; API katmanı `TenantConnectionManager` aracılığıyla uygun şemaya bağlanır ve kuruluşa özel veri seti mobil ekrana yansıtılır.
+- **Paketleme/Planlama:** SaaS planlarına göre modül kombinasyonları (`LMS`, `Booking`, `Service Catalog` vb.) ve izolasyon modeli (shared/schema/db) belirlenip provisioning sırasında otomatik uygulanabilir.
+- **Gelir Modeli:** `Payment` aracı, abonelik veya kullanım bazlı ücretlendirme için (Stripe, Checkout.com, Iyzico) hazırdır. Tenant planı ile ödeme senkronizasyonu yapılarak SaaS gelir akışı kurulabilir.
+
+Bu yaklaşım sayesinde aynı backend altyapısı, web ve mobil kanallar üzerinden müşterilere kurumsal panel + uç kullanıcı deneyimi sunacak şekilde SaaS olarak paketlenebilir.

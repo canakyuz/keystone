@@ -290,6 +290,36 @@ func (r *UserRepo) GetByID(ctx context.Context, id string) (*User, error) {
 }
 ```
 
+#### Plan Bazlı İzolasyon Haritası
+
+- `starter` ve `pro` planları şu anda varsayılan olarak schema-per-tenant modelini kullanıyor; `enterprise` planı için database-per-tenant geçişi planlanıyor.
+- `internal/usecase/tenant/provisioning.go` içindeki **TODO** notu, plan → izolasyon eşleşmesini tek bir konfigürasyon kaynağına taşıma gereksinimini hatırlatıyor.
+- `TenantConnectionManager` katmanı henüz implemente edilmedi; request bazında `search_path` ayarlama sorumluluğu middleware + repository kombinasyonunda manuel ilerliyor. Bu bileşeni tamamlamak, ileride database-per-tenant senaryosuna geçişi kolaylaştıracak.
+
+#### SaaS Paketleri ve Provisioning Akışı
+
+1. Platform admin paneli veya doğrudan API ile `POST /api/v1/tenants` çağrısı yapılır.
+2. `Service.Create` ( `internal/usecase/tenant/service.go` ) tenant’ı oluşturup seçilen planı domain entity’sine bağlar.
+3. `ProvisioningService.GenerateSchemaName` benzersiz `schema_name` üretir; `ProvisionTenantSchema` plan bazlı şema şablonunu uygular.
+4. **Yeni**: `api/openapi.yaml` artık tüm tenant, registry, ödeme ve upload uç noktalarını içeriyor; Swagger UI üzerinden (`/docs`) veya doğrudan YAML dosyasıyla entegrasyon yapılabilir.
+
+#### Geliştirme Ortamı Kontrol Adımları
+
+```bash
+# Migration ve seed işlemleri
+make migrate-up
+make seed-dev
+
+# Postgres içinde şemaları doğrula
+make db-shell
+\dn tenant_*          -- Oluşan tenant şemaları
+SELECT schema_name
+FROM tenants
+ORDER BY created_at DESC;  -- API üzerinden açılan tenant'ların kaydı
+```
+
+`seed-dev` scriptleri ( `scripts/seed/dev_seed.sql` ), idempotent hale getirildiğinden aynı komut tekrar çalıştırıldığında mevcut tenant verisini bozmadan ilerler.
+
 ### Why This Model?
 
 - **Strong Isolation:** It's impossible for one tenant's query to see another tenant's data.
@@ -315,6 +345,8 @@ make dev
 # 4. Test API
 curl http://localhost:8080/health
 ```
+
+> **İpucu:** Swagger arayüzü için `http://localhost:8080/docs`, ham OpenAPI dosyası için proje kökündeki `api/openapi.yaml` yolunu kullanabilirsiniz. Registry, upload ve ödeme uçları dahil tüm API yüzeyi artık bu dosyada tanımlı.
 
 ### Making Changes
 
@@ -412,6 +444,12 @@ go test -v ./internal/domain/lesson
 # Watch mode (with entr)
 find . -name "*.go" | entr go test ./...
 ```
+
+#### Tenant Provisioning İçin Kontrol Listesi
+
+- `internal/usecase/tenant/service_test.go` içine plan bazlı provisioning için senaryolar ekleyin: aynı slug/email çakışması, idempotent schema creation, provisioning hatasında rollback.
+- Geliştirme ortamında yeni tenant açtıktan sonra `make db-shell` ile `SELECT schema_name FROM tenants WHERE slug = '<slug>';` ve `\dn tenant_*` sorgularıyla şemayı doğrulayın.
+- Enterprise planı için database-per-tenant tek seferlik smoke testi yapmak amacıyla `ProvisioningService` üzerine yazılacak yeni fonksiyonlar için `scripts/run_migrations.sh`'i parametrik halde çağıran entegrasyon testi hazırlayın.
 
 ---
 

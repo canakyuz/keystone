@@ -22,6 +22,8 @@ tags:
   - name: Service
   - name: Blog
   - name: Payment
+  - name: Upload
+  - name: Registry
 paths:
   /health:
     get:
@@ -408,6 +410,35 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/TenantEnvelope'
+  /tenants/{id}/branding:
+    patch:
+      tags: [Tenant]
+      summary: Update tenant branding
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TenantBrandingUpdateRequest'
+      responses:
+        '200':
+          description: Updated tenant branding
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TenantEnvelope'
+        '400':
+          description: Invalid branding payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /users:
     get:
       tags: [User]
@@ -1209,6 +1240,38 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AvailabilityStatsResponse'
+  /availabilities/date-range:
+    get:
+      tags: [Availability]
+      summary: List availabilities by date range
+      parameters:
+        - name: start_date
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date-time
+        - name: end_date
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date-time
+      responses:
+        '200':
+          description: Availabilities within the requested range
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AvailabilityResponse'
+        '400':
+          description: Missing or invalid date range parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /availabilities/{id}:
     get:
       tags: [Availability]
@@ -2109,6 +2172,1088 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/WebhookEventEnvelope'
+  /upload/logo:
+    post:
+      tags: [Upload]
+      summary: Upload tenant logo
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+              required: [file]
+      responses:
+        '200':
+          description: Uploaded logo metadata
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UploadResponse'
+        '400':
+          description: Invalid upload request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /upload/favicon:
+    post:
+      tags: [Upload]
+      summary: Upload tenant favicon
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+              required: [file]
+      responses:
+        '200':
+          description: Uploaded favicon metadata
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UploadResponse'
+        '400':
+          description: Invalid upload request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /upload/image:
+    post:
+      tags: [Upload]
+      summary: Upload tenant image asset
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+              required: [file]
+      responses:
+        '200':
+          description: Uploaded image metadata
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UploadResponse'
+        '400':
+          description: Invalid upload request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /registry/modules:
+    get:
+      tags: [Registry]
+      summary: List marketplace modules
+      parameters:
+        - name: category
+          in: query
+          schema:
+            type: string
+        - name: module_type
+          in: query
+          schema:
+            type: string
+        - name: pricing_model
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: string
+        - name: is_public
+          in: query
+          schema:
+            type: boolean
+        - name: is_beta
+          in: query
+          schema:
+            type: boolean
+        - name: sort_by
+          in: query
+          schema:
+            type: string
+            description: Sort field (name, install_count, rating, created_at)
+        - name: sort_order
+          in: query
+          schema:
+            type: string
+            enum: [asc, desc]
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+        - name: per_page
+          in: query
+          schema:
+            type: integer
+            default: 20
+            minimum: 1
+            maximum: 100
+      responses:
+        '200':
+          description: Paginated module list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ModuleListResponse'
+  /registry/modules/search:
+    get:
+      tags: [Registry]
+      summary: Search modules in marketplace
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 2
+        - name: category
+          in: query
+          schema:
+            type: string
+        - name: pricing_model
+          in: query
+          schema:
+            type: string
+        - name: sort_by
+          in: query
+          schema:
+            type: string
+        - name: sort_order
+          in: query
+          schema:
+            type: string
+            enum: [asc, desc]
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+        - name: per_page
+          in: query
+          schema:
+            type: integer
+            default: 20
+            minimum: 1
+            maximum: 100
+      responses:
+        '200':
+          description: Search result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ModuleListResponse'
+        '400':
+          description: Invalid search parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /registry/modules/popular:
+    get:
+      tags: [Registry]
+      summary: List popular modules
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
+            minimum: 1
+            maximum: 50
+      responses:
+        '200':
+          description: Popular modules
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ModuleCollectionResponse'
+  /registry/modules/top-rated:
+    get:
+      tags: [Registry]
+      summary: List top rated modules
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
+            minimum: 1
+            maximum: 50
+      responses:
+        '200':
+          description: Top rated modules
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ModuleCollectionResponse'
+  /registry/modules/new:
+    get:
+      tags: [Registry]
+      summary: List recently added modules
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
+            minimum: 1
+            maximum: 50
+      responses:
+        '200':
+          description: Recently added modules
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ModuleCollectionResponse'
+  /registry/modules/free:
+    get:
+      tags: [Registry]
+      summary: List free modules
+      parameters:
+        - name: category
+          in: query
+          schema:
+            type: string
+        - name: module_type
+          in: query
+          schema:
+            type: string
+        - name: sort_by
+          in: query
+          schema:
+            type: string
+        - name: sort_order
+          in: query
+          schema:
+            type: string
+            enum: [asc, desc]
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+        - name: per_page
+          in: query
+          schema:
+            type: integer
+            default: 20
+            minimum: 1
+            maximum: 100
+      responses:
+        '200':
+          description: Free modules
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ModuleListResponse'
+  /registry/modules/category/{category}:
+    get:
+      tags: [Registry]
+      summary: List modules by category
+      parameters:
+        - name: category
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: module_type
+          in: query
+          schema:
+            type: string
+        - name: pricing_model
+          in: query
+          schema:
+            type: string
+        - name: sort_by
+          in: query
+          schema:
+            type: string
+        - name: sort_order
+          in: query
+          schema:
+            type: string
+            enum: [asc, desc]
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+        - name: per_page
+          in: query
+          schema:
+            type: integer
+            default: 20
+            minimum: 1
+            maximum: 100
+      responses:
+        '200':
+          description: Modules filtered by category
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ModuleListResponse'
+  /registry/modules/slug/{slug}:
+    get:
+      tags: [Registry]
+      summary: Get module by slug
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Module detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ModuleDetailEnvelope'
+        '404':
+          description: Module not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /registry/modules/{id}:
+    get:
+      tags: [Registry]
+      summary: Get module by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Module detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ModuleDetailEnvelope'
+        '404':
+          description: Module not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /registry/tools:
+    get:
+      tags: [Registry]
+      summary: List marketplace tools
+      parameters:
+        - name: category
+          in: query
+          schema:
+            type: string
+        - name: tool_type
+          in: query
+          schema:
+            type: string
+        - name: scope
+          in: query
+          schema:
+            type: string
+        - name: pricing_model
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: string
+        - name: is_public
+          in: query
+          schema:
+            type: boolean
+        - name: is_beta
+          in: query
+          schema:
+            type: boolean
+        - name: sort_by
+          in: query
+          schema:
+            type: string
+            description: Sort field (name, install_count, rating, created_at)
+        - name: sort_order
+          in: query
+          schema:
+            type: string
+            enum: [asc, desc]
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+        - name: per_page
+          in: query
+          schema:
+            type: integer
+            default: 20
+            minimum: 1
+            maximum: 100
+      responses:
+        '200':
+          description: Paginated tool list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ToolListResponse'
+  /registry/tools/search:
+    get:
+      tags: [Registry]
+      summary: Search tools in marketplace
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 2
+        - name: category
+          in: query
+          schema:
+            type: string
+        - name: scope
+          in: query
+          schema:
+            type: string
+        - name: pricing_model
+          in: query
+          schema:
+            type: string
+        - name: sort_by
+          in: query
+          schema:
+            type: string
+        - name: sort_order
+          in: query
+          schema:
+            type: string
+            enum: [asc, desc]
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+        - name: per_page
+          in: query
+          schema:
+            type: integer
+            default: 20
+            minimum: 1
+            maximum: 100
+      responses:
+        '200':
+          description: Search result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ToolListResponse'
+        '400':
+          description: Invalid search parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /registry/tools/popular:
+    get:
+      tags: [Registry]
+      summary: List popular tools
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
+            minimum: 1
+            maximum: 50
+      responses:
+        '200':
+          description: Popular tools
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ToolCollectionResponse'
+  /registry/tools/top-rated:
+    get:
+      tags: [Registry]
+      summary: List top rated tools
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
+            minimum: 1
+            maximum: 50
+      responses:
+        '200':
+          description: Top rated tools
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ToolCollectionResponse'
+  /registry/tools/new:
+    get:
+      tags: [Registry]
+      summary: List recently added tools
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
+            minimum: 1
+            maximum: 50
+      responses:
+        '200':
+          description: Recently added tools
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ToolCollectionResponse'
+  /registry/tools/free:
+    get:
+      tags: [Registry]
+      summary: List free tools
+      parameters:
+        - name: category
+          in: query
+          schema:
+            type: string
+        - name: scope
+          in: query
+          schema:
+            type: string
+        - name: sort_by
+          in: query
+          schema:
+            type: string
+        - name: sort_order
+          in: query
+          schema:
+            type: string
+            enum: [asc, desc]
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+        - name: per_page
+          in: query
+          schema:
+            type: integer
+            default: 20
+            minimum: 1
+            maximum: 100
+      responses:
+        '200':
+          description: Free tools
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ToolListResponse'
+  /registry/tools/category/{category}:
+    get:
+      tags: [Registry]
+      summary: List tools by category
+      parameters:
+        - name: category
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: scope
+          in: query
+          schema:
+            type: string
+        - name: pricing_model
+          in: query
+          schema:
+            type: string
+        - name: sort_by
+          in: query
+          schema:
+            type: string
+        - name: sort_order
+          in: query
+          schema:
+            type: string
+            enum: [asc, desc]
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+        - name: per_page
+          in: query
+          schema:
+            type: integer
+            default: 20
+            minimum: 1
+            maximum: 100
+      responses:
+        '200':
+          description: Tools filtered by category
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ToolListResponse'
+  /registry/tools/slug/{slug}:
+    get:
+      tags: [Registry]
+      summary: Get tool by slug
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Tool detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ToolDetailEnvelope'
+        '404':
+          description: Tool not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /registry/tools/{id}:
+    get:
+      tags: [Registry]
+      summary: Get tool by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Tool detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ToolDetailEnvelope'
+        '404':
+          description: Tool not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /registry/tenant/modules:
+    get:
+      tags: [Registry]
+      summary: List tenant modules
+      responses:
+        '200':
+          description: Tenant modules
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TenantModuleListResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /registry/tenant/modules/install:
+    post:
+      tags: [Registry]
+      summary: Install module for tenant
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InstallModuleRequest'
+      responses:
+        '201':
+          description: Module installation result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InstallModuleResponse'
+        '400':
+          description: Installation failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /registry/tenant/modules/{module_id}/activate:
+    post:
+      tags: [Registry]
+      summary: Activate tenant module
+      parameters:
+        - name: module_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Module activated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+        '400':
+          description: Activation failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /registry/tenant/modules/{module_id}/deactivate:
+    post:
+      tags: [Registry]
+      summary: Deactivate tenant module
+      parameters:
+        - name: module_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Module deactivated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+        '400':
+          description: Deactivation failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /registry/tenant/modules/{module_id}:
+    delete:
+      tags: [Registry]
+      summary: Uninstall tenant module
+      parameters:
+        - name: module_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Module uninstalled
+        '400':
+          description: Uninstall failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /registry/tenant/modules/{module_id}/complete-setup:
+    post:
+      tags: [Registry]
+      summary: Complete module setup
+      parameters:
+        - name: module_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Module setup completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+        '400':
+          description: Setup completion failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /registry/tenant/modules/{module_id}/dependencies:
+    get:
+      tags: [Registry]
+      summary: Check module dependencies
+      parameters:
+        - name: module_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Module dependency analysis
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DependencyCheckResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /registry/tenant/tools:
+    get:
+      tags: [Registry]
+      summary: List tenant tools
+      responses:
+        '200':
+          description: Tenant tools
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TenantToolListResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /registry/tenant/tools/install:
+    post:
+      tags: [Registry]
+      summary: Install tool for tenant
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InstallToolRequest'
+      responses:
+        '201':
+          description: Tool installation result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InstallToolResponse'
+        '400':
+          description: Installation failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /registry/tenant/tools/{tool_id}/activate:
+    post:
+      tags: [Registry]
+      summary: Activate tenant tool
+      parameters:
+        - name: tool_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Tool activated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+        '400':
+          description: Activation failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /registry/tenant/tools/{tool_id}/deactivate:
+    post:
+      tags: [Registry]
+      summary: Deactivate tenant tool
+      parameters:
+        - name: tool_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Tool deactivated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+        '400':
+          description: Deactivation failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /registry/tenant/tools/{tool_id}:
+    delete:
+      tags: [Registry]
+      summary: Uninstall tenant tool
+      parameters:
+        - name: tool_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Tool uninstalled
+        '400':
+          description: Uninstall failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /registry/tenant/tools/{tool_id}/complete-setup:
+    post:
+      tags: [Registry]
+      summary: Complete tool setup
+      parameters:
+        - name: tool_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Tool setup completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+        '400':
+          description: Setup completion failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /registry/tenant/tools/{tool_id}/dependencies:
+    get:
+      tags: [Registry]
+      summary: Check tool dependencies
+      parameters:
+        - name: tool_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Tool dependency analysis
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DependencyCheckResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 components:
   securitySchemes:
     BearerAuth:
@@ -2227,6 +3372,54 @@ components:
         reason:
           type: string
           nullable: true
+    BrandingSettings:
+      type: object
+      properties:
+        logo:
+          type: string
+          nullable: true
+        favicon:
+          type: string
+          nullable: true
+        primary_color:
+          type: string
+          nullable: true
+        secondary_color:
+          type: string
+          nullable: true
+        accent_color:
+          type: string
+          nullable: true
+        font_family:
+          type: string
+          nullable: true
+        custom_css:
+          type: string
+          nullable: true
+    TenantBrandingUpdateRequest:
+      type: object
+      properties:
+        logo:
+          type: string
+          nullable: true
+        favicon:
+          type: string
+          nullable: true
+        primary_color:
+          type: string
+          nullable: true
+        secondary_color:
+          type: string
+          nullable: true
+        accent_color:
+          type: string
+          nullable: true
+        font_family:
+          type: string
+          nullable: true
+        custom_css:
+          type: string
+          nullable: true
     FeatureLimits:
       type: object
       properties:
@@ -2256,6 +3449,9 @@ components:
           format: email
         phone:
           type: string
+          nullable: true
+        schema_name:
+          type: string
         status:
           type: string
         plan:
@@ -2281,6 +3477,9 @@ components:
           type: string
           format: date-time
           nullable: true
+        branding:
+          $ref: '#/components/schemas/BrandingSettings'
+          nullable: true
         feature_limits:
           $ref: '#/components/schemas/FeatureLimits'
         created_at:
@@ -2294,6 +3493,7 @@ components:
         - name
         - slug
         - email
+        - schema_name
         - status
         - plan
         - feature_limits
@@ -4143,3 +5343,723 @@ components:
         data:
           $ref: '#/components/schemas/WebhookEventResponse'
       required: [status]
+    UploadAsset:
+      type: object
+      properties:
+        url:
+          type: string
+        filename:
+          type: string
+        size:
+          type: integer
+          format: int64
+      required: [url, filename, size]
+    UploadResponse:
+      type: object
+      properties:
+        data:
+          $ref: '#/components/schemas/UploadAsset'
+      required: [data]
+    PaginationMeta:
+      type: object
+      properties:
+        page:
+          type: integer
+        per_page:
+          type: integer
+        total_items:
+          type: integer
+        total_pages:
+          type: integer
+      required: [page, per_page, total_items, total_pages]
+    ModuleResponse:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        slug:
+          type: string
+        code:
+          type: string
+        display_name:
+          type: string
+        description:
+          type: string
+        category:
+          type: string
+        module_type:
+          type: string
+        status:
+          type: string
+        is_public:
+          type: boolean
+        is_beta:
+          type: boolean
+        version:
+          type: string
+        min_platform_version:
+          type: string
+        pricing_model:
+          type: string
+        base_price:
+          type: number
+          format: float
+          nullable: true
+        currency:
+          type: string
+          nullable: true
+        billing_cycle:
+          type: string
+          nullable: true
+        icon:
+          type: string
+          nullable: true
+        cover_image:
+          type: string
+          nullable: true
+        screenshots:
+          type: array
+          items:
+            type: string
+        demo_url:
+          type: string
+          nullable: true
+        documentation_url:
+          type: string
+          nullable: true
+        install_count:
+          type: integer
+        rating:
+          type: number
+          format: float
+          nullable: true
+        review_count:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+      required:
+        - id
+        - name
+        - slug
+        - code
+        - display_name
+        - description
+        - category
+        - module_type
+        - status
+        - is_public
+        - is_beta
+        - version
+        - min_platform_version
+        - pricing_model
+        - install_count
+        - review_count
+        - created_at
+        - updated_at
+    ModuleDetailResponse:
+      allOf:
+        - $ref: '#/components/schemas/ModuleResponse'
+        - type: object
+          properties:
+            requires_database:
+              type: boolean
+            requires_storage:
+              type: boolean
+            requires_email:
+              type: boolean
+            database_tables:
+              type: array
+              items:
+                type: string
+            default_limits:
+              type: object
+              additionalProperties: true
+              nullable: true
+            installation_notes:
+              type: string
+              nullable: true
+            configuration_schema:
+              type: object
+              additionalProperties: true
+              nullable: true
+            tags:
+              type: array
+              items:
+                type: string
+            metadata:
+              type: object
+              additionalProperties: true
+              nullable: true
+    ModuleDetailEnvelope:
+      type: object
+      properties:
+        data:
+          $ref: '#/components/schemas/ModuleDetailResponse'
+      required: [data]
+    ModuleListResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/ModuleResponse'
+        pagination:
+          $ref: '#/components/schemas/PaginationMeta'
+      required: [data, pagination]
+    ModuleCollectionResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/ModuleResponse'
+      required: [data]
+    ToolResponse:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        slug:
+          type: string
+        code:
+          type: string
+        display_name:
+          type: string
+        description:
+          type: string
+        category:
+          type: string
+        tool_type:
+          type: string
+        scope:
+          type: string
+        status:
+          type: string
+        is_public:
+          type: boolean
+        is_beta:
+          type: boolean
+        version:
+          type: string
+        min_platform_version:
+          type: string
+        pricing_model:
+          type: string
+        base_price:
+          type: number
+          format: float
+          nullable: true
+        currency:
+          type: string
+          nullable: true
+        billing_cycle:
+          type: string
+          nullable: true
+        transaction_fee_percentage:
+          type: number
+          format: float
+          nullable: true
+        transaction_fee_fixed:
+          type: number
+          format: float
+          nullable: true
+        icon:
+          type: string
+          nullable: true
+        cover_image:
+          type: string
+          nullable: true
+        integration_type:
+          type: string
+        integration_provider:
+          type: string
+          nullable: true
+        requires_api_keys:
+          type: boolean
+        requires_webhook:
+          type: boolean
+        requires_storage:
+          type: boolean
+        requires_database:
+          type: boolean
+        install_count:
+          type: integer
+        rating:
+          type: number
+          format: float
+          nullable: true
+        review_count:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+      required:
+        - id
+        - name
+        - slug
+        - code
+        - display_name
+        - description
+        - category
+        - tool_type
+        - scope
+        - status
+        - is_public
+        - is_beta
+        - version
+        - min_platform_version
+        - pricing_model
+        - integration_type
+        - requires_api_keys
+        - requires_webhook
+        - requires_storage
+        - requires_database
+        - install_count
+        - review_count
+        - created_at
+        - updated_at
+    ToolDetailResponse:
+      allOf:
+        - $ref: '#/components/schemas/ToolResponse'
+        - type: object
+          properties:
+            features:
+              type: object
+              additionalProperties: true
+              nullable: true
+            capabilities:
+              type: object
+              additionalProperties: true
+              nullable: true
+            api_endpoints:
+              type: object
+              additionalProperties: true
+              nullable: true
+            default_limits:
+              type: object
+              additionalProperties: true
+              nullable: true
+            rate_limits:
+              type: object
+              additionalProperties: true
+              nullable: true
+            configuration_schema:
+              type: object
+              additionalProperties: true
+              nullable: true
+            default_configuration:
+              type: object
+              additionalProperties: true
+              nullable: true
+            database_tables:
+              type: array
+              items:
+                type: string
+            tags:
+              type: array
+              items:
+                type: string
+            metadata:
+              type: object
+              additionalProperties: true
+              nullable: true
+    ToolDetailEnvelope:
+      type: object
+      properties:
+        data:
+          $ref: '#/components/schemas/ToolDetailResponse'
+      required: [data]
+    ToolListResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/ToolResponse'
+        pagination:
+          $ref: '#/components/schemas/PaginationMeta'
+      required: [data, pagination]
+    ToolCollectionResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/ToolResponse'
+      required: [data]
+    TenantModuleResponse:
+      type: object
+      properties:
+        id:
+          type: string
+        tenant_id:
+          type: string
+        module_id:
+          type: string
+        status:
+          type: string
+        is_enabled:
+          type: boolean
+        installed_at:
+          type: string
+          format: date-time
+        activated_at:
+          type: string
+          format: date-time
+          nullable: true
+        deactivated_at:
+          type: string
+          format: date-time
+          nullable: true
+        last_used_at:
+          type: string
+          format: date-time
+          nullable: true
+        installed_version:
+          type: string
+        latest_compatible_version:
+          type: string
+          nullable: true
+        subscription_status:
+          type: string
+          nullable: true
+        subscription_start:
+          type: string
+          format: date-time
+          nullable: true
+        subscription_end:
+          type: string
+          format: date-time
+          nullable: true
+        trial_ends_at:
+          type: string
+          format: date-time
+          nullable: true
+        next_billing_date:
+          type: string
+          format: date-time
+          nullable: true
+        pricing_plan:
+          type: string
+          nullable: true
+        billing_cycle:
+          type: string
+          nullable: true
+        amount_paid:
+          type: number
+          format: float
+          nullable: true
+        currency:
+          type: string
+          nullable: true
+        setup_completed:
+          type: boolean
+        onboarding_completed:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+      required:
+        - id
+        - tenant_id
+        - module_id
+        - status
+        - is_enabled
+        - installed_at
+        - installed_version
+        - setup_completed
+        - onboarding_completed
+        - created_at
+        - updated_at
+    TenantModuleListResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/TenantModuleResponse'
+      required: [data]
+    TenantToolResponse:
+      type: object
+      properties:
+        id:
+          type: string
+        tenant_id:
+          type: string
+        tool_id:
+          type: string
+        module_id:
+          type: string
+          nullable: true
+        status:
+          type: string
+        is_enabled:
+          type: boolean
+        installed_at:
+          type: string
+          format: date-time
+        activated_at:
+          type: string
+          format: date-time
+          nullable: true
+        deactivated_at:
+          type: string
+          format: date-time
+          nullable: true
+        last_used_at:
+          type: string
+          format: date-time
+          nullable: true
+        installed_version:
+          type: string
+        latest_compatible_version:
+          type: string
+          nullable: true
+        integration_enabled:
+          type: boolean
+        integration_status:
+          type: string
+          nullable: true
+        integration_verified:
+          type: boolean
+        integration_verified_at:
+          type: string
+          format: date-time
+          nullable: true
+        provider_account_id:
+          type: string
+          nullable: true
+        subscription_status:
+          type: string
+          nullable: true
+        subscription_start:
+          type: string
+          format: date-time
+          nullable: true
+        subscription_end:
+          type: string
+          format: date-time
+          nullable: true
+        trial_ends_at:
+          type: string
+          format: date-time
+          nullable: true
+        next_billing_date:
+          type: string
+          format: date-time
+          nullable: true
+        pricing_plan:
+          type: string
+          nullable: true
+        billing_cycle:
+          type: string
+          nullable: true
+        amount_paid:
+          type: number
+          format: float
+          nullable: true
+        currency:
+          type: string
+          nullable: true
+        transaction_fees_collected:
+          type: number
+          format: float
+          nullable: true
+        setup_completed:
+          type: boolean
+        onboarding_completed:
+          type: boolean
+        health_status:
+          type: string
+          nullable: true
+        last_health_check:
+          type: string
+          format: date-time
+          nullable: true
+        error_count:
+          type: integer
+          nullable: true
+        last_error:
+          type: string
+          nullable: true
+        last_error_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+      required:
+        - id
+        - tenant_id
+        - tool_id
+        - status
+        - is_enabled
+        - installed_at
+        - installed_version
+        - integration_enabled
+        - integration_verified
+        - setup_completed
+        - onboarding_completed
+        - created_at
+        - updated_at
+    TenantToolListResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/TenantToolResponse'
+      required: [data]
+    InstallModuleRequest:
+      type: object
+      properties:
+        module_id:
+          type: string
+          format: uuid
+        auto_activate:
+          type: boolean
+        auto_install_deps:
+          type: boolean
+      required: [module_id]
+    InstallModuleResult:
+      type: object
+      properties:
+        tenant_module:
+          $ref: '#/components/schemas/TenantModuleResponse'
+        dependency_check:
+          $ref: '#/components/schemas/DependencyCheck'
+        auto_installed_modules:
+          type: array
+          items:
+            type: string
+        auto_installed_tools:
+          type: array
+          items:
+            type: string
+      required: [tenant_module, dependency_check]
+    InstallModuleResponse:
+      type: object
+      properties:
+        data:
+          $ref: '#/components/schemas/InstallModuleResult'
+      required: [data]
+    InstallToolRequest:
+      type: object
+      properties:
+        tool_id:
+          type: string
+          format: uuid
+        module_id:
+          type: string
+          format: uuid
+          nullable: true
+        auto_activate:
+          type: boolean
+        auto_install_deps:
+          type: boolean
+      required: [tool_id]
+    InstallToolResult:
+      type: object
+      properties:
+        tenant_tool:
+          $ref: '#/components/schemas/TenantToolResponse'
+        dependency_check:
+          $ref: '#/components/schemas/DependencyCheck'
+        auto_installed_tools:
+          type: array
+          items:
+            type: string
+      required: [tenant_tool, dependency_check]
+    InstallToolResponse:
+      type: object
+      properties:
+        data:
+          $ref: '#/components/schemas/InstallToolResult'
+      required: [data]
+    DependencyInfo:
+      type: object
+      properties:
+        type:
+          type: string
+        id:
+          type: string
+        code:
+          type: string
+        name:
+          type: string
+        dependency_type:
+          type: string
+        auto_install_on_activation:
+          type: boolean
+        install_order:
+          type: integer
+        already_activated:
+          type: boolean
+      required:
+        - type
+        - id
+        - code
+        - name
+        - dependency_type
+        - auto_install_on_activation
+        - install_order
+        - already_activated
+    DependencyCheck:
+      type: object
+      properties:
+        can_activate:
+          type: boolean
+        missing_required_modules:
+          type: array
+          items:
+            $ref: '#/components/schemas/DependencyInfo'
+        missing_required_tools:
+          type: array
+          items:
+            $ref: '#/components/schemas/DependencyInfo'
+        recommended_modules:
+          type: array
+          items:
+            $ref: '#/components/schemas/DependencyInfo'
+        recommended_tools:
+          type: array
+          items:
+            $ref: '#/components/schemas/DependencyInfo'
+        optional_modules:
+          type: array
+          items:
+            $ref: '#/components/schemas/DependencyInfo'
+        optional_tools:
+          type: array
+          items:
+            $ref: '#/components/schemas/DependencyInfo'
+        auto_install_suggestions:
+          type: array
+          items:
+            $ref: '#/components/schemas/DependencyInfo'
+      required:
+        - can_activate
+    DependencyCheckResponse:
+      type: object
+      properties:
+        data:
+          $ref: '#/components/schemas/DependencyCheck'
+      required: [data]

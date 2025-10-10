@@ -10,5 +10,5 @@ Bu dosya, proje dokümanlarının yeni **"Kiracı Başına Şema" (Schema-per-Te
 - [x] `nexpaces-web/docs/ABOUT.md`
 - [x] `nexpaces-api/GUN_SONU.md`
 - [x] `nexpaces-api/IMPLEMENTATION_ROADMAP.md`
-- [ ] `nexpaces-api/LEARNING_GUIDE.md`
-- [ ] `COMPREHENSIVE_ANALYSIS.md`
+- [x] `docs/guides/OGRENME_REHBERI.md`
+- [x] `docs/analysis/KAPSAMLI_ANALIZ.md`

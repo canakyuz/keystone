@@ -6,7 +6,7 @@ A secure, scalable, and maintainable Go backend with **7 core modules** (LMS, CM
 
 ---
 
-## 🎯 Project Status (January 2025)
+## 🎯 Project Status (October 2025)
 
 ### Current Phase: **Phase 8 Complete** ✅
 **Next Focus:** Phase 9 – Schema-per-Tenant rollout (in progress)
@@ -14,7 +14,7 @@ A secure, scalable, and maintainable Go backend with **7 core modules** (LMS, CM
 **Build Status:** ✅ Successful (12MB binary)
 **API Endpoints:** 60+ REST endpoints
 **Test Coverage:** 36.8% domain (Target: 80%+)
-**Last Updated:** January 3, 2025
+**Last Updated:** October 7, 2025
 
 ### Completed Features
 
@@ -51,10 +51,12 @@ NexSpaces provides **7 core modules** that tenants can mix and match with **dyna
 | **LMS** | Learning Management System | Education, corporate training | Schema-per-Tenant |
 | **CMS** | Content Management System | Blogs, websites, documentation | Schema-per-Tenant |
 | **CRM** | Customer Relationship Mgmt | Sales, marketing, support | Schema-per-Tenant |
-| **HMS** | Hotel Management System | Hotels, resorts, B&Bs | Schema-per-Tenant |
-| **OMS** | Order Management System | Logistics, fulfillment, delivery | Schema-per-Tenant |
-| **ECOM** | E-commerce Platform | Online stores, marketplaces | Schema-per-Tenant |
-| **ERP** | Enterprise Resource Planning | Manufacturing, supply chain | Schema-per-Tenant |
+| **PMS** | Property-Hotel Management System | Hotels, resorts, B&Bs | Schema-per-Database |
+| **HMS** | Hospital Management System | | Schema-per-Database |
+| **OMS** | Order Management System | Logistics, fulfillment, delivery | Schema-per-Database |
+| **ECOM** | E-commerce Platform | Online stores, marketplaces | Schema-per-Database |
+| **ERP** | Enterprise Resource Planning | Manufacturing, supply chain | Schema-per-Database |
+| **SaaS** | Generic SaaS Boilerplate | Startups, new products | Schema-per-Tenant |
 
 ### Unified Multi-Tenancy Architecture: Schema-per-Tenant
 
@@ -660,11 +662,118 @@ nexpaces-api/
 ├── .env.example
 ├── docker-compose.yml
 ├── Makefile
-├── IMPLEMENTATION_ROADMAP.md    # Detailed plan
 └── README.md                    # This file
 ```
 
 ---
+
+### 📍 Geliştirme Rehberi (Nerede Ne Yapılır?)
+
+Bu rehber, sık karşılaşılan geliştirme görevlerinin proje yapısının hangi kısımlarında gerçekleştirileceğini detaylı olarak açıklar.
+
+#### Senaryo 1: Yeni Bir API Endpoint'i Ekleme (Örnek: `GET /api/v1/tools/:id/statistics`)
+
+1.  **Handler Fonksiyonunu Oluşturma:**
+    *   **Nereye?** `internal/handler/tool/handler.go` (varsayımsal `tool` modülü için)
+    *   **Ne Yapılır?** Gelen isteği (`*fiber.Ctx`) işleyen, gerekli servisleri çağıran ve yanıtı (JSON veya hata) döndüren fonksiyonu yazın.
+    ```go
+    // internal/handler/tool/handler.go
+    func (h *ToolHandler) GetToolStatistics(c *fiber.Ctx) error {
+        toolID := c.Params("id")
+        stats, err := h.toolService.GetStatistics(c.UserContext(), toolID)
+        if err != nil {
+            return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+        }
+        return c.JSON(stats)
+    }
+    ```
+
+2.  **Rotayı (Route) Ekleme:**
+    *   **Nereye?** `internal/app/routes.go`
+    *   **Ne Yapılır?** `SetupRoutes` fonksiyonu içinde, oluşturduğunuz handler'ı uygun HTTP metodu ve URL yolu ile eşleştirin. Rotayı kimlik doğrulama (auth) middleware'i ile korumayı unutmayın.
+    ```go
+    // internal/app/routes.go
+    func (a *Application) SetupRoutes(app *fiber.App) {
+        // ... diğer rotalar
+        apiV1 := app.Group("/api/v1", middleware.AuthMiddleware(a.Config.Auth.JWTSecret))
+        apiV1.Get("/tools/:id/statistics", a.ToolHandler.GetToolStatistics)
+        // ...
+    }
+    ```
+
+#### Senaryo 2: Yeni Bir İş Mantığı (Use Case) Ekleme (Örnek: `GetStatistics`)
+
+1.  **Servis (Use Case) Arayüzünü Güncelleme:**
+    *   **Nereye?** `internal/usecase/tool/service.go`
+    *   **Ne Yapılır?** `Service` interface'ine yeni metodun imzasını ekleyin. Bu, "Clean Architecture" prensiplerine uygun olarak dış katmanlarla olan kontratı tanımlar.
+    ```go
+    // internal/usecase/tool/service.go
+    type Service interface {
+        // ... diğer metodlar
+        GetStatistics(ctx context.Context, toolID string) (*ToolStats, error)
+    }
+    ```
+
+2.  **Servis Fonksiyonunu Yazma:**
+    *   **Nereye?** `internal/usecase/tool/service.go`
+    *   **Ne Yapılır?** `service` struct'ı üzerinde metodu implemente edin. Bu fonksiyon, iş mantığını barındırır ve gerekli repository'leri çağırır.
+    ```go
+    // internal/usecase/tool/service.go
+    func (s *service) GetStatistics(ctx context.Context, toolID string) (*ToolStats, error) {
+        // İş mantığı burada: validasyon, hesaplama, vb.
+        tool, err := s.toolRepo.FindByID(ctx, toolID)
+        if err != nil {
+            return nil, fmt.Errorf("tool bulunamadı: %w", err)
+        }
+        // ... istatistikleri hesapla ...
+        return &ToolStats{...}, nil
+    }
+    ```
+
+#### Senaryo 3: Veritabanı İşlemi Ekleme (Örnek: `FindByID`)
+
+1.  **Repository Arayüzünü Güncelleme:**
+    *   **Nereye?** `internal/domain/tool/repository.go`
+    *   **Ne Yapılır?** `Repository` interface'ine yeni veritabanı erişim metodunu ekleyin.
+    ```go
+    // internal/domain/tool/repository.go
+    type Repository interface {
+        // ... diğer metodlar
+        FindByID(ctx context.Context, toolID string) (*Tool, error)
+    }
+    ```
+
+2.  **Repository Fonksiyonunu Yazma (PostgreSQL için):**
+    *   **Nereye?** `internal/repository/tool/postgres.go`
+    *   **Ne Yapılır?** PostgreSQL'e özgü sorguyu yazın. `sqlx` veya `pgx` kullanarak veriyi çekin ve domain modeline (`Tool`) map edin. Tenant izolasyonunun (`search_path`) middleware tarafından halledildiğini unutmayın.
+    ```go
+    // internal/repository/tool/postgres.go
+    func (r *postgresRepository) FindByID(ctx context.Context, toolID string) (*domain.Tool, error) {
+        var tool domain.Tool
+        query := `SELECT * FROM tools WHERE id = $1`
+        if err := r.db.GetContext(ctx, &tool, query, toolID); err != nil {
+            return nil, err
+        }
+        return &tool, nil
+    }
+    ```
+
+#### Senaryo 4: Yeni Bir Veri Modeli (Domain Entity) Oluşturma
+
+*   **Nereye?** `internal/domain/` altında yeni bir modül klasörü (örn: `internal/domain/invoice/`) veya mevcut bir modül içine.
+*   **Ne Yapılır?** `entity.go` adında bir dosya oluşturun ve Go struct'ı olarak temel veri modelinizi tanımlayın. Bu struct, iş kurallarını ve validasyonları içerebilir.
+    ```go
+    // internal/domain/invoice/entity.go
+    package invoice
+
+    type Invoice struct {
+        ID         uuid.UUID
+        Amount     int
+        Status     string // "draft", "paid", "void"
+        DueDate    time.Time
+        TenantID   uuid.UUID
+    }
+    ```
 
 ## 🔧 Configuration
 
@@ -775,7 +884,7 @@ PUT    /api/v1/tenants/:id/dashboard/config # Update dashboard layout
 ```
 
 ### Projects, Lessons, Bookings, Services, Blog
-See [IMPLEMENTATION_ROADMAP.md](docs/IMPLEMENTATION_ROADMAP.md) for complete endpoint list.
+See [UYGULAMA_YOL_HARITASI.md](docs/planning/UYGULAMA_YOL_HARITASI.md) for complete endpoint list.
 
 ### Documentation
 ```bash
@@ -1227,7 +1336,7 @@ go test -v ./internal/domain/tenant
 | Handler | 0% | 60%+ |
 | **Total** | ~10% | **75%+** |
 
-See [IMPLEMENTATION_ROADMAP.md](docs/IMPLEMENTATION_ROADMAP.md) Phase 11 for test plan.
+See [UYGULAMA_YOL_HARITASI.md](docs/planning/UYGULAMA_YOL_HARITASI.md) Phase 11 for test plan.
 
 ---
 
@@ -1542,7 +1651,7 @@ SERVER_ENVIRONMENT=production
 DATABASE_HOST=prod-db.amazonaws.com
 DATABASE_SSLMODE=require
 JWT_SECRET=***-change-in-production
-SENTRY_DSN=https://***@sentry.io/***
+SENTRY_DSN=https://***@sentry.io/*** 
 ```
 
 ---
@@ -1650,7 +1759,7 @@ Real-time monitoring of tool performance and usage:
 - Write performance tests to measure the impact of a large number of schemas.
 - Begin implementation of enterprise modules (HMS, ERP) on top of the new, unified architecture once rollout gating criteria are met.
 
-See [IMPLEMENTATION_ROADMAP.md](docs/IMPLEMENTATION_ROADMAP.md) for a more detailed plan.
+See [UYGULAMA_YOL_HARITASI.md](docs/planning/UYGULAMA_YOL_HARITASI.md) for a more detailed plan.
 
 ---
 
@@ -1676,8 +1785,8 @@ See [IMPLEMENTATION_ROADMAP.md](docs/IMPLEMENTATION_ROADMAP.md) for a more detai
 
 ## 📚 Documentation
 
-- **[IMPLEMENTATION_ROADMAP.md](docs/IMPLEMENTATION_ROADMAP.md):** Detailed implementation plan, all phases
-- **[LEARNING_GUIDE.md](docs/LEARNING_GUIDE.md):** Tutorial for learning Go + backend development
+- **[UYGULAMA_YOL_HARITASI.md](docs/planning/UYGULAMA_YOL_HARITASI.md):** Detailed implementation plan, all phases
+- **[OGRENME_REHBERI.md](docs/guides/OGRENME_REHBERI.md):** Tutorial for learning Go + backend development
 - **[API Documentation](http://localhost:8080/docs):** Interactive Swagger UI
 - **[OpenAPI Spec](./api/openapi.yaml):** Machine-readable API definition
 
@@ -1712,7 +1821,7 @@ Copyright © 2025 NexSpaces. All rights reserved.
 
 - **Issues:** Create GitHub/Bitbucket issues
 - **Email:** support@nexpaces.com
-- **Documentation:** [IMPLEMENTATION_ROADMAP.md](docs/IMPLEMENTATION_ROADMAP.md)
+- **Documentation:** [UYGULAMA_YOL_HARITASI.md](docs/planning/UYGULAMA_YOL_HARITASI.md)
 
 ---
 

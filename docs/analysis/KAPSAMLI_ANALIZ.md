@@ -1,6 +1,6 @@
 # NexSpaces Platform - Kapsamlı Analiz ve Eksiklikler Dokümantasyonu
 
-> **Tarih:** Eylül 2024
+> **Tarih:** Ekim 2025
 > **Proje:** NexSpaces Multi-Tenant SaaS Platform
 > **Mimari:** Polyrepo (Go Backend + Next.js Frontend)
 > **Hedef:** Production-Ready Enterprise Platform
@@ -28,6 +28,24 @@ Backend (nexpaces-api/):
 ├── Clean Architecture Pattern
 ├── Docker-First Deployment
 ```
+
+---
+
+## ✅ 2025-10 Güncel İlerleme Özeti
+
+- **Schema-per-Tenant Altyapısı Stabil:** `025_add_tenant_schema_support.up.sql` ile tüm tenant kayıtları `schema_name` taşıyor; provisioning servisi şema oluşturma ve plan bazlı şablon uygulamayı idempotent hâle getirdi.
+- **Seed & Makefile İyileştirmeleri:** `scripts/seed/dev_seed.sql` tekrarlı çalıştırmalarda bozulma yaratmıyor; Makefile komutları Docker konteynerleri üzerinden standartlaştırıldı (`make migrate-up`, `make seed-dev`, `make db-shell`).
+- **OpenAPI Kapsamı Tamamlandı:** `api/openapi.yaml` artık tenant, registry, ödeme, upload ve ders modüllerinin tüm uç noktalarını içeriyor; `/docs` arayüzü Swagger üzerinden güncel şemayı gösteriyor.
+
+## 🔁 Kısa Vadeli Öncelikler (Ekim 2025)
+
+1. **TenantConnectionManager**: Request bazında `search_path` / bağlantı yönetimi middleware’den çıkarılıp tek noktaya taşınmalı (schema-per-tenant → database-per-tenant destekleyecek).
+2. **Plan → İzolasyon Haritası**: `internal/usecase/tenant/provisioning.go` içindeki TODO tamamlanarak plan bazlı izolasyon stratejisi merkezi konfigürasyona çekilmeli.
+3. **Seed Guard**: `make seed-dev` komutunun prod/staging pipeline’larında çalışmasını engelleyecek CI/CD koruması eklenmeli.
+4. **Provisioning Entegrasyon Testleri**: Yeni tenant oluşturma + şema doğrulama ve başarısız provisioning rollback senaryoları için entegrasyon testleri yazılmalı.
+5. **Enterprise Database-per-Tenant**: `ProvisionTenantDatabase` / `MigrateSchemaToDatabase` fonksiyonları ile ayrı veritabanı senaryosu denenip otomasyona alınmalı.
+
+---
 
 ---
 
@@ -309,17 +327,17 @@ services:
 ```
 
 ### API Development Tools
-```typescript
-// ❌ Eksik: OpenAPI/Swagger documentation
-// ❌ Eksik: Automatic API client generation
-// ❌ Eksik: API mocking for frontend development
-
-interface APIDevTools {
-  documentation: "Swagger/OpenAPI";
-  clientGeneration: "openapi-generator";
-  mocking: "MSW" | "json-server";
-  contractTesting: "Pact";
-}
+```yaml
+api_docs:
+  openapi_spec: "api/openapi.yaml"        # ✅ Swagger 3.1 ile güncel
+  swagger_ui: "GET /docs"                 # ✅ Fiber statik servis aktif
+client_generation:
+  status: "pending"                       # openapi-generator entegrasyonu eksik
+  target: ["typescript-fetch", "go-fiber"]
+mocking:
+  status: "pending"                       # MSW/json-server pipeline'a eklenmeli
+contract_testing:
+  status: "pending"                       # Pact veya Dredd entegrasyonu bekleniyor
 ```
 
 ### Internal Tooling
@@ -336,12 +354,13 @@ nexspaces logs tail --service "api" --tenant "test"
 
 ### Documentation Automation
 ```yaml
-# ❌ Eksik: Living documentation
+# ℹ️ İçerik yeniden kategorize edildi (docs/analysis, docs/guides, docs/process, docs/reports)
 # ❌ Eksik: Architecture decision records (ADRs)
 # ❌ Eksik: API changelog automation
+# ❌ Eksik: Otomatik sürüm notu üretimi
 
 docs_automation:
-  api_docs: "OpenAPI → Docusaurus"
+  api_docs: "OpenAPI (api/openapi.yaml) → Docusaurus"
   component_docs: "Storybook"
   architecture: "C4 Model + PlantUML"
   changelog: "Conventional Commits → Release Notes"

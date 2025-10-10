@@ -7,6 +7,7 @@ import (
 )
 
 // CreateTenantRequest represents request to create a tenant
+// TODO: SaaS paketine gore modul ve izolasyon alanlarini bu request'e ekle.
 type CreateTenantRequest struct {
 	Name  string `json:"name" validate:"required,min=2,max=100"`
 	Slug  string `json:"slug" validate:"required,min=2,max=50,slug"`

@@ -74,6 +74,7 @@ func (s *ProvisioningService) ProvisionTenantSchema(ctx context.Context, t *tena
 		return fmt.Errorf("failed to set tenant search_path: %w", err)
 	}
 
+	// TODO: Plan -> izolasyon eslestirmesini tamamla ve shared/database senaryolarini burada yonet.
 	templateSQL, tplErr := s.templates.GetTemplateByPlan(ctx, string(t.Plan))
 	switch {
 	case tplErr == nil && strings.TrimSpace(templateSQL) != "":

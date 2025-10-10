@@ -18,6 +18,133 @@ NexSpaces is an enterprise-grade multi-tenant SaaS platform supporting vertical-
 
 ---
 
+## 🎓 EDUCATIONAL MODE (MANDATORY)
+
+**Claude MUST operate in educational mode when implementing features or writing code.**
+
+### Teaching Approach
+
+When implementing any feature, Claude must:
+
+1. **Explain WHY Before HOW**
+   ```
+   ✅ "We're using a connection pool because..."
+   ✅ "This pattern prevents X problem by..."
+   ✅ "The trade-off here is..."
+
+   ❌ Just writing code without explanation
+   ```
+
+2. **Break Down Complex Concepts**
+   - Start with the problem we're solving
+   - Explain the conceptual solution
+   - Show implementation step-by-step
+   - Discuss trade-offs and alternatives
+
+3. **Use Progressive Disclosure**
+   ```
+   Step 1: High-level architecture diagram
+   Step 2: Interface design (what, not how)
+   Step 3: Implementation details
+   Step 4: Edge cases and error handling
+   Step 5: Testing strategy
+   ```
+
+4. **Provide Context and Rationale**
+   ```go
+   // ✅ GOOD: Educational comment
+   // We use sync.Pool here instead of creating new connections because:
+   // 1. Connection creation is expensive (~10ms overhead)
+   // 2. Pool reuse reduces GC pressure in high-throughput scenarios
+   // 3. PostgreSQL has connection limits (default 100)
+   // Trade-off: Slightly more complex code, but 10x better performance
+
+   // ❌ BAD: No explanation
+   pool := &sync.Pool{...}
+   ```
+
+5. **Ask Clarifying Questions**
+   - "Do you want me to explain how PostgreSQL search_path works first?"
+   - "Should I walk through the connection pooling strategy?"
+   - "Would you like to see alternative approaches before we choose one?"
+
+6. **Use Diagrams and Examples**
+   ```
+   Before implementing, show:
+   - Sequence diagrams for request flow
+   - Architecture diagrams for component relationships
+   - Code examples with inline comments
+   - Test scenarios to validate understanding
+   ```
+
+7. **Highlight Common Pitfalls**
+   ```go
+   // ⚠️ COMMON MISTAKE: Forgetting to reset search_path
+   // This causes data leakage between tenants!
+   db.Exec("SET search_path TO tenant_a")
+   defer db.Exec("SET search_path TO public") // ✅ Always reset
+   ```
+
+8. **Connect to Learning Resources**
+   - Reference internal docs (migrations, architecture docs)
+   - Cite Go best practices
+   - Link to PostgreSQL documentation
+   - Point to relevant examples in codebase
+
+### Educational Workflow Example
+
+```
+User: "Let's implement TenantConnectionManager"
+
+Claude Response:
+1. 📚 CONCEPT EXPLANATION
+   "TenantConnectionManager solves the search_path isolation problem.
+    In PostgreSQL, search_path determines which schema queries use.
+    Without proper management, Tenant A could accidentally access Tenant B's data."
+
+2. 🏗️ ARCHITECTURE DESIGN
+   [Show interface design and explain each method's purpose]
+
+3. 💡 DESIGN DECISIONS
+   "We have three approaches:
+    A) Connection-per-tenant (simple, but connection limit issues)
+    B) search_path switching (our choice - why?)
+    C) Query rewriting (complex, error-prone)"
+
+4. 👨‍💻 IMPLEMENTATION
+   [Step-by-step code with detailed comments]
+
+5. 🧪 TESTING STRATEGY
+   [Explain what tests prove and why they matter]
+
+6. ✅ VERIFICATION
+   "Let's verify by walking through a request lifecycle..."
+```
+
+### Knowledge Verification
+
+Before proceeding with implementation, Claude should verify understanding:
+
+```
+"Before we implement, let me confirm I understand your requirements:
+1. You want automatic search_path management per request
+2. It should work with connection pooling
+3. Must reset after request completes
+4. Need middleware integration
+
+Is this correct? Any additional constraints?"
+```
+
+### Continuous Learning
+
+After implementation, Claude should:
+- Summarize what was built and why
+- Highlight key learnings
+- Suggest related reading
+- Point out areas for future improvement
+
+---
+
 ## 🏗️ Architecture Principles
 
 ### Clean Architecture Layers (Strict Enforcement)

@@ -1,0 +1,176 @@
+package middleware
+
+import (
+	"context"
+	"database/sql"
+
+	"github.com/gofiber/fiber/v2"
+
+	"nexpaces-api/pkg/logger"
+)
+
+// TenantContextKey, context'te tenant bilgisini saklamak için kullanılan key tipi.
+// string yerine custom tip kullanma sebebi: key collision'ı önlemek.
+type TenantContextKey string
+
+const (
+	// TenantSchemaKey, context'te schema_name'i sakladığımız key
+	TenantSchemaKey TenantContextKey = "tenant_schema"
+	// TenantIDKey, context'te tenant_id'yi sakladığımız key
+	TenantIDKey TenantContextKey = "tenant_id"
+)
+
+// TenantContextMiddleware, her request için tenant bilgilerini context'e ekler.
+//
+// Çalışma Akışı:
+// 1. Request'ten tenant_id'yi çıkar (JWT claims veya X-Tenant-ID header'ından)
+// 2. tenant_id ile database'den schema_name lookup yap
+// 3. Schema bilgisini hem Fiber context'ine hem de Go context'ine kaydet
+// 4. Handler'ların bu bilgiyi kullanmasına izin ver
+//
+// UYARI: Bu middleware, authentication middleware'inden SONRA çalışmalıdır.
+func TenantContextMiddleware(db *sql.DB, log *logger.Logger) fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		// Adım 1: Tenant ID'yi request'ten al
+		tenantID := extractTenantID(c)
+		if tenantID == "" {
+			if log != nil {
+				log.Warn("Request'te tenant_id bulunamadı")
+			}
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error": "tenant_id gerekli",
+			})
+		}
+
+		// Adım 2: Tenant ID ile schema_name lookup yap
+		schemaName, err := getTenantSchema(c.Context(), db, tenantID)
+		if err != nil {
+			if log != nil {
+				log.WithFields(logger.Fields{
+					"tenant_id": tenantID,
+					"error":     err.Error(),
+				}).Error("Tenant schema bulunamadı")
+			}
+
+			// Tenant bulunamadıysa 404 dön
+			if err == sql.ErrNoRows {
+				return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+					"error": "tenant bulunamadı",
+				})
+			}
+
+			// Diğer hatalar 500
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error": "tenant bilgisi alınamadı",
+			})
+		}
+
+		// Adım 3: Tenant bilgilerini context'e kaydet
+		//
+		// c.Locals(): Fiber'in kendi context sistemi (request lifecycle boyunca)
+		c.Locals("tenant_id", tenantID)
+		c.Locals("tenant_schema", schemaName)
+
+		// Go context'ine de ekle (repository layer'da kullanmak için)
+		ctx := context.WithValue(c.Context(), TenantIDKey, tenantID)
+		ctx = context.WithValue(ctx, TenantSchemaKey, schemaName)
+		c.SetUserContext(ctx)
+
+		if log != nil {
+			log.WithFields(logger.Fields{
+				"tenant_id":   tenantID,
+				"schema_name": schemaName,
+			}).Debug("Tenant context ayarlandı")
+		}
+
+		// Sonraki middleware/handler'a geç
+		return c.Next()
+	}
+}
+
+// extractTenantID, request'ten tenant_id bilgisini çıkarır.
+//
+// Öncelik sırası:
+// 1. JWT claims'den (önerilen - güvenli)
+// 2. X-Tenant-ID header'ından (development/test)
+// 3. Query parameter'dan (ÖNERILMEZ)
+func extractTenantID(c *fiber.Ctx) string {
+	// Yöntem 1: JWT claims'den al (production)
+	user := c.Locals("user")
+	if user != nil {
+		if claims, ok := user.(map[string]interface{}); ok {
+			if tenantID, exists := claims["tenant_id"]; exists {
+				if tid, ok := tenantID.(string); ok && tid != "" {
+					return tid
+				}
+			}
+		}
+	}
+
+	// Yöntem 2: Header'dan al (development)
+	headerTenantID := c.Get("X-Tenant-ID")
+	if headerTenantID != "" {
+		return headerTenantID
+	}
+
+	// Yöntem 3: Query parameter (sadece development)
+	queryTenantID := c.Query("tenant_id")
+	if queryTenantID != "" {
+		return queryTenantID
+	}
+
+	return ""
+}
+
+// getTenantSchema, tenant_id ile database'den schema_name'i çeker.
+//
+// PERFORMANS NOTU: Production'da Redis cache eklenmelidir.
+func getTenantSchema(ctx context.Context, db *sql.DB, tenantID string) (string, error) {
+	// TODO: Cache kontrolü
+	// if cached, found := cache.Get("tenant:" + tenantID); found {
+	//     return cached.(string), nil
+	// }
+
+	var schemaName string
+	query := `
+		SELECT schema_name
+		FROM tenants
+		WHERE id = $1
+		  AND deleted_at IS NULL
+		  AND status = 'active'
+	`
+
+	err := db.QueryRowContext(ctx, query, tenantID).Scan(&schemaName)
+	if err != nil {
+		return "", err
+	}
+
+	if schemaName == "" {
+		return "", sql.ErrNoRows
+	}
+
+	// TODO: Cache'e kaydet
+	// cache.Set("tenant:" + tenantID, schemaName, 5*time.Minute)
+
+	return schemaName, nil
+}
+
+// GetTenantSchemaFromContext, Go context'inden tenant schema'sını alır.
+//
+// Kullanım (Repository layer):
+//
+//	schema := middleware.GetTenantSchemaFromContext(ctx)
+func GetTenantSchemaFromContext(ctx context.Context) string {
+	if schema, ok := ctx.Value(TenantSchemaKey).(string); ok {
+		return schema
+	}
+	return ""
+}
+
+// GetTenantIDFromContext, Go context'inden tenant ID'yi alır.
+func GetTenantIDFromContext(ctx context.Context) string {
+	if tenantID, ok := ctx.Value(TenantIDKey).(string); ok {
+		return tenantID
+	}
+	return ""
+}

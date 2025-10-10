@@ -101,6 +101,9 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 	}
 	app.Use(openAPIMiddleware)
 
+	// NOT: tenantContextMiddleware'i authentication sonrasında ekleyeceğiz
+	// çünkü JWT'den tenant_id çıkarmak için önce auth middleware çalışmalı
+
 	// Paylaşılan bağımlılıkları başlat.
 	appLogger := pkgLogger.New(pkgLogger.Config{ // Uygulama genelinde kullanılacak loglama servisi.
 		Level:       cfg.Server.Environment,
@@ -186,6 +189,14 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 	dependencyCheckerService := registryService.NewDependencyCheckerService(db, moduleRepository, toolRepository, tenantModuleRepository, tenantToolRepository)
 	tenantActivationService := registryService.NewTenantActivationService(moduleRepository, toolRepository, tenantModuleRepository, tenantToolRepository, dependencyCheckerService)
 
+	// Tenant bağlantı yöneticisi (search_path management)
+	// TODO: Repository layer'da kullanılacak
+	_ = database.NewTenantConnectionManager(db, appLogger)
+
+	// Tenant context middleware (her request için tenant isolation)
+	tenantContextMiddleware := middleware.TenantContextMiddleware(db, appLogger)
+
+	// Eski tenant manager (backward compatibility)
 	tenantManager := database.NewTenantManager(db)
 	tenantScopeMiddleware := middleware.TenantScope(tenantRepository, tenantManager)
 
@@ -231,7 +242,8 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 		serviceHTTPHandler,
 		postHTTPHandler, categoryHTTPHandler,
 		paymentHTTPHandler, webhookHTTPHandler,
-		moduleCatalogHTTPHandler, toolCatalogHTTPHandler, activationHTTPHandler, tenantScopeMiddleware)
+		moduleCatalogHTTPHandler, toolCatalogHTTPHandler, activationHTTPHandler,
+		tenantContextMiddleware, tenantScopeMiddleware)
 
 	// Hazırlanan uygulama örneğini geri döndür.
 	return &Application{

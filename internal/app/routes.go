@@ -40,6 +40,7 @@ func setupRoutes(
 	moduleCatalogH *registryHandler.ModuleCatalogHandler,
 	toolCatalogH *registryHandler.ToolCatalogHandler,
 	activationH *registryHandler.ActivationHandler,
+	tenantContextMiddleware fiber.Handler, // YENİ: Tenant context injection
 	tenantScope fiber.Handler,
 ) {
 	// /docs yolu, statik Swagger/OpenAPI dokümantasyon sayfasını sunar.
@@ -79,7 +80,8 @@ func setupRoutes(
 	authProtected.Get("/me", authH.GetMe) // Mevcut giriş yapmış kullanıcı bilgilerini getirir.
 
 	// Tenant (Kiracı) rotaları, kimlik doğrulaması gerektirir ve kiracıya özel işlemleri yönetir.
-	tenants := v1.Group("/tenants", middleware.AuthMiddleware(cfg.Auth.JWTSecret), tenantScope)
+	// Middleware sırası: Auth → TenantContext → TenantScope
+	tenants := v1.Group("/tenants", middleware.AuthMiddleware(cfg.Auth.JWTSecret), tenantContextMiddleware, tenantScope)
 	tenants.Post("/", tenantH.Create)                              // Yeni bir kiracı oluşturur.
 	tenants.Get("/current", tenantH.GetCurrent)                    // Mevcut (aktif) kiracıyı getirir.
 	tenants.Get("/stats", tenantH.GetStats)                        // Kiracı ile ilgili istatistikleri sunar.
@@ -96,7 +98,7 @@ func setupRoutes(
 	tenants.Delete("/:id", tenantH.Delete)                         // Bir kiracıyı siler.
 
 	// Upload (Dosya Yükleme) rotaları, kiracıya özeldir ve kimlik doğrulaması gerektirir.
-	upload := v1.Group("/upload", middleware.AuthMiddleware(cfg.Auth.JWTSecret), tenantScope)
+	upload := v1.Group("/upload", middleware.AuthMiddleware(cfg.Auth.JWTSecret), tenantContextMiddleware, tenantScope)
 	upload.Post("/logo", uploadH.UploadLogo)       // Logo yükleme.
 	upload.Post("/favicon", uploadH.UploadFavicon) // Favicon yükleme.
 	upload.Post("/image", uploadH.UploadImage)     // Genel amaçlı resim yükleme.
@@ -105,7 +107,7 @@ func setupRoutes(
 	app.Static("/uploads", "./uploads")
 
 	// User (Kullanıcı) rotaları, kimlik doğrulaması gerektirir.
-	users := v1.Group("/users", middleware.AuthMiddleware(cfg.Auth.JWTSecret), tenantScope)
+	users := v1.Group("/users", middleware.AuthMiddleware(cfg.Auth.JWTSecret), tenantContextMiddleware, tenantScope)
 	users.Post("/", userH.Create)                      // Yeni kullanıcı oluşturma (sadece admin).
 	users.Get("/stats", userH.GetStats)                // Kullanıcı istatistikleri.
 	users.Get("/:id", userH.GetByID)                   // ID ile kullanıcı getirme.
@@ -119,7 +121,7 @@ func setupRoutes(
 	users.Delete("/:id", userH.Delete)                 // Kullanıcıyı silme (sadece admin).
 
 	// Website (Web Sitesi) rotaları, kiracıya özeldir.
-	websites := v1.Group("/websites", middleware.AuthMiddleware(cfg.Auth.JWTSecret), tenantScope)
+	websites := v1.Group("/websites", middleware.AuthMiddleware(cfg.Auth.JWTSecret), tenantContextMiddleware, tenantScope)
 	websites.Get("/", websiteH.List)                // Web sitelerini listeler.
 	websites.Post("/", websiteH.Create)             // Yeni web sitesi oluşturur.
 	websites.Get("/:id", websiteH.GetByID)          // ID ile web sitesi getirir.

@@ -30,6 +30,43 @@ func NewProvisioningService(db *sql.DB, templates templateRepo.Repository, log *
 	}
 }
 
+// getIsolationStrategy, subscription plan'e göre isolation stratejisini döndürür.
+//
+// 🎓 BACKEND KONSEPT: Plan-Based Multi-Tenancy Strategy
+//
+// Isolation Strategies Comparison:
+// ┌─────────────────────┬──────────────┬──────────┬────────────┐
+// │ Strategy            │ Isolation    │ Cost     │ Use Case   │
+// ├─────────────────────┼──────────────┼──────────┼────────────┤
+// │ Schema-per-tenant   │ Strong       │ Medium   │ Most plans │
+// │ Database-per-tenant │ Strongest    │ High     │ Enterprise │
+// │ Shared + RLS        │ Weak         │ Low      │ Demo/Dev   │
+// └─────────────────────┴──────────────┴──────────┴────────────┘
+//
+// 🎓 GO KONSEPT: Constant Returns (No Complex Logic)
+// Bu fonksiyon şu anda basit bir mapping yapar.
+// İleride database'den config okuyabilir (dynamic strategy)
+func (s *ProvisioningService) getIsolationStrategy(plan tenant.SubscriptionPlan) string {
+	switch plan {
+	case tenant.PlanFree, tenant.PlanStarter, tenant.PlanPro:
+		return "schema-per-tenant" // Default: Strong isolation, medium cost
+
+	case tenant.PlanEnterprise:
+		// 🎓 FUTURE: Dedicated database for enterprise
+		// Şu an schema-per-tenant kullan, sonra migrate edilecek
+		return "schema-per-tenant"
+
+	default:
+		// Unknown plan, fallback to schema-per-tenant
+		if s.logger != nil {
+			s.logger.WithFields(logger.Fields{
+				"plan": plan,
+			}).Warn("Unknown plan, falling back to schema-per-tenant")
+		}
+		return "schema-per-tenant"
+	}
+}
+
 // GenerateSchemaName delegates to the database helper function that guarantees uniqueness.
 func (s *ProvisioningService) GenerateSchemaName(ctx context.Context, base string) (string, error) {
 	var schemaName string
@@ -74,17 +111,70 @@ func (s *ProvisioningService) ProvisionTenantSchema(ctx context.Context, t *tena
 		return fmt.Errorf("failed to set tenant search_path: %w", err)
 	}
 
-	// TODO: Plan -> izolasyon eslestirmesini tamamla ve shared/database senaryolarini burada yonet.
-	templateSQL, tplErr := s.templates.GetTemplateByPlan(ctx, string(t.Plan))
-	switch {
-	case tplErr == nil && strings.TrimSpace(templateSQL) != "":
-		if _, err = tx.ExecContext(ctx, templateSQL); err != nil {
-			return fmt.Errorf("failed to execute schema template for plan %s: %w", t.Plan, err)
+	// 🎓 PLAN-TO-ISOLATION MAPPING
+	//
+	// Multi-Tenant Isolation Strategies:
+	// 1. Schema-per-tenant (Current): Her tenant ayrı PostgreSQL schema
+	//    - Free, Starter, Pro plans için varsayılan
+	//    - Strong isolation, medium cost
+	//
+	// 2. Database-per-tenant: Her tenant ayrı database
+	//    - Enterprise plan için (future)
+	//    - Strongest isolation, high cost
+	//
+	// 3. Shared schema + RLS: Tüm tenant'lar aynı tablolarda
+	//    - Development/Demo için (future)
+	//    - Weak isolation, lowest cost
+	//
+	// Current Implementation: Schema-per-tenant for all plans
+	isolationStrategy := s.getIsolationStrategy(t.Plan)
+
+	switch isolationStrategy {
+	case "schema-per-tenant":
+		// Schema zaten oluşturuldu (line 67-70)
+		// Şimdi plan-specific template uygula
+		templateSQL, tplErr := s.templates.GetTemplateByPlan(ctx, string(t.Plan))
+		switch {
+		case tplErr == nil && strings.TrimSpace(templateSQL) != "":
+			// Template bulundu, execute et
+			if _, err = tx.ExecContext(ctx, templateSQL); err != nil {
+				return fmt.Errorf("failed to execute schema template for plan %s: %w", t.Plan, err)
+			}
+
+			if s.logger != nil {
+				s.logger.WithFields(logger.Fields{
+					"tenant_id": t.ID,
+					"plan":      t.Plan,
+					"template":  "executed",
+				}).Debug("Schema template applied")
+			}
+
+		case errors.Is(tplErr, templateRepo.ErrTemplateNotFound):
+			// Template yok, boş schema ile devam (acceptable)
+			if s.logger != nil {
+				s.logger.WithFields(logger.Fields{
+					"tenant_id": t.ID,
+					"plan":      t.Plan,
+				}).Debug("No template found for plan, continuing with empty schema")
+			}
+
+		case tplErr != nil:
+			// Template fetch error (unexpected)
+			return fmt.Errorf("failed to fetch schema template: %w", tplErr)
 		}
-	case errors.Is(tplErr, templateRepo.ErrTemplateNotFound):
-		// No template is acceptable; continue with empty schema
-	case tplErr != nil:
-		return fmt.Errorf("failed to fetch schema template: %w", tplErr)
+
+	case "database-per-tenant":
+		// 🎓 FUTURE: Enterprise plan için dedicated database
+		// Bu durumda yeni bir database oluştur ve connection string döndür
+		return fmt.Errorf("database-per-tenant isolation not yet implemented (enterprise plan)")
+
+	case "shared-rls":
+		// 🎓 FUTURE: Demo/Development için shared schema + Row Level Security
+		// Bu durumda schema oluşturma, sadece RLS policy ekle
+		return fmt.Errorf("shared-rls isolation not yet implemented (demo/dev plan)")
+
+	default:
+		return fmt.Errorf("unknown isolation strategy: %s", isolationStrategy)
 	}
 
 	if _, err = tx.ExecContext(ctx, "UPDATE tenants SET schema_name = $1 WHERE id = $2", t.SchemaName, t.ID); err != nil {

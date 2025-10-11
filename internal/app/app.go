@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"log"
@@ -14,6 +15,7 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/limiter"
 	"github.com/gofiber/fiber/v2/middleware/logger"
 	"github.com/gofiber/fiber/v2/middleware/recover"
+	"github.com/redis/go-redis/v9"
 
 	"nexpaces-api/internal/config"
 	authHandler "nexpaces-api/internal/handler/auth"
@@ -70,6 +72,25 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 		return nil, fmt.Errorf("veritabanına bağlanırken hata oluştu: %w", err)
 	}
 
+	// 🎓 REDIS CLIENT: In-memory cache için
+	// Connection pooling: Default 10 connections
+	// Health check: Ping komutu ile bağlantı kontrolü
+	redisClient := redis.NewClient(&redis.Options{
+		Addr:     fmt.Sprintf("%s:%s", cfg.Redis.Host, cfg.Redis.Port),
+		Password: cfg.Redis.Password,
+		DB:       cfg.Redis.DB,
+	})
+
+	// Redis bağlantısını test et
+	// 🎓 GO KONSEPT: context.Background() - root context, no timeout
+	ctx := context.Background()
+	if err := redisClient.Ping(ctx).Err(); err != nil {
+		log.Printf("⚠️  Redis bağlantısı başarısız: %v (Cache devre dışı, DB fallback aktif)", err)
+		// Redis hatası fatal değil, DB fallback var
+	} else {
+		log.Println("✅ Redis bağlantısı başarılı")
+	}
+
 	// Fiber (web framework) uygulamasını oluştur.
 	app := fiber.New(fiber.Config{
 		ReadTimeout:  cfg.Server.ReadTimeout,
@@ -114,7 +135,14 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 	// Repository (Veri Erişim Katmanı) katmanını başlat.
 	// Repository'ler veritabanı ile doğrudan iletişim kuran yapılardır.
 	tenantRepository := tenantRepo.NewPostgresRepository(db)
-	userRepository := userRepo.NewPostgresRepository(db)
+	tenantConnectionManager := database.NewTenantConnectionManager(db, appLogger)
+
+	// 🎓 TENANT SCHEMA CACHE: Redis + DB fallback cache layer
+	// Performance: ~10-20ms latency kazancı (cache hit)
+	// TTL: 10 dakika (tenant schema nadiren değişir)
+	tenantSchemaCache := middleware.NewTenantSchemaCache(redisClient, db, appLogger)
+
+	userRepository := userRepo.NewPostgresRepository(db, tenantConnectionManager)
 	websiteRepository := websiteRepo.NewPostgresRepository(db)
 
 	// Dersler modülü için repository'ler.
@@ -189,12 +217,10 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 	dependencyCheckerService := registryService.NewDependencyCheckerService(db, moduleRepository, toolRepository, tenantModuleRepository, tenantToolRepository)
 	tenantActivationService := registryService.NewTenantActivationService(moduleRepository, toolRepository, tenantModuleRepository, tenantToolRepository, dependencyCheckerService)
 
-	// Tenant bağlantı yöneticisi (search_path management)
-	// TODO: Repository layer'da kullanılacak
-	_ = database.NewTenantConnectionManager(db, appLogger)
 
 	// Tenant context middleware (her request için tenant isolation)
-	tenantContextMiddleware := middleware.TenantContextMiddleware(db, appLogger)
+	// 🎓 CACHE-AWARE: Redis cache kullanarak schema lookup performance optimize edildi
+	tenantContextMiddleware := middleware.TenantContextMiddleware(tenantSchemaCache)
 
 	// Eski tenant manager (backward compatibility)
 	tenantManager := database.NewTenantManager(db)

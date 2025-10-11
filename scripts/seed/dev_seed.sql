@@ -1,5 +1,29 @@
 -- Development Seed Script
 -- Creates founder tenant, founder owner, and sector-specific users+modules
+--
+-- 🎓 PRODUCTION GUARD
+-- Bu script SADECE development/staging ortamlarında çalışmalıdır.
+-- Production'da çalıştırılması veri güvenliği riski oluşturur.
+
+-- ⚠️ GUARD: Production environment check
+DO $$
+DECLARE
+    v_environment TEXT;
+BEGIN
+    -- Check if running in production
+    v_environment := current_setting('app.environment', true);
+
+    IF v_environment = 'production' THEN
+        RAISE EXCEPTION 'SEED GUARD: Development seed script cannot run in production environment. Set app.environment to development/staging first.';
+    END IF;
+
+    -- Also check database name as secondary guard
+    IF current_database() LIKE '%prod%' OR current_database() LIKE '%production%' THEN
+        RAISE EXCEPTION 'SEED GUARD: Cannot seed production database (database name contains "prod" or "production")';
+    END IF;
+
+    RAISE NOTICE 'SEED GUARD: Environment check passed (environment: %, database: %)', v_environment, current_database();
+END $$;
 
 -- 1. Founder tenant
 DO $$

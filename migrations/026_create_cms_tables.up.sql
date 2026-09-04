@@ -120,7 +120,7 @@ CREATE TABLE IF NOT EXISTS components (
     --
     -- Example props for image:
     -- {
-    --   "src": "https://cdn.nexpaces.com/images/hero.jpg",
+    --   "src": "https://cdn.keystone.dev/images/hero.jpg",
     --   "alt": {"tr": "Hero resmi", "en": "Hero image"},
     --   "width": "100%",
     --   "height": "auto",
@@ -298,7 +298,7 @@ COMMENT ON TABLE sections IS 'Page içindeki bölümler (hero, features, cta, vs
 COMMENT ON COLUMN sections.config IS 'Section özellikleri (background, padding, vs.)';
 COMMENT ON COLUMN sections.order_index IS 'Sıralama (0-indexed, auto-reorder on delete)';
 
-COMMENT ON TABLE components IS 'Section içindeki micro component\'ler (button, text, image, vs.)';
+COMMENT ON TABLE components IS 'Section içindeki micro component''ler (button, text, image, vs.)';
 COMMENT ON COLUMN components.props IS 'Component özellikleri (variant, size, text, vs.)';
 COMMENT ON COLUMN components.order_index IS 'Sıralama (0-indexed, auto-reorder on delete)';
 

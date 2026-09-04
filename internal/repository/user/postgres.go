@@ -8,9 +8,9 @@ import (
 	"strings"
 	"time"
 
-	"nexpaces-api/internal/domain/user"
-	"nexpaces-api/pkg/database"
-	"nexpaces-api/internal/middleware"
+	"github.com/canakyuz/keystone/internal/domain/user"
+	"github.com/canakyuz/keystone/pkg/database"
+	"github.com/canakyuz/keystone/pkg/tenantctx"
 )
 
 // PostgresRepository implements Repository using PostgreSQL
@@ -29,7 +29,7 @@ func NewPostgresRepository(db *sql.DB, tenantConnetionManager database.TenantCon
 // Create creates a new user
 func (r *PostgresRepository) Create(ctx context.Context, u *user.User) error {
 	// 1. Context'ten tenant schema'sını al
-	schema := middleware.GetTenantSchemaFromContext(ctx)
+	schema := tenantctx.Schema(ctx)
 
 	// 2. Schema boşsa hata dön (middleware çalışmamış demektir)
 	if schema == "" {
@@ -74,11 +74,11 @@ func (r *PostgresRepository) Create(ctx context.Context, u *user.User) error {
 	}
 
 	// 3. TenantConnectionManager ile execute et
-	return r.tenantConnectionManager.ExecuteInTenantContext(ctx, schema, func() error {
-		_, err := r.db.ExecContext(ctx, query,
+	return r.tenantConnectionManager.ExecuteInTenantContext(ctx, schema, func(conn *sql.Conn) error {
+		_, err := conn.ExecContext(ctx, query,
 			u.ID, u.TenantID, u.Email, u.Password, u.FirstName, u.LastName, u.Role, u.Status,
 			u.EmailVerified, u.EmailVerifiedAt, u.LastLoginAt,
-			u.Avatar, u.Phone, u.Timezone, u.Locale,
+			nullable(u.Avatar), nullable(u.Phone), nullable(u.Timezone), nullable(u.Locale),
 			u.TwoFactorEnabled, u.PasswordChangedAt,
 			preferencesJSON, metadataJSON,
 			u.CreatedAt, u.UpdatedAt, createdBy, updatedBy,
@@ -94,7 +94,7 @@ func (r *PostgresRepository) Create(ctx context.Context, u *user.User) error {
 
 // GetByID retrieves a user by ID (tenant-scoped)
 func (r *PostgresRepository) GetByID(ctx context.Context, tenantID, userID string) (*user.User, error) {
-	schema := middleware.GetTenantSchemaFromContext(ctx)
+	schema := tenantctx.Schema(ctx)
 	if schema == "" {
 		return nil, fmt.Errorf("tenant schema not found in context")
 	}
@@ -109,12 +109,13 @@ func (r *PostgresRepository) GetByID(ctx context.Context, tenantID, userID strin
 			created_at, updated_at, created_by, updated_by
 		FROM users
 		WHERE id = $1 AND tenant_id = $2
+		  AND deleted_at IS NULL
 	`
 
 	var result *user.User
-	err := r.tenantConnectionManager.ExecuteInTenantContext(ctx, schema, func() error {
+	err := r.tenantConnectionManager.ExecuteInTenantContext(ctx, schema, func(conn *sql.Conn) error {
 		var scanErr error
-		result, scanErr = r.scanUser(r.db.QueryRowContext(ctx, query, userID, tenantID))
+		result, scanErr = r.scanUser(conn.QueryRowContext(ctx, query, userID, tenantID))
 		return scanErr
 	})
 
@@ -123,7 +124,7 @@ func (r *PostgresRepository) GetByID(ctx context.Context, tenantID, userID strin
 
 // GetByEmail retrieves a user by email (tenant-scoped)
 func (r *PostgresRepository) GetByEmail(ctx context.Context, tenantID, email string) (*user.User, error) {
-	schema := middleware.GetTenantSchemaFromContext(ctx)
+	schema := tenantctx.Schema(ctx)
 	if schema == "" {
 		return nil, fmt.Errorf("tenant schema not found in context")
 	}
@@ -138,12 +139,13 @@ func (r *PostgresRepository) GetByEmail(ctx context.Context, tenantID, email str
 			created_at, updated_at, created_by, updated_by
 		FROM users
 		WHERE email = $1 AND tenant_id = $2
+		  AND deleted_at IS NULL
 	`
 
 	var result *user.User
-	err := r.tenantConnectionManager.ExecuteInTenantContext(ctx, schema, func() error {
+	err := r.tenantConnectionManager.ExecuteInTenantContext(ctx, schema, func(conn *sql.Conn) error {
 		var scanErr error
-		result, scanErr = r.scanUser(r.db.QueryRowContext(ctx, query, email, tenantID))
+		result, scanErr = r.scanUser(conn.QueryRowContext(ctx, query, email, tenantID))
 		return scanErr
 	})
 
@@ -162,15 +164,35 @@ func (r *PostgresRepository) GetByEmailGlobal(ctx context.Context, email string)
 			created_at, updated_at, created_by, updated_by
 		FROM users
 		WHERE email = $1
+		  AND deleted_at IS NULL
 		LIMIT 1
 	`
 
-	return r.scanUser(r.db.QueryRowContext(ctx, query, email))
+	// Bu sorgu bilinçli olarak tenant sınırının dışına çıkar: kullanıcı henüz
+	// hangi tenant'a ait olduğunu bildirmeden giriş yapmaya çalışıyor.
+	//
+	// Görünürlük, migration 028'deki auth_lookup_policy tarafından bir oturum
+	// bayrağına bağlanmıştır. Bayrağı SET LOCAL ile açıyoruz, böylece yetki
+	// transaction sınırında kalır ve commit/rollback ile kendiliğinden kapanır.
+	// Bağlantı havuza döndüğünde açık bir yetkiyle dönmez.
+	//
+	// Karmaşıklık: O(log n) (users.email üzerindeki index), tek satır döner.
+	tx, err := r.db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	if err != nil {
+		return nil, fmt.Errorf("failed to begin auth lookup: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	if _, err := tx.ExecContext(ctx, "SET LOCAL app.auth_lookup = 'on'"); err != nil {
+		return nil, fmt.Errorf("failed to scope auth lookup: %w", err)
+	}
+
+	return r.scanUser(tx.QueryRowContext(ctx, query, email))
 }
 
 // List retrieves all users in a tenant with pagination
 func (r *PostgresRepository) List(ctx context.Context, tenantID string, filters ListFilters) ([]*user.User, int64, error) {
-	schema := middleware.GetTenantSchemaFromContext(ctx)
+	schema := tenantctx.Schema(ctx)
 	if schema == "" {
 		return nil, 0, fmt.Errorf("tenant schema not found in context")
 	}
@@ -178,13 +200,13 @@ func (r *PostgresRepository) List(ctx context.Context, tenantID string, filters 
 	var users []*user.User
 	var total int64
 
-	err := r.tenantConnectionManager.ExecuteInTenantContext(ctx, schema, func() error {
+	err := r.tenantConnectionManager.ExecuteInTenantContext(ctx, schema, func(conn *sql.Conn) error {
 		// Build query with filters
 		whereClause, args := buildWhereClause(tenantID, filters)
 
 		// Count query
 		countQuery := fmt.Sprintf("SELECT COUNT(*) FROM users WHERE %s", whereClause)
-		if err := r.db.QueryRowContext(ctx, countQuery, args...).Scan(&total); err != nil {
+		if err := conn.QueryRowContext(ctx, countQuery, args...).Scan(&total); err != nil {
 			return fmt.Errorf("failed to count users: %w", err)
 		}
 
@@ -214,7 +236,7 @@ func (r *PostgresRepository) List(ctx context.Context, tenantID string, filters 
 
 		args = append(args, filters.Limit, filters.Offset)
 
-		rows, err := r.db.QueryContext(ctx, query, args...)
+		rows, err := conn.QueryContext(ctx, query, args...)
 		if err != nil {
 			return fmt.Errorf("failed to list users: %w", err)
 		}
@@ -237,7 +259,7 @@ func (r *PostgresRepository) List(ctx context.Context, tenantID string, filters 
 
 // Update updates an existing user
 func (r *PostgresRepository) Update(ctx context.Context, u *user.User) error {
-	schema := middleware.GetTenantSchemaFromContext(ctx)
+	schema := tenantctx.Schema(ctx)
 	if schema == "" {
 		return fmt.Errorf("tenant schema not found in context")
 	}
@@ -245,7 +267,7 @@ func (r *PostgresRepository) Update(ctx context.Context, u *user.User) error {
 	query := `
 		UPDATE users SET
 			email = $3,
-			password = $4,
+			password_hash = $4,
 			first_name = $5,
 			last_name = $6,
 			role = $7,
@@ -278,15 +300,15 @@ func (r *PostgresRepository) Update(ctx context.Context, u *user.User) error {
 
 	u.UpdatedAt = time.Now()
 
-	return r.tenantConnectionManager.ExecuteInTenantContext(ctx, schema, func() error {
-		result, err := r.db.ExecContext(ctx, query,
+	return r.tenantConnectionManager.ExecuteInTenantContext(ctx, schema, func(conn *sql.Conn) error {
+		result, err := conn.ExecContext(ctx, query,
 			u.ID, u.TenantID,
 			u.Email, u.Password, u.FirstName, u.LastName, u.Role, u.Status,
 			u.EmailVerified, u.EmailVerifiedAt, u.LastLoginAt,
-			u.Avatar, u.Phone, u.Timezone, u.Locale,
+			nullable(u.Avatar), nullable(u.Phone), nullable(u.Timezone), nullable(u.Locale),
 			u.TwoFactorEnabled, u.PasswordChangedAt,
 			preferencesJSON, metadataJSON,
-			u.UpdatedAt, u.UpdatedBy,
+			u.UpdatedAt, nullable(u.UpdatedBy),
 		)
 
 		if err != nil {
@@ -308,19 +330,25 @@ func (r *PostgresRepository) Update(ctx context.Context, u *user.User) error {
 
 // Delete soft deletes a user
 func (r *PostgresRepository) Delete(ctx context.Context, tenantID, userID string) error {
-	schema := middleware.GetTenantSchemaFromContext(ctx)
+	schema := tenantctx.Schema(ctx)
 	if schema == "" {
 		return fmt.Errorf("tenant schema not found in context")
 	}
 
+	// Soft delete: satir silinmez, deleted_at damgalanir.
+	// Sema bu kolon uzerine partial index tanimliyor
+	// (idx_users_tenant_id ... WHERE deleted_at IS NULL); okuma sorgulari da
+	// ayni yuklemi tasidigi icin index'ler artik gercekten kullanilabiliyor.
+	// Onceki hali yalnizca status = 'inactive' yaziyordu; bu, silinmis kullanici
+	// ile mesru sekilde pasiflestirilmis kullaniciyi ayirt edilemez kiliyordu.
 	query := `
 		UPDATE users
-		SET status = 'inactive'
-		WHERE id = $1 AND tenant_id = $2
+		SET deleted_at = NOW(), status = 'inactive'
+		WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL
 	`
 
-	return r.tenantConnectionManager.ExecuteInTenantContext(ctx, schema, func() error {
-		result, err := r.db.ExecContext(ctx, query, userID, tenantID)
+	return r.tenantConnectionManager.ExecuteInTenantContext(ctx, schema, func(conn *sql.Conn) error {
+		result, err := conn.ExecContext(ctx, query, userID, tenantID)
 		if err != nil {
 			return fmt.Errorf("failed to delete user: %w", err)
 		}
@@ -340,16 +368,16 @@ func (r *PostgresRepository) Delete(ctx context.Context, tenantID, userID string
 
 // ExistsByEmail checks if a user with the given email exists in tenant
 func (r *PostgresRepository) ExistsByEmail(ctx context.Context, tenantID, email string) (bool, error) {
-	schema := middleware.GetTenantSchemaFromContext(ctx)
+	schema := tenantctx.Schema(ctx)
 	if schema == "" {
 		return false, fmt.Errorf("tenant schema not found in context")
 	}
 
-	query := `SELECT EXISTS(SELECT 1 FROM users WHERE email = $1 AND tenant_id = $2)`
+	query := `SELECT EXISTS(SELECT 1 FROM users WHERE email = $1 AND tenant_id = $2 AND deleted_at IS NULL)`
 
 	var exists bool
-	err := r.tenantConnectionManager.ExecuteInTenantContext(ctx, schema, func() error {
-		return r.db.QueryRowContext(ctx, query, email, tenantID).Scan(&exists)
+	err := r.tenantConnectionManager.ExecuteInTenantContext(ctx, schema, func(conn *sql.Conn) error {
+		return conn.QueryRowContext(ctx, query, email, tenantID).Scan(&exists)
 	})
 
 	return exists, err
@@ -357,16 +385,16 @@ func (r *PostgresRepository) ExistsByEmail(ctx context.Context, tenantID, email 
 
 // CountByTenant counts users in a tenant
 func (r *PostgresRepository) CountByTenant(ctx context.Context, tenantID string) (int64, error) {
-	schema := middleware.GetTenantSchemaFromContext(ctx)
+	schema := tenantctx.Schema(ctx)
 	if schema == "" {
 		return 0, fmt.Errorf("tenant schema not found in context")
 	}
 
-	query := `SELECT COUNT(*) FROM users WHERE tenant_id = $1`
+	query := `SELECT COUNT(*) FROM users WHERE tenant_id = $1 AND deleted_at IS NULL`
 
 	var count int64
-	err := r.tenantConnectionManager.ExecuteInTenantContext(ctx, schema, func() error {
-		return r.db.QueryRowContext(ctx, query, tenantID).Scan(&count)
+	err := r.tenantConnectionManager.ExecuteInTenantContext(ctx, schema, func(conn *sql.Conn) error {
+		return conn.QueryRowContext(ctx, query, tenantID).Scan(&count)
 	})
 
 	return count, err
@@ -374,7 +402,7 @@ func (r *PostgresRepository) CountByTenant(ctx context.Context, tenantID string)
 
 // CountByRole counts users by role in a tenant
 func (r *PostgresRepository) CountByRole(ctx context.Context, tenantID string, role user.UserRole) (int64, error) {
-	schema := middleware.GetTenantSchemaFromContext(ctx)
+	schema := tenantctx.Schema(ctx)
 	if schema == "" {
 		return 0, fmt.Errorf("tenant schema not found in context")
 	}
@@ -382,8 +410,8 @@ func (r *PostgresRepository) CountByRole(ctx context.Context, tenantID string, r
 	query := `SELECT COUNT(*) FROM users WHERE tenant_id = $1 AND role = $2`
 
 	var count int64
-	err := r.tenantConnectionManager.ExecuteInTenantContext(ctx, schema, func() error {
-		return r.db.QueryRowContext(ctx, query, tenantID, role).Scan(&count)
+	err := r.tenantConnectionManager.ExecuteInTenantContext(ctx, schema, func(conn *sql.Conn) error {
+		return conn.QueryRowContext(ctx, query, tenantID, role).Scan(&count)
 	})
 
 	return count, err
@@ -391,7 +419,7 @@ func (r *PostgresRepository) CountByRole(ctx context.Context, tenantID string, r
 
 // CountByStatus counts users by status in a tenant
 func (r *PostgresRepository) CountByStatus(ctx context.Context, tenantID string, status user.UserStatus) (int64, error) {
-	schema := middleware.GetTenantSchemaFromContext(ctx)
+	schema := tenantctx.Schema(ctx)
 	if schema == "" {
 		return 0, fmt.Errorf("tenant schema not found in context")
 	}
@@ -399,8 +427,8 @@ func (r *PostgresRepository) CountByStatus(ctx context.Context, tenantID string,
 	query := `SELECT COUNT(*) FROM users WHERE tenant_id = $1 AND status = $2`
 
 	var count int64
-	err := r.tenantConnectionManager.ExecuteInTenantContext(ctx, schema, func() error {
-		return r.db.QueryRowContext(ctx, query, tenantID, status).Scan(&count)
+	err := r.tenantConnectionManager.ExecuteInTenantContext(ctx, schema, func(conn *sql.Conn) error {
+		return conn.QueryRowContext(ctx, query, tenantID, status).Scan(&count)
 	})
 
 	return count, err
@@ -408,7 +436,7 @@ func (r *PostgresRepository) CountByStatus(ctx context.Context, tenantID string,
 
 // UpdateLastLogin updates user's last login timestamp
 func (r *PostgresRepository) UpdateLastLogin(ctx context.Context, tenantID, userID string) error {
-	schema := middleware.GetTenantSchemaFromContext(ctx)
+	schema := tenantctx.Schema(ctx)
 	if schema == "" {
 		return fmt.Errorf("tenant schema not found in context")
 	}
@@ -421,8 +449,8 @@ func (r *PostgresRepository) UpdateLastLogin(ctx context.Context, tenantID, user
 
 	now := time.Now()
 
-	return r.tenantConnectionManager.ExecuteInTenantContext(ctx, schema, func() error {
-		result, err := r.db.ExecContext(ctx, query, userID, tenantID, now)
+	return r.tenantConnectionManager.ExecuteInTenantContext(ctx, schema, func(conn *sql.Conn) error {
+		result, err := conn.ExecContext(ctx, query, userID, tenantID, now)
 		if err != nil {
 			return fmt.Errorf("failed to update last login: %w", err)
 		}
@@ -442,7 +470,7 @@ func (r *PostgresRepository) UpdateLastLogin(ctx context.Context, tenantID, user
 
 // GetOwner retrieves the tenant owner
 func (r *PostgresRepository) GetOwner(ctx context.Context, tenantID string) (*user.User, error) {
-	schema := middleware.GetTenantSchemaFromContext(ctx)
+	schema := tenantctx.Schema(ctx)
 	if schema == "" {
 		return nil, fmt.Errorf("tenant schema not found in context")
 	}
@@ -457,13 +485,14 @@ func (r *PostgresRepository) GetOwner(ctx context.Context, tenantID string) (*us
 			created_at, updated_at, created_by, updated_by
 		FROM users
 		WHERE tenant_id = $1 AND role = 'owner'
+		  AND deleted_at IS NULL
 		LIMIT 1
 	`
 
 	var result *user.User
-	err := r.tenantConnectionManager.ExecuteInTenantContext(ctx, schema, func() error {
+	err := r.tenantConnectionManager.ExecuteInTenantContext(ctx, schema, func(conn *sql.Conn) error {
 		var scanErr error
-		result, scanErr = r.scanUser(r.db.QueryRowContext(ctx, query, tenantID))
+		result, scanErr = r.scanUser(conn.QueryRowContext(ctx, query, tenantID))
 		return scanErr
 	})
 
@@ -478,10 +507,10 @@ func (r *PostgresRepository) scanUser(row *sql.Row) (*user.User, error) {
 	err := row.Scan(
 		&u.ID, &u.TenantID, &u.Email, &u.Password, &u.FirstName, &u.LastName, &u.Role, &u.Status,
 		&u.EmailVerified, &u.EmailVerifiedAt, &u.LastLoginAt,
-		&u.Avatar, &u.Phone, &u.Timezone, &u.Locale,
+		nullString{&u.Avatar}, nullString{&u.Phone}, nullString{&u.Timezone}, nullString{&u.Locale},
 		&u.TwoFactorEnabled, &u.PasswordChangedAt,
 		&preferencesJSON, &metadataJSON,
-		&u.CreatedAt, &u.UpdatedAt, &u.CreatedBy, &u.UpdatedBy,
+		&u.CreatedAt, &u.UpdatedAt, nullString{&u.CreatedBy}, nullString{&u.UpdatedBy},
 	)
 
 	if err == sql.ErrNoRows {
@@ -510,10 +539,10 @@ func (r *PostgresRepository) scanUserFromRows(rows *sql.Rows) (*user.User, error
 	err := rows.Scan(
 		&u.ID, &u.TenantID, &u.Email, &u.Password, &u.FirstName, &u.LastName, &u.Role, &u.Status,
 		&u.EmailVerified, &u.EmailVerifiedAt, &u.LastLoginAt,
-		&u.Avatar, &u.Phone, &u.Timezone, &u.Locale,
+		nullString{&u.Avatar}, nullString{&u.Phone}, nullString{&u.Timezone}, nullString{&u.Locale},
 		&u.TwoFactorEnabled, &u.PasswordChangedAt,
 		&preferencesJSON, &metadataJSON,
-		&u.CreatedAt, &u.UpdatedAt, &u.CreatedBy, &u.UpdatedBy,
+		&u.CreatedAt, &u.UpdatedAt, nullString{&u.CreatedBy}, nullString{&u.UpdatedBy},
 	)
 
 	if err != nil {

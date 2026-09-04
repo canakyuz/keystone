@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"nexpaces-api/internal/domain/tenant"
+	"github.com/canakyuz/keystone/internal/domain/tenant"
 )
 
 // PostgresRepository implements Repository using PostgreSQL
@@ -52,12 +52,12 @@ func (r *PostgresRepository) Create(ctx context.Context, t *tenant.Tenant) error
 	}
 
 	_, err = r.db.ExecContext(ctx, query,
-		t.ID, t.Name, t.Slug, t.Email, t.Phone, t.SchemaName,
+		t.ID, t.Name, t.Slug, t.Email, nullable(t.Phone), t.SchemaName,
 		t.Status, t.Plan,
 		t.SubscriptionStart, t.SubscriptionEnd, t.TrialEndsAt,
-		t.CustomDomain, t.CustomDomainVerified, t.CustomDomainVerifiedAt,
+		nullable(t.CustomDomain), t.CustomDomainVerified, t.CustomDomainVerifiedAt,
 		settingsJSON, metadataJSON,
-		t.CreatedAt, t.UpdatedAt, t.CreatedBy, t.UpdatedBy,
+		t.CreatedAt, t.UpdatedAt, nullable(t.CreatedBy), nullable(t.UpdatedBy),
 	)
 
 	if err != nil {
@@ -85,12 +85,12 @@ func (r *PostgresRepository) GetByID(ctx context.Context, id string) (*tenant.Te
 	var settingsJSON, metadataJSON []byte
 
 	err := r.db.QueryRowContext(ctx, query, id).Scan(
-		&t.ID, &t.Name, &t.Slug, &t.Email, &t.Phone, &t.SchemaName,
+		&t.ID, &t.Name, &t.Slug, &t.Email, nullString{&t.Phone}, &t.SchemaName,
 		&t.Status, &t.Plan,
 		&t.SubscriptionStart, &t.SubscriptionEnd, &t.TrialEndsAt,
-		&t.CustomDomain, &t.CustomDomainVerified, &t.CustomDomainVerifiedAt,
+		nullString{&t.CustomDomain}, &t.CustomDomainVerified, &t.CustomDomainVerifiedAt,
 		&settingsJSON, &metadataJSON,
-		&t.CreatedAt, &t.UpdatedAt, &t.CreatedBy, &t.UpdatedBy,
+		&t.CreatedAt, &t.UpdatedAt, nullString{&t.CreatedBy}, nullString{&t.UpdatedBy},
 	)
 
 	if err == sql.ErrNoRows {
@@ -129,12 +129,12 @@ func (r *PostgresRepository) GetBySlug(ctx context.Context, slug string) (*tenan
 	var settingsJSON, metadataJSON []byte
 
 	err := r.db.QueryRowContext(ctx, query, slug).Scan(
-		&t.ID, &t.Name, &t.Slug, &t.Email, &t.Phone, &t.SchemaName,
+		&t.ID, &t.Name, &t.Slug, &t.Email, nullString{&t.Phone}, &t.SchemaName,
 		&t.Status, &t.Plan,
 		&t.SubscriptionStart, &t.SubscriptionEnd, &t.TrialEndsAt,
-		&t.CustomDomain, &t.CustomDomainVerified, &t.CustomDomainVerifiedAt,
+		nullString{&t.CustomDomain}, &t.CustomDomainVerified, &t.CustomDomainVerifiedAt,
 		&settingsJSON, &metadataJSON,
-		&t.CreatedAt, &t.UpdatedAt, &t.CreatedBy, &t.UpdatedBy,
+		&t.CreatedAt, &t.UpdatedAt, nullString{&t.CreatedBy}, nullString{&t.UpdatedBy},
 	)
 
 	if err == sql.ErrNoRows {
@@ -173,12 +173,12 @@ func (r *PostgresRepository) GetByEmail(ctx context.Context, email string) (*ten
 	var settingsJSON, metadataJSON []byte
 
 	err := r.db.QueryRowContext(ctx, query, email).Scan(
-		&t.ID, &t.Name, &t.Slug, &t.Email, &t.Phone, &t.SchemaName,
+		&t.ID, &t.Name, &t.Slug, &t.Email, nullString{&t.Phone}, &t.SchemaName,
 		&t.Status, &t.Plan,
 		&t.SubscriptionStart, &t.SubscriptionEnd, &t.TrialEndsAt,
-		&t.CustomDomain, &t.CustomDomainVerified, &t.CustomDomainVerifiedAt,
+		nullString{&t.CustomDomain}, &t.CustomDomainVerified, &t.CustomDomainVerifiedAt,
 		&settingsJSON, &metadataJSON,
-		&t.CreatedAt, &t.UpdatedAt, &t.CreatedBy, &t.UpdatedBy,
+		&t.CreatedAt, &t.UpdatedAt, nullString{&t.CreatedBy}, nullString{&t.UpdatedBy},
 	)
 
 	if err == sql.ErrNoRows {
@@ -217,12 +217,12 @@ func (r *PostgresRepository) GetByCustomDomain(ctx context.Context, domain strin
 	var settingsJSON, metadataJSON []byte
 
 	err := r.db.QueryRowContext(ctx, query, domain).Scan(
-		&t.ID, &t.Name, &t.Slug, &t.Email, &t.Phone, &t.SchemaName,
+		&t.ID, &t.Name, &t.Slug, &t.Email, nullString{&t.Phone}, &t.SchemaName,
 		&t.Status, &t.Plan,
 		&t.SubscriptionStart, &t.SubscriptionEnd, &t.TrialEndsAt,
-		&t.CustomDomain, &t.CustomDomainVerified, &t.CustomDomainVerifiedAt,
+		nullString{&t.CustomDomain}, &t.CustomDomainVerified, &t.CustomDomainVerifiedAt,
 		&settingsJSON, &metadataJSON,
-		&t.CreatedAt, &t.UpdatedAt, &t.CreatedBy, &t.UpdatedBy,
+		&t.CreatedAt, &t.UpdatedAt, nullString{&t.CreatedBy}, nullString{&t.UpdatedBy},
 	)
 
 	if err == sql.ErrNoRows {
@@ -294,12 +294,12 @@ func (r *PostgresRepository) List(ctx context.Context, filters ListFilters) ([]*
 		var settingsJSON, metadataJSON []byte
 
 		err := rows.Scan(
-			&t.ID, &t.Name, &t.Slug, &t.Email, &t.Phone, &t.SchemaName,
+			&t.ID, &t.Name, &t.Slug, &t.Email, nullString{&t.Phone}, &t.SchemaName,
 			&t.Status, &t.Plan,
 			&t.SubscriptionStart, &t.SubscriptionEnd, &t.TrialEndsAt,
-			&t.CustomDomain, &t.CustomDomainVerified, &t.CustomDomainVerifiedAt,
+			nullString{&t.CustomDomain}, &t.CustomDomainVerified, &t.CustomDomainVerifiedAt,
 			&settingsJSON, &metadataJSON,
-			&t.CreatedAt, &t.UpdatedAt, &t.CreatedBy, &t.UpdatedBy,
+			&t.CreatedAt, &t.UpdatedAt, nullString{&t.CreatedBy}, nullString{&t.UpdatedBy},
 		)
 		if err != nil {
 			return nil, 0, fmt.Errorf("failed to scan tenant: %w", err)
@@ -356,12 +356,12 @@ func (r *PostgresRepository) Update(ctx context.Context, t *tenant.Tenant) error
 
 	result, err := r.db.ExecContext(ctx, query,
 		t.ID,
-		t.Name, t.Slug, t.Email, t.Phone,
+		t.Name, t.Slug, t.Email, nullable(t.Phone),
 		t.Status, t.Plan,
 		t.SubscriptionStart, t.SubscriptionEnd, t.TrialEndsAt,
-		t.CustomDomain, t.CustomDomainVerified, t.CustomDomainVerifiedAt,
+		nullable(t.CustomDomain), t.CustomDomainVerified, t.CustomDomainVerifiedAt,
 		settingsJSON, metadataJSON,
-		t.UpdatedAt, t.UpdatedBy,
+		t.UpdatedAt, nullable(t.UpdatedBy),
 	)
 
 	if err != nil {

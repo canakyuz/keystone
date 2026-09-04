@@ -1,0 +1,20 @@
+-- 027 geri alma: sahibi yeniden policy'lerden muaf tutar.
+-- DİKKAT: bu, tenant izolasyonunu uygulama sahibi rolü için devre dışı bırakır.
+
+ALTER TABLE appointments     NO FORCE ROW LEVEL SECURITY;
+ALTER TABLE assignments      NO FORCE ROW LEVEL SECURITY;
+ALTER TABLE availabilities   NO FORCE ROW LEVEL SECURITY;
+ALTER TABLE blog_categories  NO FORCE ROW LEVEL SECURITY;
+ALTER TABLE blog_posts       NO FORCE ROW LEVEL SECURITY;
+ALTER TABLE lessons          NO FORCE ROW LEVEL SECURITY;
+ALTER TABLE payment_events   NO FORCE ROW LEVEL SECURITY;
+ALTER TABLE payments         NO FORCE ROW LEVEL SECURITY;
+ALTER TABLE projects         NO FORCE ROW LEVEL SECURITY;
+ALTER TABLE refunds          NO FORCE ROW LEVEL SECURITY;
+ALTER TABLE services         NO FORCE ROW LEVEL SECURITY;
+ALTER TABLE sites            NO FORCE ROW LEVEL SECURITY;
+ALTER TABLE students         NO FORCE ROW LEVEL SECURITY;
+ALTER TABLE tenant_modules   NO FORCE ROW LEVEL SECURITY;
+ALTER TABLE tenant_tools     NO FORCE ROW LEVEL SECURITY;
+ALTER TABLE users            NO FORCE ROW LEVEL SECURITY;
+ALTER TABLE websites         NO FORCE ROW LEVEL SECURITY;

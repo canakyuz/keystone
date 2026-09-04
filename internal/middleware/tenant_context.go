@@ -6,18 +6,21 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 
-	"nexpaces-api/pkg/logger"
+	"github.com/canakyuz/keystone/pkg/logger"
+
+	"github.com/canakyuz/keystone/pkg/tenantctx"
 )
 
-// TenantContextKey, context'te tenant bilgisini saklamak için kullanılan key tipi.
-// string yerine custom tip kullanma sebebi: key collision'ı önlemek.
-type TenantContextKey string
+// Context anahtarları pkg/tenantctx'e taşındı. Repository katmanının HTTP
+// middleware paketini import etmesi gerekmesin diye; bkz. pkg/tenantctx.
+// Buradaki adlar geriye dönük uyumluluk için korunuyor.
+type TenantContextKey = tenantctx.Key
 
 const (
 	// TenantSchemaKey, context'te schema_name'i sakladığımız key
-	TenantSchemaKey TenantContextKey = "tenant_schema"
+	TenantSchemaKey = tenantctx.SchemaKey
 	// TenantIDKey, context'te tenant_id'yi sakladığımız key
-	TenantIDKey TenantContextKey = "tenant_id"
+	TenantIDKey = tenantctx.IDKey
 )
 
 // TenantContextMiddleware, her request için tenant bilgilerini context'e ekler.
@@ -131,16 +134,10 @@ func extractTenantID(c *fiber.Ctx) string {
 //
 //	schema := middleware.GetTenantSchemaFromContext(ctx)
 func GetTenantSchemaFromContext(ctx context.Context) string {
-	if schema, ok := ctx.Value(TenantSchemaKey).(string); ok {
-		return schema
-	}
-	return ""
+	return tenantctx.Schema(ctx)
 }
 
 // GetTenantIDFromContext, Go context'inden tenant ID'yi alır.
 func GetTenantIDFromContext(ctx context.Context) string {
-	if tenantID, ok := ctx.Value(TenantIDKey).(string); ok {
-		return tenantID
-	}
-	return ""
+	return tenantctx.ID(ctx)
 }

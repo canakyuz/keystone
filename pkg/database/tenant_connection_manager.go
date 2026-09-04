@@ -8,7 +8,7 @@ import (
 
 	"github.com/lib/pq"
 
-	"nexpaces-api/pkg/logger"
+	"github.com/canakyuz/keystone/pkg/logger"
 )
 
 // TenantConnectionManager, schema-per-tenant mimarisinde tenant izolasyonu sağlar.
@@ -26,13 +26,17 @@ type TenantConnectionManager interface {
 	ResetSearchPath(ctx context.Context) error
 
 	// ExecuteInTenantContext bir fonksiyonu tenant schema context'i içinde çalıştırır.
-	// Otomatik set/reset yaptığı için ÖNERİLEN kullanım budur.
+	//
+	// Callback, search_path'i ayarlanmış BAĞLANTIYI parametre olarak alır ve
+	// tüm sorgularını bu bağlantı üzerinden yapmak ZORUNDADIR. Havuzdan
+	// (*sql.DB) sorgu çalıştırmak sessizce başka bir bağlantıya düşer; o
+	// bağlantının search_path'i bu tenant'a ayarlı değildir.
 	//
 	// Örnek:
-	//   err := manager.ExecuteInTenantContext(ctx, "tenant_acme", func() error {
-	//       return userRepo.Create(ctx, user) // tenant_acme schema'sında çalışır
+	//   err := manager.ExecuteInTenantContext(ctx, "tenant_acme", func(conn *sql.Conn) error {
+	//       return conn.QueryRowContext(ctx, "SELECT ...").Scan(&x)
 	//   })
-	ExecuteInTenantContext(ctx context.Context, schemaName string, fn func() error) error
+	ExecuteInTenantContext(ctx context.Context, schemaName string, fn func(conn *sql.Conn) error) error
 
 	// GetConnection connection pool'dan yeni bir bağlantı alır.
 	// İleri düzey senaryolar için. Çoğu durumda ExecuteInTenantContext kullan.
@@ -110,7 +114,19 @@ func (m *connectionManager) ResetSearchPath(ctx context.Context) error {
 // - sql.Conn: Pool'dan alınmış TEK bağlantı
 // - search_path sql.Conn üzerinde set edilir, böylece diğer request'ler etkilenmez
 // - Connection Close() ile pool'a geri döner (reusable)
-func (m *connectionManager) ExecuteInTenantContext(ctx context.Context, schemaName string, fn func() error) error {
+// ExecuteInTenantContext, havuzdan tek bir bağlantı ayırır, o bağlantıda tenant
+// schema'sını aktif eder ve callback'e AYNI bağlantıyı verir.
+//
+// NEDEN callback bağlantıyı alıyor: önceki imza fn func() error idi. Bağlantı
+// ayrılıyor, search_path ona yazılıyor, ama callback ona erişemediği için
+// sorgular havuz üzerinden (*sql.DB) çalışıyordu. Sonuç iki yönlü hataydı:
+// tenant schema'sı sorgular için hiçbir zaman aktif olmuyordu ve eşzamanlı
+// yükte sorgu, başka bir tenant için ayarlanmış ve henüz sıfırlanmamış bir
+// bağlantıya düşebiliyordu. Bağlantıyı imzaya taşımak bu sınıfı derleme
+// zamanında kapatır.
+//
+// Karmaşıklık: O(1) bağlantı ayırma + callback'in kendi maliyeti.
+func (m *connectionManager) ExecuteInTenantContext(ctx context.Context, schemaName string, fn func(conn *sql.Conn) error) error {
 	if err := validateSchemaName(schemaName); err != nil {
 		return fmt.Errorf("geçersiz schema adı: %w", err)
 	}
@@ -165,7 +181,7 @@ func (m *connectionManager) ExecuteInTenantContext(ctx context.Context, schemaNa
 		}).Debug("Tenant context'inde fonksiyon çalıştırılıyor")
 	}
 
-	return fn()
+	return fn(conn)
 }
 
 // GetConnection, pool'dan yeni bir bağlantı döndürür.

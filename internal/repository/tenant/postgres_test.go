@@ -9,8 +9,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"nexpaces-api/internal/domain/tenant"
-	"nexpaces-api/test/helpers"
+	"github.com/canakyuz/keystone/internal/domain/tenant"
+	"github.com/canakyuz/keystone/test/helpers"
 )
 
 func TestPostgresRepository_Create(t *testing.T) {
@@ -283,34 +283,5 @@ func TestPostgresRepository_GetStats(t *testing.T) {
 		assert.NotNil(t, stats)
 		assert.GreaterOrEqual(t, stats["total"].(int64), int64(2))
 		assert.GreaterOrEqual(t, stats["active"].(int64), int64(2))
-	})
-}
-
-func TestPostgresRepository_TenantIsolation(t *testing.T) {
-	db := helpers.SetupTestDB(t)
-	repo := NewPostgresRepository(db)
-
-	// Create two test tenants
-	tenant1 := helpers.CreateTestTenant(t, db, "tenant-1")
-	tenant2 := helpers.CreateTestTenant(t, db, "tenant-2")
-
-	t.Run("RLS policies prevent cross-tenant access", func(t *testing.T) {
-		// Set tenant context for tenant1
-		err := helpers.SetTenantContext(context.Background(), db, tenant1.ID)
-		require.NoError(t, err)
-
-		// Try to access tenant2's data
-		tn, err := repo.GetByID(context.Background(), tenant2.ID)
-		assert.Error(t, err) // Should fail due to RLS
-		assert.Nil(t, tn)
-
-		// Clear tenant context
-		err = helpers.ClearTenantContext(context.Background(), db)
-		require.NoError(t, err)
-
-		// Without RLS context, should be able to access
-		tn, err = repo.GetByID(context.Background(), tenant2.ID)
-		require.NoError(t, err)
-		assert.Equal(t, tenant2.ID, tn.ID)
 	})
 }

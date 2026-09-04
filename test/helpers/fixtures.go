@@ -110,7 +110,7 @@ func CreateTestUser(t *testing.T, db *sql.DB, tenantID, email, role string) *Tes
 
 	query := `
 		INSERT INTO users (
-			id, tenant_id, email, password, first_name, last_name,
+			id, tenant_id, email, password_hash, first_name, last_name,
 			role, status, email_verified, created_at, updated_at
 		)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW(), NOW())

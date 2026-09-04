@@ -2,19 +2,34 @@ package user
 
 import (
 	"context"
+	"database/sql"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"nexpaces-api/internal/domain/user"
-	"nexpaces-api/test/helpers"
+	"github.com/canakyuz/keystone/internal/domain/user"
+	"github.com/canakyuz/keystone/pkg/database"
+	"github.com/canakyuz/keystone/test/helpers"
 )
+
+// newTestRepository, testler için repository kurar.
+// Logger nil geçilir: connectionManager tüm log çağrılarını nil-guard ile sarar,
+// böylece testlerde log gürültüsü olmadan gerçek search_path davranışı korunur.
+// ctxFor, repository'lerin beklediği tenant schema'sını taşıyan context üretir.
+// Production'da bunu TenantContextMiddleware yerleştirir; testte HTTP katmanı yok.
+func ctxFor(tn *helpers.TestTenant) context.Context {
+	return helpers.WithTenantSchema(context.Background(), tn.SchemaName)
+}
+
+func newTestRepository(db *sql.DB) *PostgresRepository {
+	return NewPostgresRepository(db, database.NewTenantConnectionManager(db, nil))
+}
 
 func TestPostgresRepository_Create(t *testing.T) {
 	db := helpers.SetupTestDB(t)
-	repo := NewPostgresRepository(db)
+	repo := newTestRepository(db)
 
 	// Create test tenant
 	testTenant := helpers.CreateTestTenant(t, db, "user-create-test")
@@ -27,7 +42,7 @@ func TestPostgresRepository_Create(t *testing.T) {
 		{
 			name: "create valid user",
 			user: &user.User{
-				ID:        "user-001",
+				ID:        "7f9c1e10-0001-4000-8000-000000000001",
 				TenantID:  testTenant.ID,
 				Email:     "test@example.com",
 				Password:  "hashed_password",
@@ -43,7 +58,7 @@ func TestPostgresRepository_Create(t *testing.T) {
 		{
 			name: "create user with duplicate email in same tenant should fail",
 			user: &user.User{
-				ID:        "user-002",
+				ID:        "7f9c1e10-0002-4000-8000-000000000002",
 				TenantID:  testTenant.ID,
 				Email:     "test@example.com", // Duplicate email
 				Password:  "hashed_password",
@@ -61,7 +76,7 @@ func TestPostgresRepository_Create(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			err := helpers.WithTenantContext(context.Background(), db, testTenant.ID, func() error {
-				return repo.Create(context.Background(), tt.user)
+				return repo.Create(ctxFor(testTenant), tt.user)
 			})
 
 			if tt.wantErr {
@@ -70,7 +85,7 @@ func TestPostgresRepository_Create(t *testing.T) {
 				require.NoError(t, err)
 
 				// Verify user was created
-				created, err := repo.GetByID(context.Background(), testTenant.ID, tt.user.ID)
+				created, err := repo.GetByID(ctxFor(testTenant), testTenant.ID, tt.user.ID)
 				require.NoError(t, err)
 				assert.Equal(t, tt.user.Email, created.Email)
 				assert.Equal(t, tt.user.FirstName, created.FirstName)
@@ -82,7 +97,7 @@ func TestPostgresRepository_Create(t *testing.T) {
 
 func TestPostgresRepository_GetByID(t *testing.T) {
 	db := helpers.SetupTestDB(t)
-	repo := NewPostgresRepository(db)
+	repo := newTestRepository(db)
 
 	// Create test tenant and user
 	testTenant := helpers.CreateTestTenant(t, db, "user-get-test")
@@ -111,7 +126,7 @@ func TestPostgresRepository_GetByID(t *testing.T) {
 			var err error
 
 			err = helpers.WithTenantContext(context.Background(), db, testTenant.ID, func() error {
-				usr, err = repo.GetByID(context.Background(), testTenant.ID, tt.userID)
+				usr, err = repo.GetByID(ctxFor(testTenant), testTenant.ID, tt.userID)
 				return err
 			})
 
@@ -129,7 +144,7 @@ func TestPostgresRepository_GetByID(t *testing.T) {
 
 func TestPostgresRepository_GetByEmail(t *testing.T) {
 	db := helpers.SetupTestDB(t)
-	repo := NewPostgresRepository(db)
+	repo := newTestRepository(db)
 
 	// Create test tenant and user
 	testTenant := helpers.CreateTestTenant(t, db, "email-test")
@@ -158,7 +173,7 @@ func TestPostgresRepository_GetByEmail(t *testing.T) {
 			var err error
 
 			err = helpers.WithTenantContext(context.Background(), db, testTenant.ID, func() error {
-				usr, err = repo.GetByEmail(context.Background(), testTenant.ID, tt.email)
+				usr, err = repo.GetByEmail(ctxFor(testTenant), testTenant.ID, tt.email)
 				return err
 			})
 
@@ -176,14 +191,14 @@ func TestPostgresRepository_GetByEmail(t *testing.T) {
 
 func TestPostgresRepository_GetByEmailGlobal(t *testing.T) {
 	db := helpers.SetupTestDB(t)
-	repo := NewPostgresRepository(db)
+	repo := newTestRepository(db)
 
 	// Create test tenant and user
 	testTenant := helpers.CreateTestTenant(t, db, "global-email-test")
 	testUser := helpers.CreateTestUser(t, db, testTenant.ID, "global@example.com", "owner")
 
 	t.Run("get user by email globally (no tenant context)", func(t *testing.T) {
-		usr, err := repo.GetByEmailGlobal(context.Background(), testUser.Email)
+		usr, err := repo.GetByEmailGlobal(ctxFor(testTenant), testUser.Email)
 		require.NoError(t, err)
 		assert.NotNil(t, usr)
 		assert.Equal(t, testUser.Email, usr.Email)
@@ -191,7 +206,7 @@ func TestPostgresRepository_GetByEmailGlobal(t *testing.T) {
 	})
 
 	t.Run("get user by non-existent email globally", func(t *testing.T) {
-		usr, err := repo.GetByEmailGlobal(context.Background(), "nonexistent@example.com")
+		usr, err := repo.GetByEmailGlobal(ctxFor(testTenant), "nonexistent@example.com")
 		assert.Error(t, err)
 		assert.Nil(t, usr)
 	})
@@ -199,7 +214,7 @@ func TestPostgresRepository_GetByEmailGlobal(t *testing.T) {
 
 func TestPostgresRepository_Update(t *testing.T) {
 	db := helpers.SetupTestDB(t)
-	repo := NewPostgresRepository(db)
+	repo := newTestRepository(db)
 
 	// Create test tenant and user
 	testTenant := helpers.CreateTestTenant(t, db, "update-test")
@@ -208,7 +223,7 @@ func TestPostgresRepository_Update(t *testing.T) {
 	t.Run("update user successfully", func(t *testing.T) {
 		err := helpers.WithTenantContext(context.Background(), db, testTenant.ID, func() error {
 			// Get user
-			usr, err := repo.GetByID(context.Background(), testTenant.ID, testUser.ID)
+			usr, err := repo.GetByID(ctxFor(testTenant), testTenant.ID, testUser.ID)
 			require.NoError(t, err)
 
 			// Update fields
@@ -218,13 +233,13 @@ func TestPostgresRepository_Update(t *testing.T) {
 			usr.UpdatedAt = time.Now()
 
 			// Update user
-			return repo.Update(context.Background(), usr)
+			return repo.Update(ctxFor(testTenant), usr)
 		})
 		require.NoError(t, err)
 
 		// Verify update
 		err = helpers.WithTenantContext(context.Background(), db, testTenant.ID, func() error {
-			updated, err := repo.GetByID(context.Background(), testTenant.ID, testUser.ID)
+			updated, err := repo.GetByID(ctxFor(testTenant), testTenant.ID, testUser.ID)
 			require.NoError(t, err)
 			assert.Equal(t, "Updated", updated.FirstName)
 			assert.Equal(t, "Name", updated.LastName)
@@ -237,7 +252,7 @@ func TestPostgresRepository_Update(t *testing.T) {
 
 func TestPostgresRepository_UpdateLastLogin(t *testing.T) {
 	db := helpers.SetupTestDB(t)
-	repo := NewPostgresRepository(db)
+	repo := newTestRepository(db)
 
 	// Create test tenant and user
 	testTenant := helpers.CreateTestTenant(t, db, "login-test")
@@ -245,13 +260,13 @@ func TestPostgresRepository_UpdateLastLogin(t *testing.T) {
 
 	t.Run("update last login timestamp", func(t *testing.T) {
 		err := helpers.WithTenantContext(context.Background(), db, testTenant.ID, func() error {
-			return repo.UpdateLastLogin(context.Background(), testTenant.ID, testUser.ID)
+			return repo.UpdateLastLogin(ctxFor(testTenant), testTenant.ID, testUser.ID)
 		})
 		require.NoError(t, err)
 
 		// Verify last login was updated
 		err = helpers.WithTenantContext(context.Background(), db, testTenant.ID, func() error {
-			usr, err := repo.GetByID(context.Background(), testTenant.ID, testUser.ID)
+			usr, err := repo.GetByID(ctxFor(testTenant), testTenant.ID, testUser.ID)
 			require.NoError(t, err)
 			assert.NotNil(t, usr.LastLoginAt)
 			assert.WithinDuration(t, time.Now(), *usr.LastLoginAt, 5*time.Second)
@@ -263,7 +278,7 @@ func TestPostgresRepository_UpdateLastLogin(t *testing.T) {
 
 func TestPostgresRepository_Delete(t *testing.T) {
 	db := helpers.SetupTestDB(t)
-	repo := NewPostgresRepository(db)
+	repo := newTestRepository(db)
 
 	// Create test tenant and user
 	testTenant := helpers.CreateTestTenant(t, db, "delete-test")
@@ -271,13 +286,13 @@ func TestPostgresRepository_Delete(t *testing.T) {
 
 	t.Run("soft delete user", func(t *testing.T) {
 		err := helpers.WithTenantContext(context.Background(), db, testTenant.ID, func() error {
-			return repo.Delete(context.Background(), testTenant.ID, testUser.ID)
+			return repo.Delete(ctxFor(testTenant), testTenant.ID, testUser.ID)
 		})
 		require.NoError(t, err)
 
 		// Verify user is soft deleted
 		err = helpers.WithTenantContext(context.Background(), db, testTenant.ID, func() error {
-			usr, err := repo.GetByID(context.Background(), testTenant.ID, testUser.ID)
+			usr, err := repo.GetByID(ctxFor(testTenant), testTenant.ID, testUser.ID)
 			assert.Error(t, err)
 			assert.Nil(t, usr)
 			return nil
@@ -288,7 +303,7 @@ func TestPostgresRepository_Delete(t *testing.T) {
 
 func TestPostgresRepository_GetOwner(t *testing.T) {
 	db := helpers.SetupTestDB(t)
-	repo := NewPostgresRepository(db)
+	repo := newTestRepository(db)
 
 	// Create test tenant with owner
 	testTenant := helpers.CreateTestTenant(t, db, "owner-test")
@@ -297,7 +312,7 @@ func TestPostgresRepository_GetOwner(t *testing.T) {
 
 	t.Run("get tenant owner", func(t *testing.T) {
 		err := helpers.WithTenantContext(context.Background(), db, testTenant.ID, func() error {
-			usr, err := repo.GetOwner(context.Background(), testTenant.ID)
+			usr, err := repo.GetOwner(ctxFor(testTenant), testTenant.ID)
 			require.NoError(t, err)
 			assert.NotNil(t, usr)
 			assert.Equal(t, ownerUser.ID, usr.ID)
@@ -310,7 +325,7 @@ func TestPostgresRepository_GetOwner(t *testing.T) {
 
 func TestPostgresRepository_MultiTenantIsolation(t *testing.T) {
 	db := helpers.SetupTestDB(t)
-	repo := NewPostgresRepository(db)
+	repo := newTestRepository(db)
 
 	// Create two tenants with same email in different tenants
 	tenant1 := helpers.CreateTestTenant(t, db, "tenant-1")
@@ -322,7 +337,7 @@ func TestPostgresRepository_MultiTenantIsolation(t *testing.T) {
 	t.Run("same email in different tenants should be isolated", func(t *testing.T) {
 		// Access user1 in tenant1 context
 		err := helpers.WithTenantContext(context.Background(), db, tenant1.ID, func() error {
-			usr, err := repo.GetByEmail(context.Background(), tenant1.ID, "same@example.com")
+			usr, err := repo.GetByEmail(ctxFor(tenant1), tenant1.ID, "same@example.com")
 			require.NoError(t, err)
 			assert.Equal(t, user1.ID, usr.ID)
 			assert.Equal(t, tenant1.ID, usr.TenantID)
@@ -332,7 +347,7 @@ func TestPostgresRepository_MultiTenantIsolation(t *testing.T) {
 
 		// Access user2 in tenant2 context
 		err = helpers.WithTenantContext(context.Background(), db, tenant2.ID, func() error {
-			usr, err := repo.GetByEmail(context.Background(), tenant2.ID, "same@example.com")
+			usr, err := repo.GetByEmail(ctxFor(tenant2), tenant2.ID, "same@example.com")
 			require.NoError(t, err)
 			assert.Equal(t, user2.ID, usr.ID)
 			assert.Equal(t, tenant2.ID, usr.TenantID)
@@ -344,7 +359,7 @@ func TestPostgresRepository_MultiTenantIsolation(t *testing.T) {
 	t.Run("cross-tenant access should fail with RLS", func(t *testing.T) {
 		// Try to access tenant2's user in tenant1 context
 		err := helpers.WithTenantContext(context.Background(), db, tenant1.ID, func() error {
-			usr, err := repo.GetByID(context.Background(), tenant1.ID, user2.ID)
+			usr, err := repo.GetByID(ctxFor(tenant1), tenant1.ID, user2.ID)
 			assert.Error(t, err) // Should fail due to RLS
 			assert.Nil(t, usr)
 			return nil

@@ -5,11 +5,18 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
+	"runtime"
+	"sort"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	pq "github.com/lib/pq"
 	"github.com/stretchr/testify/require"
+
+	"github.com/canakyuz/keystone/pkg/tenantctx"
 )
 
 // TestDBConfig holds test database configuration
@@ -22,23 +29,80 @@ type TestDBConfig struct {
 	SSLMode  string
 }
 
-// DefaultTestDBConfig returns default test database configuration
+// DefaultTestDBConfig, test veritabanı ayarlarını döner.
+// Değerler ortam değişkenleriyle ezilebilir; CI'da Postgres servisi farklı
+// host/port/parola ile geldiği için bu şart.
 func DefaultTestDBConfig() *TestDBConfig {
 	return &TestDBConfig{
-		Host:     "localhost",
-		Port:     "5432",
-		User:     "postgres",
-		Password: "postgres",
-		DBName:   "nexspaces_test",
-		SSLMode:  "disable",
+		Host:     envOr("TEST_DB_HOST", "localhost"),
+		Port:     envOr("TEST_DB_PORT", "5432"),
+		User:     envOr("TEST_DB_USER", "postgres"),
+		Password: envOr("TEST_DB_PASSWORD", "postgres"),
+		DBName:   envOr("TEST_DB_NAME", "keystone_test"),
+		SSLMode:  envOr("TEST_DB_SSLMODE", "disable"),
 	}
 }
 
-// SetupTestDB creates a test database connection and runs migrations
+func envOr(key, fallback string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	return fallback
+}
+
+// dbCounter, aynı süreç içindeki testlere çakışmayan veritabanı adı üretir.
+var dbCounter atomic.Uint64
+
+// uniqueDBName, her test için ayrı bir veritabanı adı üretir.
+//
+// NEDEN: önceden tüm testler tek bir sabit adı (keystone_test) DROP/CREATE
+// ediyordu. `go test ./...` paketleri paralel koştuğu için iki test aynı anda
+// aynı veritabanını silmeye çalışıyor ve "database is being accessed by other
+// users" hatası alıyordu. İzole ad, çakışmayı tasarımdan kaldırır.
+//
+// Ad 63 bayt Postgres sınırına kırpılır.
+func uniqueDBName(t *testing.T, base string) string {
+	t.Helper()
+
+	sanitized := strings.Map(func(r rune) rune {
+		switch {
+		case r >= 'a' && r <= 'z', r >= '0' && r <= '9', r == '_':
+			return r
+		case r >= 'A' && r <= 'Z':
+			return r + 32
+		default:
+			return '_'
+		}
+	}, t.Name())
+
+	name := fmt.Sprintf("%s_%s_%d_%d", base, sanitized, os.Getpid(), dbCounter.Add(1))
+	if len(name) > 63 {
+		name = name[:63]
+	}
+	return name
+}
+
+// dropDatabase, veritabanını siler. Silmeden önce artakalan bağlantıları
+// sonlandırır: sql.DB havuzu Close() sonrası bağlantıyı hemen bırakmayabilir
+// ve DROP DATABASE tek bir açık bağlantıda bile başarısız olur.
+func dropDatabase(db *sql.DB, name string) {
+	quoted := pq.QuoteIdentifier(name)
+
+	_, _ = db.Exec(`
+		SELECT pg_terminate_backend(pid)
+		FROM pg_stat_activity
+		WHERE datname = $1 AND pid <> pg_backend_pid()`, name)
+
+	_, _ = db.Exec("DROP DATABASE IF EXISTS " + quoted)
+}
+
+// SetupTestDB, teste özel izole bir veritabanı açar ve gerçek migration'ları koşar.
+// Test bitiminde veritabanı düşürülür. Postgres erişilemiyorsa test atlanır.
 func SetupTestDB(t *testing.T) *sql.DB {
 	t.Helper()
 
 	cfg := DefaultTestDBConfig()
+	dbName := uniqueDBName(t, cfg.DBName)
 
 	adminConnStr := fmt.Sprintf(
 		"host=%s port=%s user=%s password=%s dbname=postgres sslmode=%s",
@@ -51,21 +115,17 @@ func SetupTestDB(t *testing.T) *sql.DB {
 	}
 	defer adminDB.Close()
 
-	if _, err := adminDB.Exec(fmt.Sprintf("DROP DATABASE IF EXISTS %s", cfg.DBName)); skipIfConnectionError(t, err) {
-		return nil
-	} else {
-		require.NoError(t, err)
-	}
+	dropDatabase(adminDB, dbName)
 
-	if _, err := adminDB.Exec(fmt.Sprintf("CREATE DATABASE %s", cfg.DBName)); skipIfConnectionError(t, err) {
+	if _, err := adminDB.Exec("CREATE DATABASE " + pq.QuoteIdentifier(dbName)); skipIfConnectionError(t, err) {
 		return nil
 	} else {
-		require.NoError(t, err)
+		require.NoErrorf(t, err, "test veritabanı oluşturulamadı: %s", dbName)
 	}
 
 	testConnStr := fmt.Sprintf(
 		"host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
-		cfg.Host, cfg.Port, cfg.User, cfg.Password, cfg.DBName, cfg.SSLMode,
+		cfg.Host, cfg.Port, cfg.User, cfg.Password, dbName, cfg.SSLMode,
 	)
 
 	testDB := openDBOrSkip(t, testConnStr)
@@ -81,185 +141,64 @@ func SetupTestDB(t *testing.T) *sql.DB {
 		admin := openDBOrSkip(t, adminConnStr)
 		if admin != nil {
 			defer admin.Close()
-			_, _ = admin.Exec(fmt.Sprintf("DROP DATABASE IF EXISTS %s", cfg.DBName))
+			dropDatabase(admin, dbName)
 		}
 	})
 
 	return testDB
 }
 
-// runMigrations runs database migrations for tests
+// migrationsDir, bu dosyanın konumundan repo kökündeki migrations dizinini bulur.
+// runtime.Caller kullanılır çünkü `go test` her paketi kendi dizininde çalıştırır;
+// çalışma dizinine göreli bir yol paketten pakete değişirdi.
+func migrationsDir(t *testing.T) string {
+	t.Helper()
+
+	_, thisFile, _, ok := runtime.Caller(0)
+	require.True(t, ok, "çağıran dosya konumu alınamadı")
+
+	// test/helpers/database.go -> repo kökü
+	root := filepath.Dir(filepath.Dir(filepath.Dir(thisFile)))
+	dir := filepath.Join(root, "migrations")
+
+	info, err := os.Stat(dir)
+	require.NoErrorf(t, err, "migrations dizini bulunamadı: %s", dir)
+	require.Truef(t, info.IsDir(), "%s bir dizin değil", dir)
+
+	return dir
+}
+
+// runMigrations, gerçek migrations/*.up.sql dosyalarını sırayla çalıştırır.
+//
+// NEDEN dosyadan okunuyor: şema daha önce bu helper'ın içinde elle kopyalanıyordu ve
+// zamanla production migration'larından saptı. Örneğin tenants.phone kolonu
+// migration'da vardı ama kopyada yoktu; testler gerçekte var olmayan bir şemaya
+// karşı koştu ve repository sorguları "column does not exist" ile patladı.
+// Tek doğruluk kaynağı migrations/ dizinidir. İkinci bir kopya tutmak bu sapmayı
+// kaçınılmaz kılar, dosyadan okumak ise yapısal olarak imkansız hale getirir.
+//
+// Karmaşıklık: O(m) dosya okuma + O(m) sıralı exec, m = migration sayısı.
 func runMigrations(t *testing.T, db *sql.DB) {
 	t.Helper()
 
-	// Migration 001: Create tenants table
-	_, err := db.Exec(`
-		CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
-
-		CREATE TABLE IF NOT EXISTS tenants (
-			id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-			name VARCHAR(100) NOT NULL,
-			slug VARCHAR(50) UNIQUE NOT NULL,
-			email VARCHAR(255) NOT NULL,
-			schema_name VARCHAR(63) UNIQUE NOT NULL,
-			status VARCHAR(20) NOT NULL DEFAULT 'active',
-			plan VARCHAR(20) NOT NULL DEFAULT 'free',
-			settings JSONB DEFAULT '{}'::JSONB,
-			metadata JSONB DEFAULT '{}'::JSONB,
-			custom_domain VARCHAR(255),
-			custom_domain_verified BOOLEAN DEFAULT FALSE,
-			custom_domain_verified_at TIMESTAMP,
-			trial_ends_at TIMESTAMP,
-			subscription_ends_at TIMESTAMP,
-			created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-			updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
-			deleted_at TIMESTAMP
-		);
-
-		CREATE INDEX IF NOT EXISTS idx_tenants_slug ON tenants(slug);
-		CREATE INDEX IF NOT EXISTS idx_tenants_email ON tenants(email);
-		CREATE INDEX IF NOT EXISTS idx_tenants_status ON tenants(status);
-		CREATE INDEX IF NOT EXISTS idx_tenants_plan ON tenants(plan);
-		CREATE UNIQUE INDEX IF NOT EXISTS idx_tenants_schema_name ON tenants(schema_name);
-
-		ALTER TABLE tenants ENABLE ROW LEVEL SECURITY;
-
-		DROP POLICY IF EXISTS tenant_isolation_policy ON tenants;
-		CREATE POLICY tenant_isolation_policy ON tenants
-			FOR ALL
-			USING (id = current_setting('app.current_tenant', TRUE)::UUID);
-
-		CREATE OR REPLACE FUNCTION generate_schema_name(base TEXT)
-		RETURNS TEXT AS $$
-		DECLARE
-			slug TEXT;
-			candidate TEXT;
-			counter INT := 0;
-		BEGIN
-			IF base IS NULL OR LENGTH(TRIM(base)) = 0 THEN
-				raise exception 'base value cannot be empty';
-			END IF;
-
-			slug := lower(regexp_replace(base, '[^a-zA-Z0-9]+', '_', 'g'));
-			slug := regexp_replace(slug, '_+', '_', 'g');
-			slug := trim(both '_' FROM slug);
-			IF slug = '' THEN
-				slug := 'tenant';
-			END IF;
-
-			candidate := 'tenant_' || slug;
-
-			WHILE EXISTS (SELECT 1 FROM pg_namespace WHERE nspname = candidate)
-				OR EXISTS (SELECT 1 FROM tenants WHERE schema_name = candidate) LOOP
-				counter := counter + 1;
-				candidate := 'tenant_' || slug || '_' || counter;
-			END LOOP;
-
-			RETURN candidate;
-		END;
-		$$ LANGUAGE plpgsql;
-	`)
-	if skipIfConnectionError(t, err) {
-		return
-	}
+	files, err := filepath.Glob(filepath.Join(migrationsDir(t), "*.up.sql"))
 	require.NoError(t, err)
+	require.NotEmpty(t, files, "migrations/*.up.sql bulunamadı")
 
-	// Migration 002: Create users table
-	_, err = db.Exec(`
-		CREATE TABLE IF NOT EXISTS users (
-			id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-			tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-			email VARCHAR(255) NOT NULL,
-			password VARCHAR(255) NOT NULL,
-			first_name VARCHAR(100) NOT NULL,
-			last_name VARCHAR(100) NOT NULL,
-			role VARCHAR(50) NOT NULL,
-			status VARCHAR(20) NOT NULL DEFAULT 'pending',
-			email_verified BOOLEAN DEFAULT FALSE,
-			email_verified_at TIMESTAMP,
-			last_login_at TIMESTAMP,
-			avatar VARCHAR(500),
-			phone VARCHAR(50),
-			timezone VARCHAR(50),
-			locale VARCHAR(10),
-			two_factor_enabled BOOLEAN DEFAULT FALSE,
-			password_changed_at TIMESTAMP,
-			preferences JSONB DEFAULT '{}'::JSONB,
-			metadata JSONB DEFAULT '{}'::JSONB,
-			created_by UUID,
-			updated_by UUID,
-			created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-			updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
-			deleted_at TIMESTAMP,
-			UNIQUE(tenant_id, email)
-		);
+	// Glob sırayı garanti etmez; 001..026 sırası şema bağımlılıkları için zorunlu.
+	sort.Strings(files)
 
-		CREATE INDEX IF NOT EXISTS idx_users_tenant_id ON users(tenant_id);
-		CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
-		CREATE INDEX IF NOT EXISTS idx_users_tenant_email ON users(tenant_id, email);
-		CREATE INDEX IF NOT EXISTS idx_users_status ON users(status);
-		CREATE INDEX IF NOT EXISTS idx_users_role ON users(role);
+	for _, file := range files {
+		stmt, readErr := os.ReadFile(file)
+		require.NoErrorf(t, readErr, "migration okunamadı: %s", file)
 
-		ALTER TABLE users ENABLE ROW LEVEL SECURITY;
-
-		DROP POLICY IF EXISTS tenant_isolation_policy ON users;
-		CREATE POLICY tenant_isolation_policy ON users
-			FOR ALL
-			USING (tenant_id = current_setting('app.current_tenant', TRUE)::UUID);
-	`)
-	if skipIfConnectionError(t, err) {
-		return
+		if _, execErr := db.Exec(string(stmt)); skipIfConnectionError(t, execErr) {
+			return
+		} else {
+			require.NoErrorf(t, execErr, "migration başarısız: %s", filepath.Base(file))
+		}
 	}
-	require.NoError(t, err)
-
-	// Migration 003: Create websites table
-	_, err = db.Exec(`
-		CREATE TABLE IF NOT EXISTS websites (
-			id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-			tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-			name VARCHAR(100) NOT NULL,
-			slug VARCHAR(50) NOT NULL,
-			description TEXT,
-			template_id VARCHAR(50) NOT NULL,
-			status VARCHAR(20) NOT NULL DEFAULT 'draft',
-			domain VARCHAR(255),
-			settings JSONB DEFAULT '{}'::JSONB,
-			content JSONB DEFAULT '{}'::JSONB,
-			metadata JSONB DEFAULT '{}'::JSONB,
-			published_at TIMESTAMP,
-			archived_at TIMESTAMP,
-			created_by UUID,
-			updated_by UUID,
-			created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-			updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
-			deleted_at TIMESTAMP,
-			UNIQUE(tenant_id, slug)
-		);
-
-		CREATE INDEX IF NOT EXISTS idx_websites_tenant_id ON websites(tenant_id);
-		CREATE INDEX IF NOT EXISTS idx_websites_slug ON websites(slug);
-		CREATE INDEX IF NOT EXISTS idx_websites_tenant_slug ON websites(tenant_id, slug);
-		CREATE INDEX IF NOT EXISTS idx_websites_status ON websites(status);
-
-		ALTER TABLE websites ENABLE ROW LEVEL SECURITY;
-
-		DROP POLICY IF EXISTS tenant_isolation_policy ON websites;
-		CREATE POLICY tenant_isolation_policy ON websites
-			FOR ALL
-			USING (tenant_id = current_setting('app.current_tenant', TRUE)::UUID);
-
-		DROP POLICY IF EXISTS public_websites_policy ON websites;
-		CREATE POLICY public_websites_policy ON websites
-			FOR SELECT
-			USING (status = 'published' AND deleted_at IS NULL);
-	`)
-	if skipIfConnectionError(t, err) {
-		return
-	}
-	require.NoError(t, err)
 }
-
-// SetTenantContext sets the tenant context for RLS
 func SetTenantContext(ctx context.Context, db *sql.DB, tenantID string) error {
 	if _, err := db.ExecContext(ctx, "SELECT set_config('app.current_tenant', $1, true)", tenantID); err != nil {
 		return err
@@ -352,4 +291,83 @@ func fetchTenantSchemaName(ctx context.Context, db *sql.DB, tenantID string) (st
 		return "", err
 	}
 	return schemaName, nil
+}
+
+// SetupAppRoleDB, RLS'in gerçekten sınanabildiği bir bağlantı döner.
+//
+// NEDEN ayrı bir rol gerekiyor: PostgreSQL'de süper kullanıcılar Row Level
+// Security policy'lerini her koşulda atlar; FORCE ROW LEVEL SECURITY bile bunu
+// değiştirmez. Testler varsayılan olarak "postgres" süper kullanıcısıyla
+// bağlandığı için, o bağlantı üzerinden yapılan bir izolasyon testi hiçbir şey
+// kanıtlamaz: policy hiç devreye girmez ve test yanlış sebeple geçer ya da kalır.
+//
+// Tablolar bu role devredilir, çünkü production'da uygulama çoğunlukla şemayı
+// oluşturan rolle bağlanır. Sahiplik senaryosunu birebir yeniden üretmek,
+// migration 027'deki FORCE ayarının gerçekten iş görüp görmediğini sınar.
+//
+// Karmaşıklık: O(k) ALTER, k = public şemasındaki tablo sayısı.
+func SetupAppRoleDB(t *testing.T, admin *sql.DB) *sql.DB {
+	t.Helper()
+
+	cfg := DefaultTestDBConfig()
+
+	var dbName string
+	require.NoError(t, admin.QueryRow("SELECT current_database()").Scan(&dbName))
+
+	roleName := uniqueDBName(t, "app_role")
+	quotedRole := pq.QuoteIdentifier(roleName)
+
+	mustExec := func(query string) {
+		_, err := admin.Exec(query)
+		require.NoErrorf(t, err, "hazırlık başarısız: %s", query)
+	}
+
+	mustExec("DROP ROLE IF EXISTS " + quotedRole)
+	mustExec(fmt.Sprintf("CREATE ROLE %s LOGIN PASSWORD 'approle'", quotedRole))
+	mustExec(fmt.Sprintf("GRANT CONNECT ON DATABASE %s TO %s", pq.QuoteIdentifier(dbName), quotedRole))
+	mustExec(fmt.Sprintf("GRANT USAGE, CREATE ON SCHEMA public TO %s", quotedRole))
+
+	// Tüm public tabloları ve sequence'ları role devret.
+	mustExec(fmt.Sprintf(`
+		DO $$
+		DECLARE r record;
+		BEGIN
+			FOR r IN SELECT tablename FROM pg_tables WHERE schemaname = 'public' LOOP
+				EXECUTE format('ALTER TABLE public.%%I OWNER TO %s', r.tablename);
+			END LOOP;
+			FOR r IN SELECT sequencename FROM pg_sequences WHERE schemaname = 'public' LOOP
+				EXECUTE format('ALTER SEQUENCE public.%%I OWNER TO %s', r.sequencename);
+			END LOOP;
+		END $$`, quotedRole, quotedRole))
+
+	appDB, err := sql.Open("postgres", fmt.Sprintf(
+		"host=%s port=%s user=%s password=approle dbname=%s sslmode=%s",
+		cfg.Host, cfg.Port, roleName, dbName, cfg.SSLMode,
+	))
+	require.NoError(t, err)
+
+	// SET oturum bazlıdır. Havuz birden fazla bağlantı açarsa tenant context'i
+	// taşımayan bir bağlantıya düşülebilir, bu da testi anlamsız kılar.
+	appDB.SetMaxOpenConns(1)
+
+	require.NoError(t, appDB.Ping())
+
+	t.Cleanup(func() {
+		appDB.Close()
+		_, _ = admin.Exec("REASSIGN OWNED BY " + quotedRole + " TO CURRENT_USER")
+		_, _ = admin.Exec("DROP OWNED BY " + quotedRole)
+		_, _ = admin.Exec("DROP ROLE IF EXISTS " + quotedRole)
+	})
+
+	return appDB
+}
+
+// WithTenantSchema, repository'lerin beklediği tenant schema'sını context'e koyar.
+//
+// NEDEN: TenantConnectionManager refactor'ından sonra repository metotları
+// schema adını context'ten okuyor ve yoksa hata döndürüyor. Production'da bunu
+// TenantContextMiddleware yerleştirir; testlerde HTTP katmanı olmadığı için
+// aynı anahtarı doğrudan koymak gerekiyor.
+func WithTenantSchema(ctx context.Context, schemaName string) context.Context {
+	return tenantctx.WithSchema(ctx, schemaName)
 }

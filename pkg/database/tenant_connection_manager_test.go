@@ -5,7 +5,10 @@ import (
 	"database/sql"
 	"testing"
 
+	"errors"
+	"fmt"
 	"github.com/DATA-DOG/go-sqlmock"
+	pq "github.com/lib/pq"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -171,87 +174,78 @@ func TestResetSearchPath(t *testing.T) {
 // - Connection pool mock'lama
 // - defer ile cleanup test etme
 // - Error propagation test etme
+// TestExecuteInTenantContext, gerçek PostgreSQL üzerinde çalışır.
+//
+// NEDEN mock değil: bu testin doğrulamak istediği şey, callback'in aldığı
+// bağlantıda tenant schema'sının GERÇEKTEN aktif olması. sqlmock sorguyu
+// yorumlamaz, yalnızca metin eşleştirir; search_path'in etkili olup olmadığını
+// gösteremez. Nitekim bu testin mock'lu hali, uygulama havuz üzerinden sorgu
+// çalıştırdığı halde geçiyordu.
 func TestExecuteInTenantContext(t *testing.T) {
-	db, mock, err := sqlmock.New()
-	require.NoError(t, err)
-	defer db.Close()
-
+	db := openTestDB(t)
+	if db == nil {
+		t.Skip("postgres erişilemiyor")
+	}
+	ctx := context.Background()
 	manager := NewTenantConnectionManager(db, nil)
 
-	t.Run("başarılı execution", func(t *testing.T) {
-		schemaName := "tenant_acme"
+	// İki şemada aynı isimli tablo: hangi şemanın aktif olduğunu ayırt etmek için.
+	for schema, value := range map[string]int{"tenant_alpha": 1, "tenant_beta": 2} {
+		mustExec(t, db, fmt.Sprintf("CREATE SCHEMA IF NOT EXISTS %s", pq.QuoteIdentifier(schema)))
+		mustExec(t, db, fmt.Sprintf("CREATE TABLE IF NOT EXISTS %s.marker (id int)", pq.QuoteIdentifier(schema)))
+		mustExec(t, db, fmt.Sprintf("TRUNCATE %s.marker", pq.QuoteIdentifier(schema)))
+		mustExec(t, db, fmt.Sprintf("INSERT INTO %s.marker VALUES (%d)", pq.QuoteIdentifier(schema), value))
+	}
 
-		// Mock beklentileri:
-		// 1. Connection al
-		mock.ExpectBegin() // Connection hazır
-
-		// 2. SET search_path
-		mock.ExpectExec(`SET search_path TO "tenant_acme", public`).
-			WillReturnResult(sqlmock.NewResult(0, 0))
-
-		// 3. User function'ın içindeki query
-		mock.ExpectQuery("SELECT COUNT").
-			WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(5))
-
-		// 4. RESET search_path (defer)
-		mock.ExpectExec(`SET search_path TO public`).
-			WillReturnResult(sqlmock.NewResult(0, 0))
-
-		mock.ExpectCommit() // Connection kapatıldı
-
-		// Test fonksiyonu
-		var queryResult int
-		err := manager.ExecuteInTenantContext(context.Background(), schemaName, func() error {
-			// Bu fonksiyon tenant_acme schema'sında çalışır
-			row := db.QueryRow("SELECT COUNT(*) FROM users")
-			return row.Scan(&queryResult)
+	t.Run("callback tenant schemasinda calisir", func(t *testing.T) {
+		var got int
+		err := manager.ExecuteInTenantContext(ctx, "tenant_alpha", func(conn *sql.Conn) error {
+			return conn.QueryRowContext(ctx, "SELECT id FROM marker").Scan(&got)
 		})
-
-		assert.NoError(t, err)
-		assert.Equal(t, 5, queryResult)
-		assert.NoError(t, mock.ExpectationsWereMet())
+		require.NoError(t, err)
+		assert.Equal(t, 1, got, "alpha semasindaki satir okunmali")
 	})
 
-	t.Run("function içinde hata oluşursa", func(t *testing.T) {
-		schemaName := "tenant_test"
-
-		mock.ExpectBegin()
-		mock.ExpectExec(`SET search_path TO "tenant_test", public`).
-			WillReturnResult(sqlmock.NewResult(0, 0))
-
-		// defer'daki reset yine de çalışmalı
-		mock.ExpectExec(`SET search_path TO public`).
-			WillReturnResult(sqlmock.NewResult(0, 0))
-
-		mock.ExpectCommit()
-
-		// Function içinde kasıtlı hata üret
-		testErr := sql.ErrNoRows
-		err := manager.ExecuteInTenantContext(context.Background(), schemaName, func() error {
-			return testErr
+	t.Run("farkli tenant farkli veri gorur", func(t *testing.T) {
+		var got int
+		err := manager.ExecuteInTenantContext(ctx, "tenant_beta", func(conn *sql.Conn) error {
+			return conn.QueryRowContext(ctx, "SELECT id FROM marker").Scan(&got)
 		})
-
-		// Hata propagate edilmeli
-		assert.Error(t, err)
-		assert.Equal(t, testErr, err)
-
-		// Reset yine de çalışmış olmalı
-		assert.NoError(t, mock.ExpectationsWereMet())
+		require.NoError(t, err)
+		assert.Equal(t, 2, got, "beta semasindaki satir okunmali")
 	})
 
-	t.Run("geçersiz schema adı", func(t *testing.T) {
-		// Mock beklentisi YOK (validation fail olacak)
+	t.Run("callback hatasi yukari tasinir", func(t *testing.T) {
+		sentinel := errors.New("is mantigi hatasi")
+		err := manager.ExecuteInTenantContext(ctx, "tenant_alpha", func(conn *sql.Conn) error {
+			return sentinel
+		})
+		assert.ErrorIs(t, err, sentinel)
+	})
 
-		err := manager.ExecuteInTenantContext(context.Background(), "invalid_schema", func() error {
+	t.Run("gecersiz schema adi reddedilir", func(t *testing.T) {
+		called := false
+		err := manager.ExecuteInTenantContext(ctx, "public; DROP TABLE users", func(conn *sql.Conn) error {
+			called = true
 			return nil
 		})
-
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "geçersiz schema adı")
+		assert.False(t, called, "gecersiz schema'da callback calistirilmamali")
+	})
+
+	t.Run("islem bitince search_path public'e doner", func(t *testing.T) {
+		err := manager.ExecuteInTenantContext(ctx, "tenant_alpha", func(conn *sql.Conn) error {
+			return nil
+		})
+		require.NoError(t, err)
+
+		// Havuzdan yeni bir baglanti al ve kirlenmemis oldugunu dogrula.
+		var path string
+		require.NoError(t, db.QueryRowContext(ctx, "SHOW search_path").Scan(&path))
+		assert.NotContains(t, path, "tenant_alpha", "search_path havuza sizdi")
 	})
 }
 
-// TestGetConnection, connection pool'dan bağlantı almayı test eder.
 func TestGetConnection(t *testing.T) {
 	db, _, err := sqlmock.New()
 	require.NoError(t, err)
@@ -287,29 +281,24 @@ func TestGetConnection(t *testing.T) {
 // - Benchmark yazma
 // - Performance profiling
 // - Memory allocation ölçme
+// BenchmarkExecuteInTenantContext, tenant context'e girip çıkmanın maliyetini
+// gerçek bir bağlantı havuzu üzerinde ölçer. Ölçülen şey bağlantı ayırma +
+// iki SET search_path komutudur.
 func BenchmarkExecuteInTenantContext(b *testing.B) {
-	db, mock, err := sqlmock.New()
-	require.NoError(b, err)
-	defer db.Close()
-
+	db := openBenchDB(b)
+	if db == nil {
+		b.Skip("postgres erişilemiyor")
+	}
+	ctx := context.Background()
 	manager := NewTenantConnectionManager(db, nil)
-	schemaName := "tenant_bench"
 
-	// Mock setup (her iteration için)
-	for i := 0; i < b.N; i++ {
-		mock.ExpectBegin()
-		mock.ExpectExec(`SET search_path TO "tenant_bench", public`).
-			WillReturnResult(sqlmock.NewResult(0, 0))
-		mock.ExpectExec(`SET search_path TO public`).
-			WillReturnResult(sqlmock.NewResult(0, 0))
-		mock.ExpectCommit()
+	if _, err := db.Exec(`CREATE SCHEMA IF NOT EXISTS tenant_bench`); err != nil {
+		b.Fatal(err)
 	}
 
-	b.ResetTimer() // Setup süresini sayma
-
+	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_ = manager.ExecuteInTenantContext(context.Background(), schemaName, func() error {
-			// Minimal work
+		_ = manager.ExecuteInTenantContext(ctx, "tenant_bench", func(conn *sql.Conn) error {
 			return nil
 		})
 	}

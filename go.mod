@@ -1,4 +1,4 @@
-module nexpaces-api
+module github.com/canakyuz/keystone
 
 go 1.24.0
 

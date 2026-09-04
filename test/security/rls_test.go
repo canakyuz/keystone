@@ -1,0 +1,119 @@
+// Package security, tenant izolasyonunun veritabanı katmanında gerçekten
+// uygulandığını doğrular.
+//
+// Bu testler bilinçli olarak repository katmanını atlar ve doğrudan SQL koşar.
+// Amaç uygulama mantığını değil, PostgreSQL Row Level Security yapılandırmasını
+// sınamaktır: uygulama kodu hatalı bir sorgu gönderse bile veritabanının
+// çapraz tenant okumayı reddetmesi gerekir.
+package security
+
+import (
+	"context"
+	"testing"
+
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/canakyuz/keystone/test/helpers"
+)
+
+// seedUser, verilen tenant'a ait bir kullanıcı satırı ekler.
+func seedUser(t *testing.T, exec func(string, ...any) error, tenantID, email string) string {
+	t.Helper()
+
+	id := uuid.New().String()
+	require.NoError(t, exec(`
+		INSERT INTO users (id, tenant_id, email, password_hash, first_name, last_name, role, status)
+		VALUES ($1, $2, $3, 'x', 'Test', 'User', 'admin', 'active')`,
+		id, tenantID, email))
+
+	return id
+}
+
+func TestUsersTable_RejectsCrossTenantReads(t *testing.T) {
+	admin := helpers.SetupTestDB(t)
+	if admin == nil {
+		t.Skip("postgres erişilemiyor")
+	}
+	ctx := context.Background()
+
+	tenant1 := helpers.CreateTestTenant(t, admin, "iso-tenant-1")
+	tenant2 := helpers.CreateTestTenant(t, admin, "iso-tenant-2")
+
+	adminExec := func(q string, args ...any) error {
+		_, err := admin.ExecContext(ctx, q, args...)
+		return err
+	}
+	seedUser(t, adminExec, tenant1.ID, "one@example.com")
+	seedUser(t, adminExec, tenant2.ID, "two@example.com")
+
+	// RLS, süper kullanıcı bağlantısında hiçbir zaman uygulanmaz. İzolasyonu
+	// sınamak için süper kullanıcı olmayan, tabloların sahibi bir rol gerekiyor.
+	app := helpers.SetupAppRoleDB(t, admin)
+
+	_, err := app.ExecContext(ctx, `SET app.current_tenant = '`+tenant1.ID+`'`)
+	require.NoError(t, err)
+
+	t.Run("yalnizca kendi tenant satirlari gorunur", func(t *testing.T) {
+		var count int
+		require.NoError(t, app.QueryRowContext(ctx, `SELECT count(*) FROM users`).Scan(&count))
+		assert.Equal(t, 1, count, "baska tenant'in kullanicilari da gorunuyor")
+	})
+
+	t.Run("diger tenant'in kullanicisi ID ile cekilemez", func(t *testing.T) {
+		var email string
+		err := app.QueryRowContext(ctx,
+			`SELECT email FROM users WHERE tenant_id = $1`, tenant2.ID).Scan(&email)
+		assert.Error(t, err, "capraz tenant okuma engellenmedi")
+	})
+
+	t.Run("tenant context yoksa hicbir satir gorunmez", func(t *testing.T) {
+		_, err := app.ExecContext(ctx, `RESET app.current_tenant`)
+		require.NoError(t, err)
+
+		var count int
+		require.NoError(t, app.QueryRowContext(ctx, `SELECT count(*) FROM users`).Scan(&count))
+		assert.Equal(t, 0, count, "context yokken satir gorunuyor: fail-open davranis")
+	})
+}
+
+// TestAuthLookup_IsTransactionScoped, migration 028'in getirdiği daraltmayı
+// doğrular: global login araması yalnızca bayrak açıkken görür ve bayrak
+// transaction dışına sızmaz.
+func TestAuthLookup_IsTransactionScoped(t *testing.T) {
+	admin := helpers.SetupTestDB(t)
+	if admin == nil {
+		t.Skip("postgres erişilemiyor")
+	}
+	ctx := context.Background()
+
+	tenant1 := helpers.CreateTestTenant(t, admin, "auth-tenant-1")
+	adminExec := func(q string, args ...any) error {
+		_, err := admin.ExecContext(ctx, q, args...)
+		return err
+	}
+	seedUser(t, adminExec, tenant1.ID, "login@example.com")
+
+	app := helpers.SetupAppRoleDB(t, admin)
+
+	t.Run("bayrak acikken login aramasi calisir", func(t *testing.T) {
+		tx, err := app.BeginTx(ctx, nil)
+		require.NoError(t, err)
+		defer func() { _ = tx.Rollback() }()
+
+		_, err = tx.ExecContext(ctx, `SET LOCAL app.auth_lookup = 'on'`)
+		require.NoError(t, err)
+
+		var email string
+		require.NoError(t, tx.QueryRowContext(ctx,
+			`SELECT email FROM users WHERE email = $1`, "login@example.com").Scan(&email))
+		assert.Equal(t, "login@example.com", email)
+	})
+
+	t.Run("transaction bitince yetki kapanir", func(t *testing.T) {
+		var count int
+		require.NoError(t, app.QueryRowContext(ctx, `SELECT count(*) FROM users`).Scan(&count))
+		assert.Equal(t, 0, count, "auth_lookup bayragi transaction disina sizdi")
+	})
+}

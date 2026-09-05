@@ -219,6 +219,16 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 
 	// Tenant context middleware (her request için tenant isolation)
 	// 🎓 CACHE-AWARE: Redis cache kullanarak schema lookup performance optimize edildi
+	//
+	// GÜVENLİK: X-Tenant-ID header'ı ile tenant seçimi yalnızca development'ta
+	// açılır. Üretimde tek geçerli kaynak doğrulanmış JWT claim'idir; aksi halde
+	// geçerli token taşıyan herhangi bir kullanıcı başka tenant'a geçebilir.
+	isDevelopment := cfg.Server.Environment == "development"
+	middleware.AllowUntrustedTenantSource(isDevelopment)
+	if !isDevelopment {
+		appLogger.Info("Tenant kaynağı JWT claim'i ile sınırlandırıldı")
+	}
+
 	tenantContextMiddleware := middleware.TenantContextMiddleware(tenantSchemaCache)
 
 	// Eski tenant manager (backward compatibility)

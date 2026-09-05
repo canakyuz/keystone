@@ -9,6 +9,7 @@ import (
 	"github.com/canakyuz/keystone/pkg/logger"
 
 	"github.com/canakyuz/keystone/pkg/tenantctx"
+	"sync/atomic"
 )
 
 // Context anahtarları pkg/tenantctx'e taşındı. Repository katmanının HTTP
@@ -100,32 +101,50 @@ func TenantContextMiddleware(schemaCache *TenantSchemaCache) fiber.Handler {
 // 1. JWT claims'den (önerilen - güvenli)
 // 2. X-Tenant-ID header'ından (development/test)
 // 3. Query parameter'dan (ÖNERILMEZ)
+// allowUntrustedTenantHeader, X-Tenant-ID header'i ve tenant_id query
+// parametresiyle tenant secilmesine izin verilip verilmedigini tutar.
+//
+// Varsayilan false'tur ve yalnizca AllowUntrustedTenantSource ile acilir.
+// Uretimde ASLA acilmamalidir.
+var allowUntrustedTenantHeader atomic.Bool
+
+// AllowUntrustedTenantSource, yalnizca yerel gelistirme ve testler icin
+// header/query uzerinden tenant secmeyi acar.
+//
+// Bu bir kolaylik degil, bilincli bir guvenlik anahtaridir: acikken kimlik
+// dogrulamasindan gecmis herhangi bir kullanici, baska bir tenant'in kimligini
+// header'a yazarak o tenant'in verisine erisebilir.
+func AllowUntrustedTenantSource(allow bool) {
+	allowUntrustedTenantHeader.Store(allow)
+}
+
+// extractTenantID, request'in hangi tenant adina yapildigini belirler.
+//
+// GUVENLIK: Tek guvenilir kaynak, AuthMiddleware'in dogrulanmis JWT'den
+// yazdigi c.Locals("tenant_id") degeridir.
+//
+// Onceki hali c.Locals("user") anahtarini okuyup map[string]interface{}'e
+// cevirmeye calisiyordu. AuthMiddleware boyle bir anahtar hic yazmiyor; claim'i
+// dogrudan c.Locals("tenant_id") olarak koyuyor. Dolayisiyla JWT yolu hicbir
+// zaman calismiyor ve her istek sessizce X-Tenant-ID header'ina dusuyordu.
+// Sonuc: gecerli bir token tasiyan herhangi bir kullanici, header'i degistirerek
+// istedigi tenant'in verisini okuyabiliyordu.
 func extractTenantID(c *fiber.Ctx) string {
-	// Yöntem 1: JWT claims'den al (production)
-	user := c.Locals("user")
-	if user != nil {
-		if claims, ok := user.(map[string]interface{}); ok {
-			if tenantID, exists := claims["tenant_id"]; exists {
-				if tid, ok := tenantID.(string); ok && tid != "" {
-					return tid
-				}
-			}
-		}
+	// 1) Dogrulanmis JWT claim'i. Tek guvenilir kaynak.
+	if tenantID, ok := c.Locals("tenant_id").(string); ok && tenantID != "" {
+		return tenantID
 	}
 
-	// Yöntem 2: Header'dan al (development)
-	headerTenantID := c.Get("X-Tenant-ID")
-	if headerTenantID != "" {
+	// 2) Header ve query yalnizca acikca izin verildiginde okunur.
+	if !allowUntrustedTenantHeader.Load() {
+		return ""
+	}
+
+	if headerTenantID := c.Get("X-Tenant-ID"); headerTenantID != "" {
 		return headerTenantID
 	}
 
-	// Yöntem 3: Query parameter (sadece development)
-	queryTenantID := c.Query("tenant_id")
-	if queryTenantID != "" {
-		return queryTenantID
-	}
-
-	return ""
+	return c.Query("tenant_id")
 }
 
 // GetTenantSchemaFromContext, Go context'inden tenant schema'sını alır.

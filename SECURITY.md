@@ -24,6 +24,11 @@ Bu koşullar sağlanmazsa izolasyon garanti edilmez.
 kullanıcılar RLS policy'lerini her koşulda atlar. `FORCE ROW LEVEL SECURITY`
 bunu değiştirmez. Uygulama için ayrı, süper kullanıcı olmayan bir rol açın.
 
+**`ENVIRONMENT` production olmalıdır.** `development` iken `X-Tenant-ID`
+header'ı ve `tenant_id` query parametresi ile tenant seçilebilir. Bu yalnızca
+yerel geliştirme kolaylığıdır. Üretimde açık kalırsa kimlik doğrulamasından
+geçmiş herhangi bir kullanıcı başka tenant'ın verisine erişir.
+
 **Tenant context'e giren her sorgu callback'in verdiği bağlantıyı kullanmalıdır.**
 `ExecuteInTenantContext` içinde havuz (`*sql.DB`) üzerinden sorgu çalıştırmak
 sessizce başka bir bağlantıya düşer ve o bağlantının `search_path`'i bu tenant'a
@@ -54,6 +59,7 @@ yorumlardadır.
 | `sites` policy'si `COALESCE` ile fail-open | Context ayarlanmadığında tüm satırlar görünüyordu | `030` |
 | `payments`, `refunds`, `payment_events` policy'lerinde argümansız `current_setting` | Ayarsız oturumda sert hata | `030` |
 | `ExecuteInTenantContext` callback'e bağlantıyı vermiyordu | `search_path` sorguların koştuğu bağlantıya uygulanmıyordu | `pkg/database` |
+| `extractTenantID` yanlış context anahtarını okuyordu | JWT tenant claim'i hiç kullanılmıyordu; geçerli token taşıyan herkes `X-Tenant-ID` header'ı ile başka tenant'a geçebiliyordu | `internal/middleware` |
 
 ## Test etme
 

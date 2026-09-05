@@ -1,4 +1,4 @@
-# NexSpaces Platform - Execution Playbook
+# Keystone Platform - Execution Playbook
 
 > **Hedef:** Technical Gap Analysis'den Execution'a Geçiş
 > **Süre:** 12-15 hafta (3-4 ay)

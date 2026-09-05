@@ -8,7 +8,7 @@
 
 ## 📊 Overview
 
-Registry sistemi, NexSpaces platform'da modül ve araçların kataloglanması, tenant bazlı aktivasyonu ve bağımlılık yönetimi için tasarlanmıştır.
+Registry sistemi, Keystone platform'da modül ve araçların kataloglanması, tenant bazlı aktivasyonu ve bağımlılık yönetimi için tasarlanmıştır.
 
 ### Created Migrations
 

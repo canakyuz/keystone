@@ -1,4 +1,4 @@
-# NexSpaces Platform - Modül ve Araç Envanteri
+# Keystone Platform - Modül ve Araç Envanteri
 
 **Oluşturulma Tarihi:** 2025-10-05
 **Week 1 Day 1:** Mevcut Domain Analizi ve Kategorileştirme
@@ -262,7 +262,7 @@ Platform'un temel altyapısı - her tenant için zorunlu.
 
 **Özellikler:**
 - Tenant isolation (Row Level Security)
-- Subdomain support (tenant.nexpaces.com)
+- Subdomain support (tenant.keystone.dev)
 - Custom domain support
 - Subscription management
 - Feature flags per tenant

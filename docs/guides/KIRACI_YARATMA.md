@@ -1,18 +1,18 @@
 # Tenant Provisioning & Isolation Architecture
 
-Bu rehber, NexSpaces ekosisteminde tenant verisinin nasıl oluşturulduğunu, hangi panellerin hangi modülleri kullandığını ve izolasyon stratejisinin modül temelli olarak nasıl uygulanması gerektiğini açıklar. Doküman, hem `nexpaces-api` (backend) hem `nexpaces-web` (frontend) kod tabanındaki mevcut durumu referans alır ve geliştirme planı önerir.
+Bu rehber, Keystone ekosisteminde tenant verisinin nasıl oluşturulduğunu, hangi panellerin hangi modülleri kullandığını ve izolasyon stratejisinin modül temelli olarak nasıl uygulanması gerektiğini açıklar. Doküman, hem `keystone` (backend) hem `keystone-web` (frontend) kod tabanındaki mevcut durumu referans alır ve geliştirme planı önerir.
 
 ---
 
 ## 1. Platform Panelleri ve Veri Akışı
 
-`nexpaces-web/README.md` üç ana paneli tanımlar:
+`keystone-web/README.md` üç ana paneli tanımlar:
 
 | Panel | Dosya yolu | Açıklama | Veri Kaynağı |
 |-------|------------|---------|--------------|
-| **Marketing** | `nexpaces-web/src/app/(client)` | Kayıt öncesi satış, landing, fiyatlandırma sayfaları. Tenant gerektirmez. | Statik içerik, registry kataloğu (`modules`, `tools`). |
-| **Platform Admin** | `nexpaces-web/src/app/(platform)` | Global yönetim paneli (tenant provisioning, modül yönetimi, sistem sağlığı). | `tenants`, `tenant_modules`, `tenant_tools`, log/metrics tabloları. |
-| **Tenant Workspace** | `nexpaces-web/src/app/[tenant]` | Müşteri panelleri (`*.nexpaces.com`). Aktif modüllere göre CRM, LMS, ERP vb. ekranlar açılır. | Tenant izole verileri (schema veya ayrı DB). |
+| **Marketing** | `keystone-web/src/app/(client)` | Kayıt öncesi satış, landing, fiyatlandırma sayfaları. Tenant gerektirmez. | Statik içerik, registry kataloğu (`modules`, `tools`). |
+| **Platform Admin** | `keystone-web/src/app/(platform)` | Global yönetim paneli (tenant provisioning, modül yönetimi, sistem sağlığı). | `tenants`, `tenant_modules`, `tenant_tools`, log/metrics tabloları. |
+| **Tenant Workspace** | `keystone-web/src/app/[tenant]` | Müşteri panelleri (`*.keystone.dev`). Aktif modüllere göre CRM, LMS, ERP vb. ekranlar açılır. | Tenant izole verileri (schema veya ayrı DB). |
 
 Bu yapı, backend tarafında üç veri katmanı gerektirir:
 1. **Global katalog** – Modül ve tool tanımları (`modules`, `tools`, `module_dependencies`, `tool_dependencies`).
@@ -108,11 +108,11 @@ Test önerileri:
 1. `CreateTenantRequest` payload’una modül listesi ekleyin & izolasyon haritasını konfigurasyona taşıyın.
 2. `ProvisioningService` içine database-per-tenant senaryosu için `ProvisionTenantDatabase` ve `MigrateSchemaToDatabase` fonksiyonlarını ekleyin.
 3. `TenantConnectionManager`’ı implement edip middleware katmanında her request’te doğru `search_path` / bağlantı seçimini yapın.
-4. Platform admin panelinde ( `nexpaces-web/src/app/(platform)` ) tenant detayı ekranına plan + izolasyon bilgilerini ekleyin.
+4. Platform admin panelinde ( `keystone-web/src/app/(platform)` ) tenant detayı ekranına plan + izolasyon bilgilerini ekleyin.
 5. Seed scriptini enterprise denemeleri için genişletin (mock ayrı DB oluşturma).
 6. Dokümantasyon (README, API docs) ve OpenAPI şemalarını izolasyon ve onboarding süreçlerini yansıtacak şekilde güncelleyin.
 
-Bu döküman, NexSpaces kapsamındaki panel tipleri ve modül envanteri ile uyumlu olacak şekilde tenant provisioning sürecinin nasıl yönetileceğini ortaya koyar. Kod değişiklikleri yapıldıkça `docs/tenant-provisioning.md` dosyası da güncellenmelidir.
+Bu döküman, Keystone kapsamındaki panel tipleri ve modül envanteri ile uyumlu olacak şekilde tenant provisioning sürecinin nasıl yönetileceğini ortaya koyar. Kod değişiklikleri yapıldıkça `docs/tenant-provisioning.md` dosyası da güncellenmelidir.
 
 ---
 

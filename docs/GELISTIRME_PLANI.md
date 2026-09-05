@@ -1,4 +1,4 @@
-# NexSpaces - Geliştirme Planı
+# Keystone - Geliştirme Planı
 
 **Güncelleme:** 11 Ekim 2025
 

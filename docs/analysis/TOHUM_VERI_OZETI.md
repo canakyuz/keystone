@@ -50,7 +50,7 @@ Registry katalog sistemi için seed data oluşturuldu. Tüm mevcut modüller, ar
 │  TENANT:                                                    │
 │  - Name: Can Akyüz Tech Academy                            │
 │  - Slug: canakyuz                                           │
-│  - URL: https://canakyuz.nexpaces.com                       │
+│  - URL: https://canakyuz.keystone.dev                       │
 │  - Plan: Pro (Trial - 30 days)                             │
 │                                                             │
 │  ACTIVATED MODULES (1):          ACTIVATED TOOLS (2):       │
@@ -457,7 +457,7 @@ Registry katalog sistemi için seed data oluşturuldu. Tüm mevcut modüller, ar
 **Slug:** `canakyuz`
 **Email:** can@akyuz.tech
 **Phone:** +90 555 123 4567
-**URL:** https://canakyuz.nexpaces.com
+**URL:** https://canakyuz.keystone.dev
 
 **Status:** Trial
 **Plan:** Pro
@@ -568,9 +568,9 @@ Registry katalog sistemi için seed data oluşturuldu. Tüm mevcut modüller, ar
 **Webhook Config:**
 ```json
 {
-  "payment_success_url": "https://canakyuz.nexpaces.com/payment/success",
-  "payment_cancel_url": "https://canakyuz.nexpaces.com/payment/cancel",
-  "webhook_url": "https://canakyuz.nexpaces.com/api/webhooks/payment",
+  "payment_success_url": "https://canakyuz.keystone.dev/payment/success",
+  "payment_cancel_url": "https://canakyuz.keystone.dev/payment/cancel",
+  "webhook_url": "https://canakyuz.keystone.dev/api/webhooks/payment",
   "webhook_secret": "whsec_test_..."
 }
 ```
@@ -617,7 +617,7 @@ Registry katalog sistemi için seed data oluşturuldu. Tüm mevcut modüller, ar
 **Webhook Config:**
 ```json
 {
-  "endpoint": "https://canakyuz.nexpaces.com/api/webhooks/handler",
+  "endpoint": "https://canakyuz.keystone.dev/api/webhooks/handler",
   "events": ["payment.*", "refund.*", "3ds.*"],
   "headers": {
     "X-Tenant-ID": "aaaaaaaa-bbbb-cccc-dddd-000000000001"

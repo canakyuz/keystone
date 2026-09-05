@@ -1,4 +1,4 @@
-# NexSpaces Platform - Kapsamlı Zaman Çizelgesi & Roadmap
+# Keystone Platform - Kapsamlı Zaman Çizelgesi & Roadmap
 
 > **Son Güncelleme:** Eylül 2024
 > **Geliştirme Yaklaşımı:** AI-Assisted + Clean Code Standards

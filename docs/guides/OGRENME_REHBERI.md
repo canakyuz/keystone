@@ -1,6 +1,6 @@
-# 🎓 NexSpaces Backend - Quick Learning Guide
+# 🎓 Keystone Backend - Quick Learning Guide
 
-> **Goal:** Learn Go backend development and understand the NexSpaces platform
+> **Goal:** Learn Go backend development and understand the Keystone platform
 > **Level:** Beginner to Intermediate
 > **Estimated Time:** 2-3 weeks for basics
 
@@ -29,7 +29,7 @@ import "fmt"
 
 func main() {
     // Variables
-    name := "NexSpaces"  // Type inference
+    name := "Keystone"  // Type inference
     var count int = 42   // Explicit type
 
     // Structs (like classes)
@@ -88,7 +88,7 @@ if err != nil {
 ### Essential Commands
 
 ```bash
-go mod init nexpaces-api    # Create new project
+go mod init keystone    # Create new project
 go get github.com/pkg/name  # Install dependency
 go mod tidy                 # Clean dependencies
 
@@ -197,7 +197,7 @@ type Student struct {
 ### Key Directories
 
 ```
-nexpaces-api/
+keystone/
 │
 ├── cmd/server/main.go          # ⭐ START HERE - Entry point
 │
@@ -242,11 +242,11 @@ One application serves multiple customers (tenants), but each tenant's data is l
 
 ### Our Model: Schema-per-Tenant
 
-NexSpaces uses a **Schema-per-Tenant** architecture. This means every tenant gets their own dedicated schema within a single PostgreSQL database. This provides strong data isolation without the complexity of managing multiple databases.
+Keystone uses a **Schema-per-Tenant** architecture. This means every tenant gets their own dedicated schema within a single PostgreSQL database. This provides strong data isolation without the complexity of managing multiple databases.
 
 ```
 ┌──────────────────────────────────────────┐
-│         NEXPACES PLATFORM (Single DB)    │
+│         KEYSTONE PLATFORM (Single DB)    │
 ├──────────────────┬──────────────────┬────┤
 │ Schema: tenant_a │ Schema: tenant_b │ ...│
 │ (Tables for A)   │ (Tables for B)   │    │
@@ -487,7 +487,7 @@ touch migrations/016_create_courses.down.sql
 docker-compose logs -f api
 
 # 2. Check database
-docker exec -it postgres psql -U postgres -d nexpaces_dev
+docker exec -it postgres psql -U postgres -d keystone_dev
 \dt                              # List tables
 SELECT * FROM students LIMIT 5;  # Check data
 
@@ -638,7 +638,7 @@ sudo apt install golang-go   # Linux
 
 # Clone project
 git clone <repo-url>
-cd nexpaces-api
+cd keystone
 
 # Start development
 cp .env.example .env

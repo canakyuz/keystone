@@ -1,7 +1,7 @@
-# NexSpaces Platform - Kapsamlı Analiz ve Eksiklikler Dokümantasyonu
+# Keystone Platform - Kapsamlı Analiz ve Eksiklikler Dokümantasyonu
 
 > **Tarih:** Ekim 2025
-> **Proje:** NexSpaces Multi-Tenant SaaS Platform
+> **Proje:** Keystone Multi-Tenant SaaS Platform
 > **Mimari:** Polyrepo (Go Backend + Next.js Frontend)
 > **Hedef:** Production-Ready Enterprise Platform
 
@@ -11,7 +11,7 @@
 
 ### Teknoloji Stack'i
 ```
-Frontend (nexpaces-web/):
+Frontend (keystone-web/):
 ├── Next.js 15.3.4 (App Router)
 ├── TypeScript (Strict Mode)
 ├── Tailwind CSS 4.x + Radix UI
@@ -20,7 +20,7 @@ Frontend (nexpaces-web/):
 ├── React Hook Form + Zod Validation
 ├── 338 Bileşen + 99 Sayfa
 
-Backend (nexpaces-api/):
+Backend (keystone/):
 ├── Go 1.21+ Fiber v2
 ├── PostgreSQL 15 (Multi-Tenant)
 ├── Redis 7 (Cache/Session)
@@ -53,12 +53,12 @@ Backend (nexpaces-api/):
 
 ### Unit Test Coverage
 ```typescript
-// Frontend (nexpaces-web)
+// Frontend (keystone-web)
 // ❌ Eksik: Jest + RTL setup
 // ❌ Eksik: Component testing (338 component, 0 test)
 // ❌ Target: %85 coverage
 
-// Backend (nexpaces-api)
+// Backend (keystone)
 // ❌ Eksik: Go testing framework
 // ❌ Eksik: Handler unit tests
 // ❌ Target: %90 coverage
@@ -314,8 +314,8 @@ s3_lifecycle:
 
 # .devcontainer/docker-compose.yml
 services:
-  nexspaces-dev:
-    image: nexspaces/dev-environment
+  keystone-dev:
+    image: keystone/dev-environment
     volumes:
       - ../:/workspace
     ports:
@@ -343,13 +343,13 @@ contract_testing:
 ### Internal Tooling
 ```bash
 # ❌ Eksik: CLI tooling
-# nexspaces-cli commands needed:
+# keystone-cli commands needed:
 
-nexspaces tenant create --name "Test Tenant" --slug "test"
-nexspaces user invite --email "user@test.com" --tenant "test" --role "admin"
-nexspaces db migrate --tenant "test"
-nexspaces cache flush --tenant "test"
-nexspaces logs tail --service "api" --tenant "test"
+keystone tenant create --name "Test Tenant" --slug "test"
+keystone user invite --email "user@test.com" --tenant "test" --role "admin"
+keystone db migrate --tenant "test"
+keystone cache flush --tenant "test"
+keystone logs tail --service "api" --tenant "test"
 ```
 
 ### Documentation Automation
@@ -877,6 +877,6 @@ risk_factors:
 
 ---
 
-Bu analiz, NexSpaces platformunun mevcut durumunu ve production-ready hale gelmek için gereken tüm eksiklikleri kapsamaktadır. Polyrepo mimarisine ve CLAUDE.md yönergelerine uygun olarak hazırlanmıştır.
+Bu analiz, Keystone platformunun mevcut durumunu ve production-ready hale gelmek için gereken tüm eksiklikleri kapsamaktadır. Polyrepo mimarisine ve CLAUDE.md yönergelerine uygun olarak hazırlanmıştır.
 
 **Son Güncelleme:** Eylül 14, 2024

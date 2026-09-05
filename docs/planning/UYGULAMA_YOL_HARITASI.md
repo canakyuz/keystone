@@ -1,4 +1,4 @@
-# NexSpaces API - Complete Implementation Roadmap
+# Keystone API - Complete Implementation Roadmap
 
 > **Multi-Vertical Enterprise SaaS Platform**
 > Supporting Blog, E-commerce, LMS, and more with a unified Schema-per-Tenant architecture.
@@ -530,10 +530,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Build Docker image
-        run: docker build -t nexpaces-api:${{ github.sha }} .
+        run: docker build -t keystone:${{ github.sha }} .
 
       - name: Push to registry
-        run: docker push nexpaces-api:${{ github.sha }}
+        run: docker push keystone:${{ github.sha }}
 
   deploy:
     needs: build
@@ -541,7 +541,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Deploy to production
-        run: kubectl set image deployment/api api=nexpaces-api:${{ github.sha }}
+        run: kubectl set image deployment/api api=keystone:${{ github.sha }}
 ```
 
 ### 14.2 Kubernetes Manifests
@@ -552,20 +552,20 @@ jobs:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: nexpaces-api
+  name: keystone
 spec:
   replicas: 3
   selector:
     matchLabels:
-      app: nexpaces-api
+      app: keystone
   template:
     metadata:
       labels:
-        app: nexpaces-api
+        app: keystone
     spec:
       containers:
       - name: api
-        image: nexpaces-api:latest
+        image: keystone:latest
         ports:
         - containerPort: 8080
         env:
@@ -768,7 +768,7 @@ SERVER_ENVIRONMENT=production
 # Database
 DATABASE_HOST=main-db.amazonaws.com
 DATABASE_PORT=5432
-DATABASE_NAME=nexpaces_main
+DATABASE_NAME=keystone_main
 DATABASE_USER=postgres
 DATABASE_PASSWORD=***
 DATABASE_SSL_MODE=require
@@ -782,12 +782,12 @@ JWT_SECRET=***-min-32-chars
 # OAuth - Google
 GOOGLE_CLIENT_ID=***.apps.googleusercontent.com
 GOOGLE_CLIENT_SECRET=***
-GOOGLE_REDIRECT_URL=https://api.nexpaces.com/auth/google/callback
+GOOGLE_REDIRECT_URL=https://api.keystone.dev/auth/google/callback
 
 # OAuth - GitHub
 GITHUB_CLIENT_ID=***
 GITHUB_CLIENT_SECRET=***
-GITHUB_REDIRECT_URL=https://api.nexpaces.com/auth/github/callback
+GITHUB_REDIRECT_URL=https://api.keystone.dev/auth/github/callback
 
 # Stripe
 STRIPE_SECRET_KEY=sk_live_***
@@ -830,4 +830,4 @@ PROMETHEUS_PUSHGATEWAY=http://prometheus:9091
 
 **Last Updated:** January 2025
 **Version:** 2.0
-**Maintained By:** NexSpaces Development Team
+**Maintained By:** Keystone Development Team

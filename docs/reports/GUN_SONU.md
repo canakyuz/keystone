@@ -1,4 +1,4 @@
-# 📅 NexSpaces API - Günlük İlerleme Takibi
+# 📅 Keystone API - Günlük İlerleme Takibi
 
 > **ÖNEMLİ UYARI:** Bu dosya, projenin geçmiş gelişim sürecini içeren tarihsel bir kayıttır. İçerisinde bahsedilen **"Tiered Isolation"** ve **"RLS"** tabanlı çok-kiracılı (multi-tenant) mimari kararları, daha sonra yerini **"Schema-per-Tenant" (Kiracı Başına Şema)** modeline bırakmıştır. Güncel mimari için lütfen ana `README.md` dosyasına başvurun.
 
@@ -839,8 +839,8 @@ Test Coverage:      40%+
    - Tiered DB isolation (enterprise için)
 
 2. **Polyrepo Strategy (Mevcut)**
-   - `nexpaces-api` (backend)
-   - `nexpaces-web` (frontend - Next.js)
+   - `keystone` (backend)
+   - `keystone-web` (frontend - Next.js)
    - Her repo bağımsız versiyonlanacak
 
 3. **Testing Strategy**
@@ -981,5 +981,5 @@ Test Coverage:      75%+
 ---
 
 **Hazırlayan:** Can Akyüz
-**Proje:** NexSpaces Multi-Tenant SaaS Platform
-**Repo:** nexpaces-api
+**Proje:** Keystone Multi-Tenant SaaS Platform
+**Repo:** keystone

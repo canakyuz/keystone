@@ -5,7 +5,7 @@ services:
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: nexspaces_dev
+      POSTGRES_DB: keystone_dev
     ports:
       - "5432:5432"
     volumes:
@@ -41,7 +41,7 @@ services:
       - DB_PORT=5432
       - DB_USER=postgres
       - DB_PASSWORD=postgres
-      - DB_NAME=nexspaces_dev
+      - DB_NAME=keystone_dev
       - DB_SSLMODE=disable
       - REDIS_URL=redis://redis:6379/0
       - ENVIRONMENT=development

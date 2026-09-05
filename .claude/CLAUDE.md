@@ -1,4 +1,4 @@
-# NexSpaces API - Claude Code Kuralları
+# Keystone API - Claude Code Kuralları
 
 > **Multi-Tenant SaaS Backend (Go + Fiber + PostgreSQL)**
 > **Mimari:** Clean Architecture + Schema-per-Tenant
@@ -221,7 +221,7 @@ func (h *Handler) GetUser(c *fiber.Ctx) error {
 ## 📦 Proje Yapısı
 
 ```
-nexpaces-api/
+keystone/
 ├── cmd/server/              # Entry point
 ├── internal/
 │   ├── domain/              # Entities (pure)

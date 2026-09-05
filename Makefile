@@ -19,10 +19,10 @@ dev: ## Geliştirme sunucusunu çalıştır
 
 build: ## Binary oluştur
 	mkdir -p bin
-	CGO_ENABLED=0 go build -ldflags="-w -s" -o bin/nexspaces-api cmd/server/main.go
+	CGO_ENABLED=0 go build -ldflags="-w -s" -o bin/keystone cmd/server/main.go
 
 run: build ## Binary’i çalıştır
-	./bin/nexspaces-api
+	./bin/keystone
 
 # ==============================================================================
 # Docker
@@ -54,14 +54,14 @@ shell: ## API container’ına shell
 	docker compose exec api sh
 
 db-shell: ## PostgreSQL shell
-	docker compose exec -T postgres psql -U postgres -d nexspaces_dev
+	docker compose exec -T postgres psql -U postgres -d keystone_dev
 
 db-reset: ## Development veritabanını sıfırla ve migrationları uygula
-	docker compose exec -T postgres psql -U postgres -d postgres -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = 'nexspaces_dev' AND pid <> pg_backend_pid();"
-	docker compose exec -T postgres psql -U postgres -d postgres -c "DROP DATABASE IF EXISTS nexspaces_dev;"
-	docker compose exec -T postgres psql -U postgres -d postgres -c "CREATE DATABASE nexspaces_dev;"
-	docker compose exec -T postgres psql -U postgres -d nexspaces_dev -c "CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\";"
-	docker compose exec -T postgres psql -U postgres -d nexspaces_dev -c "CREATE EXTENSION IF NOT EXISTS pgcrypto;"
+	docker compose exec -T postgres psql -U postgres -d postgres -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = 'keystone_dev' AND pid <> pg_backend_pid();"
+	docker compose exec -T postgres psql -U postgres -d postgres -c "DROP DATABASE IF EXISTS keystone_dev;"
+	docker compose exec -T postgres psql -U postgres -d postgres -c "CREATE DATABASE keystone_dev;"
+	docker compose exec -T postgres psql -U postgres -d keystone_dev -c "CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\";"
+	docker compose exec -T postgres psql -U postgres -d keystone_dev -c "CREATE EXTENSION IF NOT EXISTS pgcrypto;"
 	APP_ENV=$(APP_ENV) $(MAKE) migrate-up
 
 seed-dev: ## Development tenant ve kullanıcı seed'lerini yükle
@@ -69,7 +69,7 @@ seed-dev: ## Development tenant ve kullanıcı seed'lerini yükle
 		echo "\033[31mSeed script bulunamadı: scripts/seed/dev_seed.sql\033[0m"; \
 		exit 1; \
 	fi
-	docker compose exec -T postgres psql -U postgres -d nexspaces_dev < scripts/seed/dev_seed.sql
+	docker compose exec -T postgres psql -U postgres -d keystone_dev < scripts/seed/dev_seed.sql
 
 # ==============================================================================
 # Migration
@@ -80,7 +80,7 @@ migrate-up: ## Migrationları çalıştır (*.up.sql)
 
 migrate-down: ## Migrationları geri al (*.down.sql)
 	@for f in $(shell ls -r migrations/*.down.sql 2>/dev/null); do \
-		echo "→ $$f" && cat $$f | docker compose exec -T postgres psql -U postgres -d nexspaces_dev; \
+		echo "→ $$f" && cat $$f | docker compose exec -T postgres psql -U postgres -d keystone_dev; \
 	done
 	@echo "\033[33m✓ Rollback complete\033[0m"
 

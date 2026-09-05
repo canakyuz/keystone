@@ -11,6 +11,16 @@ import (
 type TenantStatus string
 
 const (
+	// TenantStatusPending, kayit olustu ama kurulum henuz baslamadi.
+	TenantStatusPending TenantStatus = "pending"
+	// TenantStatusProvisioning, worker semayi hazirliyor.
+	// Bu durumdaki tenant istek kabul etmez: semasi henuz hazir degildir.
+	TenantStatusProvisioning TenantStatus = "provisioning"
+	// TenantStatusFailed, kurulum basarisiz oldu.
+	// TenantStatusInactive'den ayridir: o, calisan bir tenant'in kapatilmasini
+	// anlatir. Ayrim, "kurulum tekrar denenebilir mi?" sorusunu yanitlar.
+	TenantStatusFailed TenantStatus = "failed"
+
 	TenantStatusActive    TenantStatus = "active"
 	TenantStatusSuspended TenantStatus = "suspended"
 	TenantStatusInactive  TenantStatus = "inactive"
@@ -311,7 +321,8 @@ func (t *Tenant) GetSetting(key string) (interface{}, bool) {
 // IsValid checks if tenant status is valid
 func (s TenantStatus) IsValid() bool {
 	switch s {
-	case TenantStatusActive, TenantStatusSuspended, TenantStatusInactive, TenantStatusTrial:
+	case TenantStatusPending, TenantStatusProvisioning, TenantStatusFailed,
+		TenantStatusActive, TenantStatusSuspended, TenantStatusInactive, TenantStatusTrial:
 		return true
 	default:
 		return false

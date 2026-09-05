@@ -3,9 +3,9 @@ package main
 import (
 	"log"
 
+	"github.com/canakyuz/keystone/internal/app"
+	"github.com/canakyuz/keystone/internal/config"
 	"github.com/joho/godotenv"
-	"nexpaces-api/internal/app"
-	"nexpaces-api/internal/config"
 )
 
 func main() {

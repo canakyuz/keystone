@@ -2,12 +2,12 @@ package middleware
 
 import (
 	"context"
-	"database/sql"
 
 	"github.com/gofiber/fiber/v2"
 
 	"github.com/canakyuz/keystone/pkg/logger"
 
+	"errors"
 	"github.com/canakyuz/keystone/pkg/tenantctx"
 	"sync/atomic"
 )
@@ -59,8 +59,11 @@ func TenantContextMiddleware(schemaCache *TenantSchemaCache) fiber.Handler {
 				}).Error("Tenant schema bulunamadı")
 			}
 
-			// Tenant bulunamadıysa 404 dön
-			if err == sql.ErrNoRows {
+			// Tenant bulunamadıysa 404 dön.
+			// TenantSchemaCache, sql.ErrNoRows'u ErrTenantNotFound'a çevirir:
+			// bulunamayan tenant negatif önbelleğe alındığı için ikinci istek
+			// veritabanına hiç inmez ve hata sql katmanından gelmez.
+			if errors.Is(err, ErrTenantNotFound) {
 				return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 					"error": "tenant bulunamadı",
 				})

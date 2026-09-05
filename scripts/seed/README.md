@@ -46,27 +46,27 @@ END IF;
 
 ```bash
 # PostgreSQL'de environment set et
-psql -d nexspaces_dev -c "ALTER DATABASE nexspaces_dev SET app.environment = 'development';"
+psql -d keystone_dev -c "ALTER DATABASE keystone_dev SET app.environment = 'development';"
 
 # Seed script'i çalıştır
-psql -d nexspaces_dev -f scripts/seed/dev_seed.sql
+psql -d keystone_dev -f scripts/seed/dev_seed.sql
 
 # Çıktı:
-# NOTICE:  SEED GUARD: Environment check passed (environment: development, database: nexspaces_dev)
+# NOTICE:  SEED GUARD: Environment check passed (environment: development, database: keystone_dev)
 # ... seed işlemleri ...
 ```
 
 ### Staging Environment
 
 ```bash
-psql -d nexspaces_staging -c "ALTER DATABASE nexspaces_staging SET app.environment = 'staging';"
-psql -d nexspaces_staging -f scripts/seed/dev_seed.sql
+psql -d keystone_staging -c "ALTER DATABASE keystone_staging SET app.environment = 'staging';"
+psql -d keystone_staging -f scripts/seed/dev_seed.sql
 ```
 
 ### ❌ Production'da (Engellenecek)
 
 ```bash
-psql -d nexspaces_production -f scripts/seed/dev_seed.sql
+psql -d keystone_production -f scripts/seed/dev_seed.sql
 
 # Çıktı:
 # ERROR:  SEED GUARD: Development seed script cannot run in production environment.
@@ -130,13 +130,13 @@ jobs:
       postgres:
         image: postgres:15
         env:
-          POSTGRES_DB: nexspaces_test
+          POSTGRES_DB: keystone_test
           POSTGRES_PASSWORD: password
 
     steps:
       - name: Set test environment
         run: |
-          psql -c "ALTER DATABASE nexspaces_test SET app.environment = 'test';"
+          psql -c "ALTER DATABASE keystone_test SET app.environment = 'test';"
 
       - name: Run migrations
         run: make migrate-up
@@ -156,7 +156,7 @@ services:
   db:
     image: postgres:15
     environment:
-      POSTGRES_DB: nexspaces_dev
+      POSTGRES_DB: keystone_dev
       POSTGRES_PASSWORD: password
     command: postgres -c app.environment=development
     volumes:

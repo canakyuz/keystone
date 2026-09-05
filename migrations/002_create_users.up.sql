@@ -1,6 +1,6 @@
 -- Migration: Create users table
 -- Description: Multi-tenant user management with RLS
--- Author: NexSpaces Team
+-- Author: Keystone Team
 
 -- Create users table
 CREATE TABLE IF NOT EXISTS users (

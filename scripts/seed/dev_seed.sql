@@ -139,17 +139,17 @@ INSERT INTO users (
     id, tenant_id, email, password, first_name, last_name,
     role, status, email_verified, email_verified_at, metadata
 ) VALUES
-    (gen_random_uuid(), 'aaaaaaaa-bbbb-cccc-dddd-000000000001', 'education.admin@dev.nexpaces.com', crypt('DevPass123!', gen_salt('bf')), 'Eğitim', 'Yöneticisi', 'admin', 'active', TRUE, NOW(), '{"sector":"education","role":"admin"}'::jsonb),
-    (gen_random_uuid(), 'aaaaaaaa-bbbb-cccc-dddd-000000000001', 'education.instructor@dev.nexpaces.com', crypt('DevPass123!', gen_salt('bf')), 'Eğitim', 'Eğitmeni', 'editor', 'active', TRUE, NOW(), '{"sector":"education","role":"instructor"}'::jsonb),
-    (gen_random_uuid(), 'aaaaaaaa-bbbb-cccc-dddd-000000000001', 'education.observer@dev.nexpaces.com', crypt('DevPass123!', gen_salt('bf')), 'Eğitim', 'Gözlemci', 'viewer', 'active', TRUE, NOW(), '{"sector":"education","role":"observer"}'::jsonb),
-    (gen_random_uuid(), 'aaaaaaaa-bbbb-cccc-dddd-000000000001', 'hospitality.manager@dev.nexpaces.com', crypt('DevPass123!', gen_salt('bf')), 'Hospitality', 'Manager', 'admin', 'active', TRUE, NOW(), '{"sector":"hospitality","role":"manager"}'::jsonb),
-    (gen_random_uuid(), 'aaaaaaaa-bbbb-cccc-dddd-000000000001', 'hospitality.frontdesk@dev.nexpaces.com', crypt('DevPass123!', gen_salt('bf')), 'Hospitality', 'Frontdesk', 'editor', 'active', TRUE, NOW(), '{"sector":"hospitality","role":"frontdesk"}'::jsonb),
-    (gen_random_uuid(), 'aaaaaaaa-bbbb-cccc-dddd-000000000001', 'commerce.manager@dev.nexpaces.com', crypt('DevPass123!', gen_salt('bf')), 'E-Ticaret', 'Yöneticisi', 'admin', 'active', TRUE, NOW(), '{"sector":"commerce","role":"manager"}'::jsonb),
-    (gen_random_uuid(), 'aaaaaaaa-bbbb-cccc-dddd-000000000001', 'commerce.support@dev.nexpaces.com', crypt('DevPass123!', gen_salt('bf')), 'E-Ticaret', 'Destek', 'viewer', 'active', TRUE, NOW(), '{"sector":"commerce","role":"support"}'::jsonb),
-    (gen_random_uuid(), 'aaaaaaaa-bbbb-cccc-dddd-000000000001', 'content.editor@dev.nexpaces.com', crypt('DevPass123!', gen_salt('bf')), 'İçerik', 'Editörü', 'editor', 'active', TRUE, NOW(), '{"sector":"content","role":"editor"}'::jsonb),
-    (gen_random_uuid(), 'aaaaaaaa-bbbb-cccc-dddd-000000000001', 'crm.lead@dev.nexpaces.com', crypt('DevPass123!', gen_salt('bf')), 'CRM', 'Satış', 'admin', 'active', TRUE, NOW(), '{"sector":"crm","role":"sales"}'::jsonb),
-    (gen_random_uuid(), 'aaaaaaaa-bbbb-cccc-dddd-000000000001', 'oms.dispatch@dev.nexpaces.com', crypt('DevPass123!', gen_salt('bf')), 'Operasyon', 'Dispatch', 'admin', 'active', TRUE, NOW(), '{"sector":"oms","role":"dispatch"}'::jsonb),
-    (gen_random_uuid(), 'aaaaaaaa-bbbb-cccc-dddd-000000000001', 'erp.operations@dev.nexpaces.com', crypt('DevPass123!', gen_salt('bf')), 'ERP', 'Operasyon', 'admin', 'active', TRUE, NOW(), '{"sector":"erp","role":"operations"}'::jsonb)
+    (gen_random_uuid(), 'aaaaaaaa-bbbb-cccc-dddd-000000000001', 'education.admin@dev.keystone.dev', crypt('DevPass123!', gen_salt('bf')), 'Eğitim', 'Yöneticisi', 'admin', 'active', TRUE, NOW(), '{"sector":"education","role":"admin"}'::jsonb),
+    (gen_random_uuid(), 'aaaaaaaa-bbbb-cccc-dddd-000000000001', 'education.instructor@dev.keystone.dev', crypt('DevPass123!', gen_salt('bf')), 'Eğitim', 'Eğitmeni', 'editor', 'active', TRUE, NOW(), '{"sector":"education","role":"instructor"}'::jsonb),
+    (gen_random_uuid(), 'aaaaaaaa-bbbb-cccc-dddd-000000000001', 'education.observer@dev.keystone.dev', crypt('DevPass123!', gen_salt('bf')), 'Eğitim', 'Gözlemci', 'viewer', 'active', TRUE, NOW(), '{"sector":"education","role":"observer"}'::jsonb),
+    (gen_random_uuid(), 'aaaaaaaa-bbbb-cccc-dddd-000000000001', 'hospitality.manager@dev.keystone.dev', crypt('DevPass123!', gen_salt('bf')), 'Hospitality', 'Manager', 'admin', 'active', TRUE, NOW(), '{"sector":"hospitality","role":"manager"}'::jsonb),
+    (gen_random_uuid(), 'aaaaaaaa-bbbb-cccc-dddd-000000000001', 'hospitality.frontdesk@dev.keystone.dev', crypt('DevPass123!', gen_salt('bf')), 'Hospitality', 'Frontdesk', 'editor', 'active', TRUE, NOW(), '{"sector":"hospitality","role":"frontdesk"}'::jsonb),
+    (gen_random_uuid(), 'aaaaaaaa-bbbb-cccc-dddd-000000000001', 'commerce.manager@dev.keystone.dev', crypt('DevPass123!', gen_salt('bf')), 'E-Ticaret', 'Yöneticisi', 'admin', 'active', TRUE, NOW(), '{"sector":"commerce","role":"manager"}'::jsonb),
+    (gen_random_uuid(), 'aaaaaaaa-bbbb-cccc-dddd-000000000001', 'commerce.support@dev.keystone.dev', crypt('DevPass123!', gen_salt('bf')), 'E-Ticaret', 'Destek', 'viewer', 'active', TRUE, NOW(), '{"sector":"commerce","role":"support"}'::jsonb),
+    (gen_random_uuid(), 'aaaaaaaa-bbbb-cccc-dddd-000000000001', 'content.editor@dev.keystone.dev', crypt('DevPass123!', gen_salt('bf')), 'İçerik', 'Editörü', 'editor', 'active', TRUE, NOW(), '{"sector":"content","role":"editor"}'::jsonb),
+    (gen_random_uuid(), 'aaaaaaaa-bbbb-cccc-dddd-000000000001', 'crm.lead@dev.keystone.dev', crypt('DevPass123!', gen_salt('bf')), 'CRM', 'Satış', 'admin', 'active', TRUE, NOW(), '{"sector":"crm","role":"sales"}'::jsonb),
+    (gen_random_uuid(), 'aaaaaaaa-bbbb-cccc-dddd-000000000001', 'oms.dispatch@dev.keystone.dev', crypt('DevPass123!', gen_salt('bf')), 'Operasyon', 'Dispatch', 'admin', 'active', TRUE, NOW(), '{"sector":"oms","role":"dispatch"}'::jsonb),
+    (gen_random_uuid(), 'aaaaaaaa-bbbb-cccc-dddd-000000000001', 'erp.operations@dev.keystone.dev', crypt('DevPass123!', gen_salt('bf')), 'ERP', 'Operasyon', 'admin', 'active', TRUE, NOW(), '{"sector":"erp","role":"operations"}'::jsonb)
 ON CONFLICT (email, tenant_id) DO NOTHING;
 
 -- Sample student data for dev tenant

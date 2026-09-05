@@ -1,6 +1,6 @@
 -- Migration: Create modules table (Registry System)
 -- Description: Module catalog - defines available modules in the platform
--- Author: NexSpaces Team
+-- Author: Keystone Team
 -- Date: 2025-10-05
 
 -- Enable UUID extension

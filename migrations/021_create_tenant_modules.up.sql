@@ -1,6 +1,6 @@
 -- Migration: Create tenant_modules table
 -- Description: Tracks which modules are active for each tenant (multi-tenant activation)
--- Author: NexSpaces Team
+-- Author: Keystone Team
 -- Date: 2025-10-05
 
 -- Enable UUID extension

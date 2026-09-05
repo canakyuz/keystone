@@ -1,6 +1,6 @@
 -- Migration: Create tenants table
 -- Description: Multi-tenant isolation foundation
--- Author: NexSpaces Team
+-- Author: Keystone Team
 
 -- Enable UUID extension
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";

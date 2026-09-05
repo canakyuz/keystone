@@ -1,4 +1,4 @@
--- Test Data Seed Script for NexSpaces API
+-- Test Data Seed Script for Keystone API
 -- This script creates test tenant and users for development/testing
 
 -- ============================================
@@ -150,22 +150,22 @@ INSERT INTO blog_posts (
     'f5eebc99-9c0b-4ef8-bb6d-6bb9bd380a66',
     'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
     'd3eebc99-9c0b-4ef8-bb6d-6bb9bd380a44',
-    'NexSpaces: Multi-Tenant SaaS Platform',
-    'nexspaces-multi-tenant-saas',
-    '# NexSpaces Nedir?
+    'Keystone: Multi-Tenant SaaS Platform',
+    'keystone-multi-tenant-saas',
+    '# Keystone Nedir?
 
-NexSpaces, modern web uygulamaları için güçlü bir multi-tenant SaaS platformudur...
+Keystone, modern web uygulamaları için güçlü bir multi-tenant SaaS platformudur...
 
 ## Özellikler
 - Multi-tenant architecture
 - Role-based access control
 - Template marketplace
 - Scalable infrastructure',
-    'NexSpaces multi-tenant SaaS platform hakkında detaylı bilgi',
+    'Keystone multi-tenant SaaS platform hakkında detaylı bilgi',
     'published',
     true,
     42,
-    '/images/blog/nexspaces-cover.jpg',
+    '/images/blog/keystone-cover.jpg',
     ARRAY['saas', 'multi-tenant', 'go', 'nextjs'],
     NOW(),
     '{"readTime": 5, "author": "Can Akyüz"}'::jsonb,

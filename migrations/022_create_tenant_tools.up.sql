@@ -1,6 +1,6 @@
 -- Migration: Create tenant_tools table
 -- Description: Tracks which tools are active for each tenant (multi-tenant tool activation)
--- Author: NexSpaces Team
+-- Author: Keystone Team
 -- Date: 2025-10-05
 
 -- Enable UUID extension

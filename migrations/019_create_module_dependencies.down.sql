@@ -1,6 +1,6 @@
 -- Migration: Rollback module_dependencies table
 -- Description: Drop module_dependencies table and related objects
--- Author: NexSpaces Team
+-- Author: Keystone Team
 -- Date: 2025-10-05
 
 -- Drop trigger

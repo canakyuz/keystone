@@ -1,6 +1,6 @@
 -- Migration: Rollback Registry Seed Data
 -- Description: Remove all seeded modules, tools, and dependencies
--- Author: NexSpaces Team
+-- Author: Keystone Team
 -- Date: 2025-10-05
 
 -- Delete in reverse order to respect foreign key constraints

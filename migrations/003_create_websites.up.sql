@@ -1,6 +1,6 @@
 -- Migration: Create websites table
 -- Description: Multi-tenant website management with RLS
--- Author: NexSpaces Team
+-- Author: Keystone Team
 
 -- Create websites table (renamed from sites for clarity)
 CREATE TABLE IF NOT EXISTS websites (

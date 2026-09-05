@@ -1,6 +1,6 @@
 -- Migration: Rollback modules table
 -- Description: Drop modules table and related objects
--- Author: NexSpaces Team
+-- Author: Keystone Team
 -- Date: 2025-10-05
 
 -- Drop trigger

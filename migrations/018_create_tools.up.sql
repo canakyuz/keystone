@@ -1,6 +1,6 @@
 -- Migration: Create tools table (Registry System)
 -- Description: Tool catalog - defines available tools in the platform
--- Author: NexSpaces Team
+-- Author: Keystone Team
 -- Date: 2025-10-05
 
 -- Enable UUID extension

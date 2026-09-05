@@ -1,6 +1,6 @@
 -- Migration: Rollback Test Tenant
 -- Description: Remove Can Akyüz test tenant and all related data
--- Author: NexSpaces Team
+-- Author: Keystone Team
 -- Date: 2025-10-05
 
 -- Delete sample student data

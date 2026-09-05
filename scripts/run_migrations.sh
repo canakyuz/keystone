@@ -11,7 +11,7 @@ fi
 
 APP_ENV=${APP_ENV:-production}
 
-DB_CMD=(docker compose exec -e PGOPTIONS="-c app.environment=${APP_ENV}" -T postgres psql -v ON_ERROR_STOP=1 -U postgres -d nexspaces_dev)
+DB_CMD=(docker compose exec -e PGOPTIONS="-c app.environment=${APP_ENV}" -T postgres psql -v ON_ERROR_STOP=1 -U postgres -d keystone_dev)
 
 run_psql() {
   "${DB_CMD[@]}" -c "$1"

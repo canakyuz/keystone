@@ -1,6 +1,6 @@
 -- Migration: Create tool_dependencies table
 -- Description: Defines dependencies between tools (e.g., Refund tool requires Payment tool)
--- Author: NexSpaces Team
+-- Author: Keystone Team
 -- Date: 2025-10-05
 
 -- Enable UUID extension

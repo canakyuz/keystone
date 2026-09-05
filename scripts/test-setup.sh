@@ -1,11 +1,11 @@
 #!/bin/bash
 
-# NexSpaces API Test Environment Setup Script
+# Keystone API Test Environment Setup Script
 # This script sets up the complete test environment
 
 set -e
 
-echo "🚀 NexSpaces API - Test Environment Setup"
+echo "🚀 Keystone API - Test Environment Setup"
 echo "=========================================="
 
 # Colors
@@ -38,7 +38,7 @@ sleep 5
 
 # Wait for postgres to be healthy
 echo "Checking PostgreSQL health..."
-until docker exec nexspaces-postgres pg_isready -U postgres > /dev/null 2>&1; do
+until docker exec keystone-postgres pg_isready -U postgres > /dev/null 2>&1; do
     echo -n "."
     sleep 1
 done
@@ -49,21 +49,21 @@ echo -e "${GREEN}✓ PostgreSQL is ready${NC}"
 echo ""
 echo "🔄 Step 4: Running database migrations..."
 if command -v migrate &> /dev/null; then
-    migrate -path migrations -database "postgresql://postgres:postgres@localhost:5432/nexspaces_dev?sslmode=disable" up
+    migrate -path migrations -database "postgresql://postgres:postgres@localhost:5432/keystone_dev?sslmode=disable" up
     echo -e "${GREEN}✓ Migrations completed${NC}"
 else
     echo -e "${YELLOW}⚠ migrate tool not found. Installing...${NC}"
     echo "Run: brew install golang-migrate (macOS) or check https://github.com/golang-migrate/migrate"
     echo ""
     echo "Alternative: Use docker to run migrations:"
-    echo 'docker run -v $(pwd)/migrations:/migrations --network host migrate/migrate -path=/migrations/ -database "postgresql://postgres:postgres@localhost:5432/nexspaces_dev?sslmode=disable" up'
+    echo 'docker run -v $(pwd)/migrations:/migrations --network host migrate/migrate -path=/migrations/ -database "postgresql://postgres:postgres@localhost:5432/keystone_dev?sslmode=disable" up'
     exit 1
 fi
 
 # Step 5: Seed test data
 echo ""
 echo "🌱 Step 5: Seeding test data..."
-docker exec -i nexspaces-postgres psql -U postgres -d nexspaces_dev < scripts/seed/01_test_data.sql
+docker exec -i keystone-postgres psql -U postgres -d keystone_dev < scripts/seed/01_test_data.sql
 echo -e "${GREEN}✓ Test data seeded${NC}"
 
 # Step 6: Build Go application
@@ -79,7 +79,7 @@ echo -e "${GREEN}✓ Test environment is ready!${NC}"
 echo "=========================================="
 echo ""
 echo "📝 Test Credentials:"
-echo "   Database: postgresql://postgres:postgres@localhost:5432/nexspaces_dev"
+echo "   Database: postgresql://postgres:postgres@localhost:5432/keystone_dev"
 echo "   Redis: redis://localhost:6379/0"
 echo ""
 echo "   Tenant: canakyuz.co"
@@ -94,5 +94,5 @@ echo "   4. Import Postman collection from: docs/postman/"
 echo ""
 echo "📚 API Documentation:"
 echo "   Swagger UI: http://localhost:8080/swagger (coming soon)"
-echo "   Postman Collection: docs/postman/NexSpaces-API.postman_collection.json"
+echo "   Postman Collection: docs/postman/Keystone-API.postman_collection.json"
 echo ""

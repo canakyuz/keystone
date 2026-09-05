@@ -1,7 +1,7 @@
 # Database Migrations
 
 ## Overview
-This directory contains PostgreSQL migration files for the NexSpaces multi-tenant SaaS platform.
+This directory contains PostgreSQL migration files for the Keystone multi-tenant SaaS platform.
 
 ## Migration Naming Convention
 ```
@@ -234,4 +234,4 @@ For migration issues:
 ---
 
 **Last Updated:** 2024-10-06
-**Maintainer:** NexSpaces DevOps Team
+**Maintainer:** Keystone DevOps Team

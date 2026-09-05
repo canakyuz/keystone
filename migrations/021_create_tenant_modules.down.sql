@@ -1,6 +1,6 @@
 -- Migration: Rollback tenant_modules table
 -- Description: Drop tenant_modules table and related objects
--- Author: NexSpaces Team
+-- Author: Keystone Team
 -- Date: 2025-10-05
 
 -- Drop triggers

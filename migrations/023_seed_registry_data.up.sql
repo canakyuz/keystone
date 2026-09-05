@@ -1,6 +1,6 @@
 -- Migration: Seed Registry Data
--- Description: Populate modules, tools, and dependencies for NexSpaces platform
--- Author: NexSpaces Team
+-- Description: Populate modules, tools, and dependencies for Keystone platform
+-- Author: Keystone Team
 -- Date: 2025-10-05
 
 -- ============================================================================

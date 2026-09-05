@@ -170,32 +170,9 @@ func (r *Repository) insertAll(
 	}
 	defer func() { _ = tx.Rollback() }()
 
-	op := &domain.Operation{TenantID: req.TenantID, Kind: req.Kind, Status: domain.StatusPending}
-
-	err = tx.QueryRowContext(ctx, `
-		INSERT INTO operations (tenant_id, kind, status, created_by)
-		VALUES ($1, $2, 'pending', NULLIF($3, '')::UUID)
-		RETURNING id, created_at, updated_at`,
-		req.TenantID, string(req.Kind), req.CreatedBy,
-	).Scan(&op.ID, &op.CreatedAt, &op.UpdatedAt)
+	op, jobID, err := insertOperationAndJobTx(ctx, tx, req)
 	if err != nil {
-		return nil, fmt.Errorf("operasyon yazılamadı: %w", err)
-	}
-
-	maxAttempts := req.MaxAttempts
-	if maxAttempts <= 0 {
-		maxAttempts = 5
-	}
-
-	var jobID string
-	err = tx.QueryRowContext(ctx, `
-		INSERT INTO provisioning_jobs (operation_id, tenant_id, status, max_attempts)
-		VALUES ($1, $2, 'pending', $3)
-		RETURNING id`,
-		op.ID, req.TenantID, maxAttempts,
-	).Scan(&jobID)
-	if err != nil {
-		return nil, fmt.Errorf("iş yazılamadı: %w", err)
+		return nil, err
 	}
 
 	if req.IdempotencyKey != "" {
@@ -267,4 +244,39 @@ func (r *Repository) GetOperation(ctx context.Context, id string) (*domain.Opera
 	}
 
 	return op, nil
+}
+
+// insertOperationAndJobTx, operasyon ve ona bagli isi verilen transaction
+// icinde yazar. Tenant kurulumu akisi da ayni yardimciyi kullanir, boylece
+// iki yolun kayit bicimi ayrisamaz.
+func insertOperationAndJobTx(ctx context.Context, tx *sql.Tx, req CreateRequest) (*domain.Operation, string, error) {
+	op := &domain.Operation{TenantID: req.TenantID, Kind: req.Kind, Status: domain.StatusPending}
+
+	err := tx.QueryRowContext(ctx, `
+		INSERT INTO operations (tenant_id, kind, status, created_by)
+		VALUES ($1, $2, 'pending', NULLIF($3, '')::UUID)
+		RETURNING id, created_at, updated_at`,
+		req.TenantID, string(req.Kind), req.CreatedBy,
+	).Scan(&op.ID, &op.CreatedAt, &op.UpdatedAt)
+	if err != nil {
+		return nil, "", fmt.Errorf("operasyon yazılamadı: %w", err)
+	}
+
+	maxAttempts := req.MaxAttempts
+	if maxAttempts <= 0 {
+		maxAttempts = 5
+	}
+
+	var jobID string
+	err = tx.QueryRowContext(ctx, `
+		INSERT INTO provisioning_jobs (operation_id, tenant_id, status, max_attempts)
+		VALUES ($1, $2, 'pending', $3)
+		RETURNING id`,
+		op.ID, req.TenantID, maxAttempts,
+	).Scan(&jobID)
+	if err != nil {
+		return nil, "", fmt.Errorf("iş yazılamadı: %w", err)
+	}
+
+	return op, jobID, nil
 }

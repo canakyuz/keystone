@@ -50,7 +50,7 @@ func New(cfg Config) *Logger {
 	logger := zerolog.New(output).
 		With().
 		Timestamp().
-		Str("service", "nexspaces-api").
+		Str("service", "keystone").
 		Str("environment", cfg.Environment).
 		Logger()
 

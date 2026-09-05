@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/canakyuz/keystone/internal/config"
 	_ "github.com/lib/pq"
-	"nexpaces-api/internal/config"
 )
 
 // DB wraps sql.DB with additional functionality

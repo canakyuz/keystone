@@ -11,14 +11,14 @@ type ErrorCode string
 
 const (
 	// General errors
-	ErrCodeInternal       ErrorCode = "INTERNAL_ERROR"
-	ErrCodeNotFound       ErrorCode = "NOT_FOUND"
-	ErrCodeUnauthorized   ErrorCode = "UNAUTHORIZED"
-	ErrCodeForbidden      ErrorCode = "FORBIDDEN"
-	ErrCodeBadRequest     ErrorCode = "BAD_REQUEST"
-	ErrCodeConflict       ErrorCode = "CONFLICT"
-	ErrCodeValidation     ErrorCode = "VALIDATION_ERROR"
-	ErrCodeRateLimited    ErrorCode = "RATE_LIMITED"
+	ErrCodeInternal     ErrorCode = "INTERNAL_ERROR"
+	ErrCodeNotFound     ErrorCode = "NOT_FOUND"
+	ErrCodeUnauthorized ErrorCode = "UNAUTHORIZED"
+	ErrCodeForbidden    ErrorCode = "FORBIDDEN"
+	ErrCodeBadRequest   ErrorCode = "BAD_REQUEST"
+	ErrCodeConflict     ErrorCode = "CONFLICT"
+	ErrCodeValidation   ErrorCode = "VALIDATION_ERROR"
+	ErrCodeRateLimited  ErrorCode = "RATE_LIMITED"
 
 	// Authentication errors
 	ErrCodeInvalidToken       ErrorCode = "INVALID_TOKEN"
@@ -26,15 +26,15 @@ const (
 	ErrCodeInvalidCredentials ErrorCode = "INVALID_CREDENTIALS"
 
 	// Multi-tenant errors
-	ErrCodeTenantNotFound     ErrorCode = "TENANT_NOT_FOUND"
-	ErrCodeTenantMismatch     ErrorCode = "TENANT_MISMATCH"
-	ErrCodeCrossTenantAccess  ErrorCode = "CROSS_TENANT_ACCESS"
-	ErrCodeTenantSuspended    ErrorCode = "TENANT_SUSPENDED"
+	ErrCodeTenantNotFound    ErrorCode = "TENANT_NOT_FOUND"
+	ErrCodeTenantMismatch    ErrorCode = "TENANT_MISMATCH"
+	ErrCodeCrossTenantAccess ErrorCode = "CROSS_TENANT_ACCESS"
+	ErrCodeTenantSuspended   ErrorCode = "TENANT_SUSPENDED"
 
 	// Resource errors
-	ErrCodeResourceNotFound   ErrorCode = "RESOURCE_NOT_FOUND"
-	ErrCodeResourceExists     ErrorCode = "RESOURCE_ALREADY_EXISTS"
-	ErrCodeResourceInUse      ErrorCode = "RESOURCE_IN_USE"
+	ErrCodeResourceNotFound ErrorCode = "RESOURCE_NOT_FOUND"
+	ErrCodeResourceExists   ErrorCode = "RESOURCE_ALREADY_EXISTS"
+	ErrCodeResourceInUse    ErrorCode = "RESOURCE_IN_USE"
 
 	// Database errors
 	ErrCodeDatabaseConnection ErrorCode = "DATABASE_CONNECTION_ERROR"
@@ -42,9 +42,9 @@ const (
 	ErrCodeDatabaseConstraint ErrorCode = "DATABASE_CONSTRAINT_VIOLATION"
 
 	// Business logic errors
-	ErrCodeInvalidOperation   ErrorCode = "INVALID_OPERATION"
-	ErrCodeQuotaExceeded      ErrorCode = "QUOTA_EXCEEDED"
-	ErrCodeFeatureDisabled    ErrorCode = "FEATURE_DISABLED"
+	ErrCodeInvalidOperation ErrorCode = "INVALID_OPERATION"
+	ErrCodeQuotaExceeded    ErrorCode = "QUOTA_EXCEEDED"
+	ErrCodeFeatureDisabled  ErrorCode = "FEATURE_DISABLED"
 )
 
 // AppError represents a structured application error

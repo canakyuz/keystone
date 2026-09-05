@@ -38,6 +38,73 @@ okuma yönünde hiçbir tenant izolasyonu yoktu.
 
 Tam liste ve düzeltmeler: [SECURITY.md](SECURITY.md).
 
+## Önbellek
+
+Tenant çözümlemesi her istekte çalışır, dolayısıyla en sıcak yoldur.
+`pkg/cache` iki katmanlı bir önbellek sunar: L1 süreç içi, L2 Redis, en altta
+veritabanı.
+
+Kapatılan sorunlar:
+
+- **Önbellek yığılması.** Soğuk bir anahtara aynı anda gelen N istek N adet
+  veritabanı sorgusuna dönüşüyordu. `singleflight` ile tek sorguya iniyor.
+  Test yüz eşzamanlı isteğin tek yükleme yaptığını doğruluyor.
+- **Negatif önbellekleme yoktu.** Var olmayan rastgele tenant kimlikleriyle
+  yapılan istek seli her seferinde veritabanına iniyordu. Ucuz bir yük
+  yükseltme vektörü.
+- **Sınırsız goroutine.** Önbellek doldurma her istekte yeni bir goroutine
+  açıyordu, panic recovery de yoktu.
+- **Redis tek hata noktasıydı.** L1 katmanı sayesinde Redis düştüğünde servis
+  çalışmaya devam ediyor.
+- **İsabet oranı ölçülmüyordu.** `Stats()` ile ölçülebiliyor.
+
+TTL'e jitter eklenir. Aynı anda oluşturulan anahtarlar aynı anda düşerse
+sona erme anında toplu bir ıska dalgası oluşur.
+
+## İstek limiti
+
+`pkg/ratelimit`, Redis üzerinde paylaşılan bir token bucket uygular. Oku,
+hesapla, yaz dizisi tek bir Lua betiğinde çalışır, dolayısıyla iki replika
+aynı tokeni harcayamaz.
+
+Fiber'ın yerleşik limiter'ı kullanılmaz. O, varsayılan olarak süreç içi
+sayar: üç replikada, replika başına yüz istek ayarı gerçekte üç yüz istek
+demektir. Ayarlanan değer ile uygulanan değer arasında replika sayısı kadar
+fark oluşur.
+
+Limit kiracı planına göre belirlenir ve anahtar IP yerine tenant'tır.
+
+| Plan | Dakikalık istek |
+|---|---|
+| free | 60 |
+| starter | 300 |
+| pro | 1.200 |
+| enterprise | 6.000 |
+| kimlik doğrulanmamış | 30 |
+
+Redis erişilemediğinde varsayılan davranış isteği geçirmektir. Limitleyici bir
+kullanılabilirlik aracı değil, kötüye kullanım frenidir. Redis düştüğünde tüm
+trafiği reddetmek, önlemeye çalıştığı kesintiyi kendi eliyle yaratır.
+
+Eşzamanlılık testi iki yüz eşzamanlı istekten tam olarak kapasite kadarının
+geçtiğini doğrular.
+
+## Sağlık uçları
+
+İki ayrı uç, iki ayrı soru.
+
+| Uç | Soru | Başarısız olursa | Bağımlılıklara bakar |
+|---|---|---|---|
+| `/health` | Süreç ayakta mı | Container yeniden başlar | Hayır |
+| `/ready` | İstek karşılayabilir mi | Load balancer trafiği keser | Evet |
+
+`/health` bilinçli olarak veritabanına bakmaz. Veritabanı geçici olarak
+düştüğünde sağlıklı süreçleri yeniden başlatmak, kurtarma sırasında bağlantı
+fırtınası yaratır.
+
+`/ready` için Redis zorunlu değildir. Önbellek ve limitleyici Redis olmadan
+süreç içi yollarına düşerek çalışır.
+
 ## Mimari
 
 ```

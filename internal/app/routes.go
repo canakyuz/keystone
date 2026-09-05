@@ -53,14 +53,8 @@ func setupRoutes(
 		return c.SendFile("api/openapi.yaml")
 	})
 
-	// Health check (Sağlık Kontrolü) endpoint'i, servisin ayakta olup olmadığını kontrol etmek için kullanılır.
-	app.Get("/health", func(c *fiber.Ctx) error {
-		return c.JSON(fiber.Map{
-			"status":      "ok",
-			"environment": cfg.Server.Environment,
-			"message":     "Keystone API is running",
-		})
-	})
+	// Sağlık ve hazır olma uçları internal/app/probes.go içinde kaydedilir:
+	// veritabanı ve Redis erişimine ihtiyaç duyarlar.
 
 	// /api/v1 grubu, API'nin 1. versiyonu için bir ana grup oluşturur.
 	v1 := app.Group("/api/v1")

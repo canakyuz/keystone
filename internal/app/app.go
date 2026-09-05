@@ -12,7 +12,6 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/fiber/v2/middleware/helmet"
-	"github.com/gofiber/fiber/v2/middleware/limiter"
 	"github.com/gofiber/fiber/v2/middleware/logger"
 	"github.com/gofiber/fiber/v2/middleware/recover"
 	"github.com/redis/go-redis/v9"
@@ -52,6 +51,7 @@ import (
 	websiteUsecase "github.com/canakyuz/keystone/internal/usecase/website"
 	"github.com/canakyuz/keystone/pkg/database"
 	pkgLogger "github.com/canakyuz/keystone/pkg/logger"
+	"github.com/canakyuz/keystone/pkg/ratelimit"
 	"github.com/canakyuz/keystone/pkg/validator"
 )
 
@@ -99,6 +99,24 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 		ErrorHandler: customErrorHandler, // Hata yönetimi için özel bir fonksiyon belirle.
 	})
 
+	appLogger := pkgLogger.New(pkgLogger.Config{ // Uygulama genelinde kullanılacak loglama servisi.
+		Level:       cfg.Server.Environment,
+		Environment: cfg.Server.Environment,
+	})
+
+	// Limitleyici ve plan önbelleği, rate limit middleware'inden önce kurulur.
+	tenantPlanCache := middleware.NewTenantPlanCache(redisClient, db)
+
+	// Redis erişilemiyorsa süreç içi limitleyiciye düşülür. Bu, tek replikada
+	// doğru çalışır; çok replikalı kurulumda uygulanan limit replika sayısıyla
+	// çarpılır, dolayısıyla bu bir yedek yoldur, hedef yapılandırma değildir.
+	var rateLimiter ratelimit.Limiter = ratelimit.NewMemory()
+	if redisClient != nil {
+		rateLimiter = ratelimit.NewRedis(redisClient, "ratelimit:")
+	}
+
+	registerProbes(app, cfg, db, redisClient)
+
 	// Global Middleware (Ara Katman) tanımlamaları.
 	// Bu middleware'ler gelen her istek için çalıştırılır.
 	app.Use(recover.New())            // Panik durumlarında sunucunun çökmesini engeller ve 500 hatası döner.
@@ -110,9 +128,19 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 		AllowOrigins:     cfg.Security.AllowedOrigins,
 		AllowCredentials: cfg.Security.AllowCredentials,
 	}))
-	app.Use(limiter.New(limiter.Config{ // İstek limiti (rate limiting) uygular, brute-force saldırılarını önler.
-		Max:        cfg.Security.RateLimit.Requests,
-		Expiration: cfg.Security.RateLimit.Duration,
+	// İstek limiti. Fiber'ın yerleşik limiter'ı yerine paylaşımlı bir
+	// token bucket kullanılır: yerleşik olan varsayılan olarak süreç içi
+	// sayar, dolayısıyla üç replikada ayarlanan limitin üç katı uygulanır.
+	// Ayrıca burada limit kiracı planına göre belirlenir ve anahtar
+	// IP yerine tenant'tır.
+	app.Use(middleware.RateLimit(middleware.RateLimitConfig{
+		Limiter: rateLimiter,
+		Plans:   tenantPlanCache,
+		SkipPaths: map[string]bool{
+			"/health": true,
+			"/ready":  true,
+		},
+		Logger: appLogger,
 	}))
 
 	// OpenAPI (Swagger) tanımına göre istekleri doğrulayan middleware'i ayarla.
@@ -126,10 +154,6 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 	// çünkü JWT'den tenant_id çıkarmak için önce auth middleware çalışmalı
 
 	// Paylaşılan bağımlılıkları başlat.
-	appLogger := pkgLogger.New(pkgLogger.Config{ // Uygulama genelinde kullanılacak loglama servisi.
-		Level:       cfg.Server.Environment,
-		Environment: cfg.Server.Environment,
-	})
 	appValidator := validator.New() // Veri doğrulama (validation) servisi.
 
 	// Repository (Veri Erişim Katmanı) katmanını başlat.

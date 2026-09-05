@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"nexpaces-api/internal/config"
+	"github.com/canakyuz/keystone/internal/config"
 )
 
 // Orchestrator manages multiple payment providers and routes requests
@@ -253,7 +253,7 @@ func ValidateTenantProviderSettings(settings map[string]interface{}, providerNam
 func MarshalProviderSettings(providerName string, credentials map[string]string) ([]byte, error) {
 	settings := map[string]interface{}{
 		"payment": map[string]interface{}{
-			"provider": providerName,
+			"provider":   providerName,
 			providerName: credentials,
 		},
 	}

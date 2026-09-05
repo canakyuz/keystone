@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/canakyuz/keystone/internal/domain/lesson"
 	"github.com/lib/pq"
-	"nexpaces-api/internal/domain/lesson"
 )
 
 type LessonPostgresRepository struct {
@@ -46,13 +46,13 @@ func (r *LessonPostgresRepository) List(ctx context.Context, filters lesson.Less
 	countQuery := fmt.Sprintf("SELECT COUNT(*) FROM lessons WHERE %s", whereClause)
 	var total int64
 	r.db.QueryRowContext(ctx, countQuery, args...).Scan(&total)
-	
+
 	query := fmt.Sprintf(`SELECT id, tenant_id, student_id, title, subject, status, type, scheduled_at, duration, created_at, updated_at FROM lessons WHERE %s ORDER BY scheduled_at DESC LIMIT $%d OFFSET $%d`, whereClause, len(args)+1, len(args)+2)
 	args = append(args, filters.Limit, filters.Offset)
-	
+
 	rows, _ := r.db.QueryContext(ctx, query, args...)
 	defer rows.Close()
-	
+
 	lessons := []*lesson.Lesson{}
 	for rows.Next() {
 		l := &lesson.Lesson{}

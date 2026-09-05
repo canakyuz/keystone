@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"nexpaces-api/internal/domain/booking"
+	"github.com/canakyuz/keystone/internal/domain/booking"
 )
 
 type AppointmentPostgresRepository struct {

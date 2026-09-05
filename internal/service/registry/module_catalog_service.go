@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"nexpaces-api/internal/domain/registry"
+	"github.com/canakyuz/keystone/internal/domain/registry"
 )
 
 // ModuleCatalogService handles module catalog and marketplace operations

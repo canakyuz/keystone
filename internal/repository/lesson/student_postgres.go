@@ -10,7 +10,7 @@ import (
 
 	"github.com/lib/pq"
 
-	"nexpaces-api/internal/domain/lesson"
+	"github.com/canakyuz/keystone/internal/domain/lesson"
 )
 
 // StudentPostgresRepository implements StudentRepository using PostgreSQL

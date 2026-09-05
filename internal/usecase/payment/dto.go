@@ -3,9 +3,9 @@ package payment
 import (
 	"time"
 
-	"nexpaces-api/internal/domain/payment"
-	"nexpaces-api/internal/domain/refund"
-	"nexpaces-api/internal/domain/webhook"
+	"github.com/canakyuz/keystone/internal/domain/payment"
+	"github.com/canakyuz/keystone/internal/domain/refund"
+	"github.com/canakyuz/keystone/internal/domain/webhook"
 )
 
 // CreatePaymentRequest represents a payment creation request
@@ -64,15 +64,15 @@ type CreateRefundRequest struct {
 
 // PaymentResponse represents payment response DTO
 type PaymentResponse struct {
-	ID                string                 `json:"id"`
-	TenantID          string                 `json:"tenant_id"`
-	Provider          string                 `json:"provider"`
-	ProviderPaymentID string                 `json:"provider_payment_id,omitempty"`
-	Amount            float64                `json:"amount"`
-	Currency          string                 `json:"currency"`
-	Status            string                 `json:"status"`
-	FailureCode       string                 `json:"failure_code,omitempty"`
-	FailureMessage    string                 `json:"failure_message,omitempty"`
+	ID                string  `json:"id"`
+	TenantID          string  `json:"tenant_id"`
+	Provider          string  `json:"provider"`
+	ProviderPaymentID string  `json:"provider_payment_id,omitempty"`
+	Amount            float64 `json:"amount"`
+	Currency          string  `json:"currency"`
+	Status            string  `json:"status"`
+	FailureCode       string  `json:"failure_code,omitempty"`
+	FailureMessage    string  `json:"failure_message,omitempty"`
 
 	// 3DS
 	Requires3DS        bool   `json:"requires_3ds"`
@@ -106,22 +106,22 @@ type PaymentResponse struct {
 
 // RefundResponse represents refund response DTO
 type RefundResponse struct {
-	ID                string                 `json:"id"`
-	TenantID          string                 `json:"tenant_id"`
-	PaymentID         string                 `json:"payment_id"`
-	Provider          string                 `json:"provider"`
-	ProviderRefundID  string                 `json:"provider_refund_id,omitempty"`
-	Amount            float64                `json:"amount"`
-	Currency          string                 `json:"currency"`
-	Status            string                 `json:"status"`
-	FailureCode       string                 `json:"failure_code,omitempty"`
-	FailureMessage    string                 `json:"failure_message,omitempty"`
-	Reason            string                 `json:"reason"`
-	Description       string                 `json:"description,omitempty"`
-	Metadata          map[string]interface{} `json:"metadata,omitempty"`
-	CreatedAt         time.Time              `json:"created_at"`
-	UpdatedAt         time.Time              `json:"updated_at"`
-	SucceededAt       *time.Time             `json:"succeeded_at,omitempty"`
+	ID               string                 `json:"id"`
+	TenantID         string                 `json:"tenant_id"`
+	PaymentID        string                 `json:"payment_id"`
+	Provider         string                 `json:"provider"`
+	ProviderRefundID string                 `json:"provider_refund_id,omitempty"`
+	Amount           float64                `json:"amount"`
+	Currency         string                 `json:"currency"`
+	Status           string                 `json:"status"`
+	FailureCode      string                 `json:"failure_code,omitempty"`
+	FailureMessage   string                 `json:"failure_message,omitempty"`
+	Reason           string                 `json:"reason"`
+	Description      string                 `json:"description,omitempty"`
+	Metadata         map[string]interface{} `json:"metadata,omitempty"`
+	CreatedAt        time.Time              `json:"created_at"`
+	UpdatedAt        time.Time              `json:"updated_at"`
+	SucceededAt      *time.Time             `json:"succeeded_at,omitempty"`
 }
 
 // WebhookEventResponse represents webhook event response DTO
@@ -153,31 +153,31 @@ type ListPaymentsRequest struct {
 // ToPaymentResponse converts domain payment to DTO
 func ToPaymentResponse(p *payment.Payment) *PaymentResponse {
 	resp := &PaymentResponse{
-		ID:                p.ID,
-		TenantID:          p.TenantID,
-		Provider:          string(p.Provider),
-		ProviderPaymentID: p.ProviderPaymentID,
-		Amount:            p.Amount,
-		Currency:          p.Currency,
-		Status:            string(p.Status),
-		FailureCode:       p.FailureCode,
-		FailureMessage:    p.FailureMessage,
-		Requires3DS:       p.Requires3DS,
+		ID:                 p.ID,
+		TenantID:           p.TenantID,
+		Provider:           string(p.Provider),
+		ProviderPaymentID:  p.ProviderPaymentID,
+		Amount:             p.Amount,
+		Currency:           p.Currency,
+		Status:             string(p.Status),
+		FailureCode:        p.FailureCode,
+		FailureMessage:     p.FailureMessage,
+		Requires3DS:        p.Requires3DS,
 		ThreeDSHTMLContent: p.ThreeDSHTMLContent,
-		CardBrand:         string(p.CardBrand),
-		CardLast4:         p.CardLast4,
-		CardExpMonth:      p.CardExpMonth,
-		CardExpYear:       p.CardExpYear,
-		Installment:       p.Installment,
-		InstallmentRate:   p.InstallmentRate,
-		TotalAmount:       p.CalculateTotalAmount(),
-		CustomerEmail:     p.CustomerEmail,
-		Description:       p.Description,
-		OrderID:           p.OrderID,
-		Metadata:          p.Metadata,
-		CreatedAt:         p.CreatedAt,
-		UpdatedAt:         p.UpdatedAt,
-		SucceededAt:       p.SucceededAt,
+		CardBrand:          string(p.CardBrand),
+		CardLast4:          p.CardLast4,
+		CardExpMonth:       p.CardExpMonth,
+		CardExpYear:        p.CardExpYear,
+		Installment:        p.Installment,
+		InstallmentRate:    p.InstallmentRate,
+		TotalAmount:        p.CalculateTotalAmount(),
+		CustomerEmail:      p.CustomerEmail,
+		Description:        p.Description,
+		OrderID:            p.OrderID,
+		Metadata:           p.Metadata,
+		CreatedAt:          p.CreatedAt,
+		UpdatedAt:          p.UpdatedAt,
+		SucceededAt:        p.SucceededAt,
 	}
 
 	return resp

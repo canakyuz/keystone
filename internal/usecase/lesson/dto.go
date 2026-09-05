@@ -4,45 +4,45 @@ import "time"
 
 // Student DTOs
 type CreateStudentRequest struct {
-	FirstName    string     `json:"first_name" validate:"required"`
-	LastName     string     `json:"last_name" validate:"required"`
-	Email        string     `json:"email" validate:"required,email"`
-	Phone        string     `json:"phone,omitempty"`
-	DateOfBirth  *time.Time `json:"date_of_birth,omitempty"`
-	Status       string    `json:"status" validate:"required,oneof=active inactive suspended graduated"`
-	Level        string    `json:"level" validate:"required,oneof=beginner intermediate advanced"`
-	Grade        string    `json:"grade,omitempty"`
-	School       string    `json:"school,omitempty"`
-	ParentName   string    `json:"parent_name,omitempty"`
-	ParentEmail  string    `json:"parent_email,omitempty"`
-	ParentPhone  string    `json:"parent_phone,omitempty"`
-	CurrentGPA   float64   `json:"current_gpa,omitempty"`
-	TargetGPA    float64   `json:"target_gpa,omitempty"`
-	Subjects     []string  `json:"subjects,omitempty"`
-	Goals        string    `json:"goals,omitempty"`
-	Notes        string    `json:"notes,omitempty"`
-	Avatar       string    `json:"avatar,omitempty"`
+	FirstName   string     `json:"first_name" validate:"required"`
+	LastName    string     `json:"last_name" validate:"required"`
+	Email       string     `json:"email" validate:"required,email"`
+	Phone       string     `json:"phone,omitempty"`
+	DateOfBirth *time.Time `json:"date_of_birth,omitempty"`
+	Status      string     `json:"status" validate:"required,oneof=active inactive suspended graduated"`
+	Level       string     `json:"level" validate:"required,oneof=beginner intermediate advanced"`
+	Grade       string     `json:"grade,omitempty"`
+	School      string     `json:"school,omitempty"`
+	ParentName  string     `json:"parent_name,omitempty"`
+	ParentEmail string     `json:"parent_email,omitempty"`
+	ParentPhone string     `json:"parent_phone,omitempty"`
+	CurrentGPA  float64    `json:"current_gpa,omitempty"`
+	TargetGPA   float64    `json:"target_gpa,omitempty"`
+	Subjects    []string   `json:"subjects,omitempty"`
+	Goals       string     `json:"goals,omitempty"`
+	Notes       string     `json:"notes,omitempty"`
+	Avatar      string     `json:"avatar,omitempty"`
 }
 
 type UpdateStudentRequest struct {
-	FirstName    string     `json:"first_name,omitempty"`
-	LastName     string     `json:"last_name,omitempty"`
-	Email        string     `json:"email,omitempty"`
-	Phone        string     `json:"phone,omitempty"`
-	DateOfBirth  *time.Time `json:"date_of_birth,omitempty"`
-	Status       string    `json:"status,omitempty"`
-	Level        string    `json:"level,omitempty"`
-	Grade        string    `json:"grade,omitempty"`
-	School       string    `json:"school,omitempty"`
-	ParentName   string    `json:"parent_name,omitempty"`
-	ParentEmail  string    `json:"parent_email,omitempty"`
-	ParentPhone  string    `json:"parent_phone,omitempty"`
-	CurrentGPA   float64   `json:"current_gpa,omitempty"`
-	TargetGPA    float64   `json:"target_gpa,omitempty"`
-	Subjects     []string  `json:"subjects,omitempty"`
-	Goals        string    `json:"goals,omitempty"`
-	Notes        string    `json:"notes,omitempty"`
-	Avatar       string    `json:"avatar,omitempty"`
+	FirstName   string     `json:"first_name,omitempty"`
+	LastName    string     `json:"last_name,omitempty"`
+	Email       string     `json:"email,omitempty"`
+	Phone       string     `json:"phone,omitempty"`
+	DateOfBirth *time.Time `json:"date_of_birth,omitempty"`
+	Status      string     `json:"status,omitempty"`
+	Level       string     `json:"level,omitempty"`
+	Grade       string     `json:"grade,omitempty"`
+	School      string     `json:"school,omitempty"`
+	ParentName  string     `json:"parent_name,omitempty"`
+	ParentEmail string     `json:"parent_email,omitempty"`
+	ParentPhone string     `json:"parent_phone,omitempty"`
+	CurrentGPA  float64    `json:"current_gpa,omitempty"`
+	TargetGPA   float64    `json:"target_gpa,omitempty"`
+	Subjects    []string   `json:"subjects,omitempty"`
+	Goals       string     `json:"goals,omitempty"`
+	Notes       string     `json:"notes,omitempty"`
+	Avatar      string     `json:"avatar,omitempty"`
 }
 
 type StudentResponse struct {
@@ -104,17 +104,17 @@ type CreateLessonRequest struct {
 }
 
 type UpdateLessonRequest struct {
-	Title            string     `json:"title,omitempty"`
-	Description      string     `json:"description,omitempty"`
-	Subject          string     `json:"subject,omitempty"`
-	Topic            string     `json:"topic,omitempty"`
-	Status           string     `json:"status,omitempty"`
-	StartedAt        *time.Time `json:"started_at,omitempty"`
-	CompletedAt      *time.Time `json:"completed_at,omitempty"`
-	PerformanceScore int        `json:"performance_score,omitempty"`
-	AttendanceStatus string     `json:"attendance_status,omitempty"`
-	HomeworkCompleted bool      `json:"homework_completed,omitempty"`
-	Notes            string     `json:"notes,omitempty"`
+	Title             string     `json:"title,omitempty"`
+	Description       string     `json:"description,omitempty"`
+	Subject           string     `json:"subject,omitempty"`
+	Topic             string     `json:"topic,omitempty"`
+	Status            string     `json:"status,omitempty"`
+	StartedAt         *time.Time `json:"started_at,omitempty"`
+	CompletedAt       *time.Time `json:"completed_at,omitempty"`
+	PerformanceScore  int        `json:"performance_score,omitempty"`
+	AttendanceStatus  string     `json:"attendance_status,omitempty"`
+	HomeworkCompleted bool       `json:"homework_completed,omitempty"`
+	Notes             string     `json:"notes,omitempty"`
 }
 
 type LessonResponse struct {

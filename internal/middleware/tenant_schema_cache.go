@@ -8,7 +8,7 @@ import (
 
 	"github.com/redis/go-redis/v9"
 
-	"nexpaces-api/pkg/logger"
+	"github.com/canakyuz/keystone/pkg/logger"
 )
 
 // 🎓 BACKEND KONSEPT: Cache-Aside Pattern (Lazy Loading)

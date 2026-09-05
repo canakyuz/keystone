@@ -3,7 +3,7 @@ package project
 import (
 	"github.com/gofiber/fiber/v2"
 
-	projectUsecase "nexpaces-api/internal/usecase/project"
+	projectUsecase "github.com/canakyuz/keystone/internal/usecase/project"
 )
 
 // Handler handles HTTP requests for projects

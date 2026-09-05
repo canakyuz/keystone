@@ -1,20 +1,20 @@
 package app
 
 import (
+	"github.com/canakyuz/keystone/internal/config"
+	authHandler "github.com/canakyuz/keystone/internal/handler/auth"
+	blogHandler "github.com/canakyuz/keystone/internal/handler/blog"
+	bookingHandler "github.com/canakyuz/keystone/internal/handler/booking"
+	lessonHandler "github.com/canakyuz/keystone/internal/handler/lesson"
+	paymentHandler "github.com/canakyuz/keystone/internal/handler/payment"
+	registryHandler "github.com/canakyuz/keystone/internal/handler/registry"
+	serviceHandler "github.com/canakyuz/keystone/internal/handler/service"
+	tenantHandler "github.com/canakyuz/keystone/internal/handler/tenant"
+	uploadHandler "github.com/canakyuz/keystone/internal/handler/upload"
+	userHandler "github.com/canakyuz/keystone/internal/handler/user"
+	websiteHandler "github.com/canakyuz/keystone/internal/handler/website"
+	"github.com/canakyuz/keystone/internal/middleware"
 	"github.com/gofiber/fiber/v2"
-	"nexpaces-api/internal/config"
-	authHandler "nexpaces-api/internal/handler/auth"
-	blogHandler "nexpaces-api/internal/handler/blog"
-	bookingHandler "nexpaces-api/internal/handler/booking"
-	lessonHandler "nexpaces-api/internal/handler/lesson"
-	paymentHandler "nexpaces-api/internal/handler/payment"
-	registryHandler "nexpaces-api/internal/handler/registry"
-	serviceHandler "nexpaces-api/internal/handler/service"
-	tenantHandler "nexpaces-api/internal/handler/tenant"
-	uploadHandler "nexpaces-api/internal/handler/upload"
-	userHandler "nexpaces-api/internal/handler/user"
-	websiteHandler "nexpaces-api/internal/handler/website"
-	"nexpaces-api/internal/middleware"
 )
 
 // setupRoutes fonksiyonu, uygulamanın tüm API rotalarını yapılandırır.
@@ -58,7 +58,7 @@ func setupRoutes(
 		return c.JSON(fiber.Map{
 			"status":      "ok",
 			"environment": cfg.Server.Environment,
-			"message":     "NexSpaces API is running",
+			"message":     "Keystone API is running",
 		})
 	})
 

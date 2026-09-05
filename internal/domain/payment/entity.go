@@ -10,13 +10,13 @@ import (
 type PaymentStatus string
 
 const (
-	PaymentStatusPending    PaymentStatus = "pending"
-	PaymentStatusProcessing PaymentStatus = "processing"
+	PaymentStatusPending     PaymentStatus = "pending"
+	PaymentStatusProcessing  PaymentStatus = "processing"
 	PaymentStatusRequires3DS PaymentStatus = "requires_3ds"
-	PaymentStatusSucceeded  PaymentStatus = "succeeded"
-	PaymentStatusFailed     PaymentStatus = "failed"
-	PaymentStatusCanceled   PaymentStatus = "canceled"
-	PaymentStatusRefunded   PaymentStatus = "refunded"
+	PaymentStatusSucceeded   PaymentStatus = "succeeded"
+	PaymentStatusFailed      PaymentStatus = "failed"
+	PaymentStatusCanceled    PaymentStatus = "canceled"
+	PaymentStatusRefunded    PaymentStatus = "refunded"
 )
 
 // PaymentProvider represents different payment service providers
@@ -51,9 +51,9 @@ const (
 
 // Payment represents a payment transaction
 type Payment struct {
-	ID       string    `json:"id"`
-	TenantID string    `json:"tenant_id"`
-	UserID   string    `json:"user_id,omitempty"`
+	ID       string `json:"id"`
+	TenantID string `json:"tenant_id"`
+	UserID   string `json:"user_id,omitempty"`
 
 	// Provider details
 	Provider          PaymentProvider `json:"provider"`
@@ -80,13 +80,13 @@ type Payment struct {
 	InstallmentRate float64 `json:"installment_rate"`
 
 	// Card information
-	CardBrand        CardBrand `json:"card_brand,omitempty"`
-	CardLast4        string    `json:"card_last4,omitempty"`
-	CardBIN          string    `json:"card_bin,omitempty"`
-	CardExpMonth     string    `json:"card_exp_month,omitempty"`
-	CardExpYear      string    `json:"card_exp_year,omitempty"`
-	CardHolderName   string    `json:"card_holder_name,omitempty"`
-	CardFingerprint  string    `json:"card_fingerprint,omitempty"`
+	CardBrand       CardBrand `json:"card_brand,omitempty"`
+	CardLast4       string    `json:"card_last4,omitempty"`
+	CardBIN         string    `json:"card_bin,omitempty"`
+	CardExpMonth    string    `json:"card_exp_month,omitempty"`
+	CardExpYear     string    `json:"card_exp_year,omitempty"`
+	CardHolderName  string    `json:"card_holder_name,omitempty"`
+	CardFingerprint string    `json:"card_fingerprint,omitempty"`
 
 	// Customer information
 	CustomerEmail     string `json:"customer_email,omitempty"`

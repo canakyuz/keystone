@@ -6,9 +6,9 @@ import (
 	"errors"
 	"time"
 
+	"github.com/canakyuz/keystone/internal/domain/website"
 	"github.com/google/uuid"
 	"github.com/lib/pq"
-	"nexpaces-api/internal/domain/website"
 )
 
 // 🎓 EDUCATIONAL NOTE: PostgreSQL Repository Pattern

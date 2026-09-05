@@ -3,10 +3,10 @@ package registry
 import (
 	"strconv"
 
+	"github.com/canakyuz/keystone/internal/domain/registry"
+	dto "github.com/canakyuz/keystone/internal/dto/registry"
+	registryService "github.com/canakyuz/keystone/internal/service/registry"
 	"github.com/gofiber/fiber/v2"
-	"nexpaces-api/internal/domain/registry"
-	dto "nexpaces-api/internal/dto/registry"
-	registryService "nexpaces-api/internal/service/registry"
 )
 
 // ToolCatalogHandler, araç kataloğu (pazaryeri) ile ilgili halka açık HTTP isteklerini yönetir.

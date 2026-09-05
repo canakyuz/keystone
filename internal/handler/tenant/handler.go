@@ -3,9 +3,9 @@ package tenant
 import (
 	"strconv"
 
+	"github.com/canakyuz/keystone/internal/middleware"
+	"github.com/canakyuz/keystone/internal/usecase/tenant"
 	"github.com/gofiber/fiber/v2"
-	"nexpaces-api/internal/middleware"
-	"nexpaces-api/internal/usecase/tenant"
 )
 
 // Handler handles tenant HTTP requests

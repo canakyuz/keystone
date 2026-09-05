@@ -3,7 +3,7 @@ package registry
 import (
 	"time"
 
-	"nexpaces-api/internal/domain/registry"
+	"github.com/canakyuz/keystone/internal/domain/registry"
 )
 
 // ToolListRequest represents tool listing request
@@ -35,44 +35,44 @@ type ToolSearchRequest struct {
 
 // ToolResponse represents tool response
 type ToolResponse struct {
-	ID                       string                `json:"id"`
-	Name                     string                `json:"name"`
-	Slug                     string                `json:"slug"`
-	Code                     string                `json:"code"`
-	DisplayName              string                `json:"display_name"`
-	Description              string                `json:"description"`
-	Category                 registry.ToolCategory `json:"category"`
-	ToolType                 registry.ToolType     `json:"tool_type"`
-	Scope                    registry.ToolScope    `json:"scope"`
-	Status                   registry.ToolStatus   `json:"status"`
-	IsPublic                 bool                  `json:"is_public"`
-	IsBeta                   bool                  `json:"is_beta"`
-	Version                  string                `json:"version"`
-	MinPlatformVersion       string                `json:"min_platform_version"`
-	PricingModel             registry.PricingModel `json:"pricing_model"`
-	BasePrice                float64               `json:"base_price,omitempty"`
-	Currency                 string                `json:"currency,omitempty"`
-	BillingCycle             string                `json:"billing_cycle,omitempty"`
-	TransactionFeePercentage float64               `json:"transaction_fee_percentage,omitempty"`
-	TransactionFeeFixed      float64               `json:"transaction_fee_fixed,omitempty"`
-	Features                 interface{}           `json:"features,omitempty"`
-	Capabilities             interface{}           `json:"capabilities,omitempty"`
-	Icon                     string                `json:"icon,omitempty"`
-	CoverImage               string                `json:"cover_image,omitempty"`
-	Screenshots              []string              `json:"screenshots,omitempty"`
-	DemoURL                  string                `json:"demo_url,omitempty"`
-	DocumentationURL         string                `json:"documentation_url,omitempty"`
+	ID                       string                   `json:"id"`
+	Name                     string                   `json:"name"`
+	Slug                     string                   `json:"slug"`
+	Code                     string                   `json:"code"`
+	DisplayName              string                   `json:"display_name"`
+	Description              string                   `json:"description"`
+	Category                 registry.ToolCategory    `json:"category"`
+	ToolType                 registry.ToolType        `json:"tool_type"`
+	Scope                    registry.ToolScope       `json:"scope"`
+	Status                   registry.ToolStatus      `json:"status"`
+	IsPublic                 bool                     `json:"is_public"`
+	IsBeta                   bool                     `json:"is_beta"`
+	Version                  string                   `json:"version"`
+	MinPlatformVersion       string                   `json:"min_platform_version"`
+	PricingModel             registry.PricingModel    `json:"pricing_model"`
+	BasePrice                float64                  `json:"base_price,omitempty"`
+	Currency                 string                   `json:"currency,omitempty"`
+	BillingCycle             string                   `json:"billing_cycle,omitempty"`
+	TransactionFeePercentage float64                  `json:"transaction_fee_percentage,omitempty"`
+	TransactionFeeFixed      float64                  `json:"transaction_fee_fixed,omitempty"`
+	Features                 interface{}              `json:"features,omitempty"`
+	Capabilities             interface{}              `json:"capabilities,omitempty"`
+	Icon                     string                   `json:"icon,omitempty"`
+	CoverImage               string                   `json:"cover_image,omitempty"`
+	Screenshots              []string                 `json:"screenshots,omitempty"`
+	DemoURL                  string                   `json:"demo_url,omitempty"`
+	DocumentationURL         string                   `json:"documentation_url,omitempty"`
 	IntegrationType          registry.IntegrationType `json:"integration_type"`
-	IntegrationProvider      string                `json:"integration_provider,omitempty"`
-	RequiresAPIKeys          bool                  `json:"requires_api_keys"`
-	RequiresWebhook          bool                  `json:"requires_webhook"`
-	RequiresStorage          bool                  `json:"requires_storage"`
-	RequiresDatabase         bool                  `json:"requires_database"`
-	InstallCount             int                   `json:"install_count"`
-	Rating                   float64               `json:"rating,omitempty"`
-	ReviewCount              int                   `json:"review_count"`
-	CreatedAt                time.Time             `json:"created_at"`
-	UpdatedAt                time.Time             `json:"updated_at"`
+	IntegrationProvider      string                   `json:"integration_provider,omitempty"`
+	RequiresAPIKeys          bool                     `json:"requires_api_keys"`
+	RequiresWebhook          bool                     `json:"requires_webhook"`
+	RequiresStorage          bool                     `json:"requires_storage"`
+	RequiresDatabase         bool                     `json:"requires_database"`
+	InstallCount             int                      `json:"install_count"`
+	Rating                   float64                  `json:"rating,omitempty"`
+	ReviewCount              int                      `json:"review_count"`
+	CreatedAt                time.Time                `json:"created_at"`
+	UpdatedAt                time.Time                `json:"updated_at"`
 }
 
 // ToolDetailResponse represents detailed tool response

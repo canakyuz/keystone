@@ -3,7 +3,7 @@ package tenant
 import (
 	"time"
 
-	"nexpaces-api/internal/domain/tenant"
+	"github.com/canakyuz/keystone/internal/domain/tenant"
 )
 
 // CreateTenantRequest represents request to create a tenant

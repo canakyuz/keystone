@@ -84,7 +84,7 @@ func New(tenantID uuid.UUID, name, slug string, websiteType WebsiteType, created
 		Status:               StatusDraft,
 		Title:                name,
 		CustomDomainVerified: false,
-		PrimaryURL:           slug + ".nexpaces.com",
+		PrimaryURL:           slug + ".keystone.dev",
 		CreatedAt:            now,
 		UpdatedAt:            now,
 		CreatedBy:            createdBy,
@@ -274,7 +274,7 @@ func (w *Website) VerifyCustomDomain() error {
 func (w *Website) RemoveCustomDomain() {
 	w.CustomDomain = nil
 	w.CustomDomainVerified = false
-	w.PrimaryURL = w.Slug + ".nexpaces.com"
+	w.PrimaryURL = w.Slug + ".keystone.dev"
 	w.UpdatedAt = time.Now()
 }
 

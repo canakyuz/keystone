@@ -4,10 +4,10 @@ import (
 	"context"
 	"strings"
 
+	"github.com/canakyuz/keystone/internal/domain/website"
+	websiteRepo "github.com/canakyuz/keystone/internal/repository/website"
 	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
-	"nexpaces-api/internal/domain/website"
-	websiteRepo "nexpaces-api/internal/repository/website"
 )
 
 // Service handles website business logic

@@ -3,9 +3,9 @@ package service
 import (
 	"strconv"
 
+	"github.com/canakyuz/keystone/internal/domain/service"
+	serviceUsecase "github.com/canakyuz/keystone/internal/usecase/service"
 	"github.com/gofiber/fiber/v2"
-	"nexpaces-api/internal/domain/service"
-	serviceUsecase "nexpaces-api/internal/usecase/service"
 )
 
 type ServiceHandler struct {

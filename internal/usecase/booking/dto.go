@@ -4,14 +4,14 @@ import "time"
 
 // Availability DTOs
 type CreateAvailabilityRequest struct {
-	UserID        string    `json:"user_id,omitempty"`
-	Title         string    `json:"title" validate:"required"`
-	Description   string    `json:"description,omitempty"`
-	StartTime     time.Time `json:"start_time" validate:"required"`
-	EndTime       time.Time `json:"end_time" validate:"required"`
-	Recurrence    string    `json:"recurrence" validate:"required,oneof=none daily weekly monthly"`
+	UserID        string     `json:"user_id,omitempty"`
+	Title         string     `json:"title" validate:"required"`
+	Description   string     `json:"description,omitempty"`
+	StartTime     time.Time  `json:"start_time" validate:"required"`
+	EndTime       time.Time  `json:"end_time" validate:"required"`
+	Recurrence    string     `json:"recurrence" validate:"required,oneof=none daily weekly monthly"`
 	RecurrenceEnd *time.Time `json:"recurrence_end,omitempty"`
-	DaysOfWeek    []int     `json:"days_of_week,omitempty"`
+	DaysOfWeek    []int      `json:"days_of_week,omitempty"`
 }
 
 type UpdateAvailabilityRequest struct {
@@ -64,11 +64,11 @@ type CreateAppointmentRequest struct {
 }
 
 type UpdateAppointmentRequest struct {
-	Title              string     `json:"title,omitempty"`
-	Description        string     `json:"description,omitempty"`
-	Status             string     `json:"status,omitempty"`
-	Notes              string     `json:"notes,omitempty"`
-	CancellationReason string     `json:"cancellation_reason,omitempty"`
+	Title              string `json:"title,omitempty"`
+	Description        string `json:"description,omitempty"`
+	Status             string `json:"status,omitempty"`
+	Notes              string `json:"notes,omitempty"`
+	CancellationReason string `json:"cancellation_reason,omitempty"`
 }
 
 type AppointmentResponse struct {

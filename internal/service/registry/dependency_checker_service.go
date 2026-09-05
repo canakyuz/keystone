@@ -5,40 +5,40 @@ import (
 	"database/sql"
 	"fmt"
 
-	"nexpaces-api/internal/domain/registry"
+	"github.com/canakyuz/keystone/internal/domain/registry"
 )
 
 // DependencyInfo represents dependency information
 type DependencyInfo struct {
-	Type                     string `json:"type"` // "module" or "tool"
-	ID                       string `json:"id"`
-	Code                     string `json:"code"`
-	Name                     string `json:"name"`
-	DependencyType           string `json:"dependency_type"`           // "required", "optional", "recommended"
-	AutoInstallOnActivation  bool   `json:"auto_install_on_activation"`
-	InstallOrder             int    `json:"install_order"`
-	AlreadyActivated         bool   `json:"already_activated"`
+	Type                    string `json:"type"` // "module" or "tool"
+	ID                      string `json:"id"`
+	Code                    string `json:"code"`
+	Name                    string `json:"name"`
+	DependencyType          string `json:"dependency_type"` // "required", "optional", "recommended"
+	AutoInstallOnActivation bool   `json:"auto_install_on_activation"`
+	InstallOrder            int    `json:"install_order"`
+	AlreadyActivated        bool   `json:"already_activated"`
 }
 
 // DependencyCheckResult represents the result of dependency validation
 type DependencyCheckResult struct {
-	CanActivate              bool              `json:"can_activate"`
-	MissingRequiredModules   []DependencyInfo  `json:"missing_required_modules"`
-	MissingRequiredTools     []DependencyInfo  `json:"missing_required_tools"`
-	RecommendedModules       []DependencyInfo  `json:"recommended_modules"`
-	RecommendedTools         []DependencyInfo  `json:"recommended_tools"`
-	OptionalModules          []DependencyInfo  `json:"optional_modules"`
-	OptionalTools            []DependencyInfo  `json:"optional_tools"`
-	AutoInstallSuggestions   []DependencyInfo  `json:"auto_install_suggestions"`
+	CanActivate            bool             `json:"can_activate"`
+	MissingRequiredModules []DependencyInfo `json:"missing_required_modules"`
+	MissingRequiredTools   []DependencyInfo `json:"missing_required_tools"`
+	RecommendedModules     []DependencyInfo `json:"recommended_modules"`
+	RecommendedTools       []DependencyInfo `json:"recommended_tools"`
+	OptionalModules        []DependencyInfo `json:"optional_modules"`
+	OptionalTools          []DependencyInfo `json:"optional_tools"`
+	AutoInstallSuggestions []DependencyInfo `json:"auto_install_suggestions"`
 }
 
 // DependencyCheckerService handles dependency validation and resolution
 type DependencyCheckerService struct {
-	db                   *sql.DB
-	moduleRepo           registry.ModuleRepository
-	toolRepo             registry.ToolRepository
-	tenantModuleRepo     registry.TenantModuleRepository
-	tenantToolRepo       registry.TenantToolRepository
+	db               *sql.DB
+	moduleRepo       registry.ModuleRepository
+	toolRepo         registry.ToolRepository
+	tenantModuleRepo registry.TenantModuleRepository
+	tenantToolRepo   registry.TenantToolRepository
 }
 
 // NewDependencyCheckerService creates a new dependency checker service

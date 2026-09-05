@@ -3,10 +3,10 @@ package website
 import (
 	"errors"
 
+	"github.com/canakyuz/keystone/internal/domain/website"
+	websiteUsecase "github.com/canakyuz/keystone/internal/usecase/website"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
-	"nexpaces-api/internal/domain/website"
-	websiteUsecase "nexpaces-api/internal/usecase/website"
 )
 
 // Handler handles HTTP requests for websites

@@ -87,12 +87,12 @@ type PaymentConfig struct {
 
 // IyzicoConfig holds iyzico (Turkey) payment configuration
 type IyzicoConfig struct {
-	Enabled        bool
-	APIKey         string
-	SecretKey      string
-	BaseURL        string
+	Enabled         bool
+	APIKey          string
+	SecretKey       string
+	BaseURL         string
 	ThreeDSCallback string
-	Currency       string
+	Currency        string
 }
 
 // CheckoutConfig holds Checkout.com (Global) payment configuration
@@ -130,7 +130,7 @@ func Load() (*Config, error) {
 			Port:            getEnv("DB_PORT", "5432"),
 			User:            getEnv("DB_USER", "postgres"),
 			Password:        getEnv("DB_PASSWORD", "postgres"),
-			Name:            getEnv("DB_NAME", "nexspaces_dev"),
+			Name:            getEnv("DB_NAME", "keystone_dev"),
 			SSLMode:         getEnv("DB_SSLMODE", "disable"),
 			MaxOpenConns:    parseInt(getEnv("DB_MAX_OPEN_CONNS", "25")),
 			MaxIdleConns:    parseInt(getEnv("DB_MAX_IDLE_CONNS", "10")),
@@ -165,12 +165,12 @@ func Load() (*Config, error) {
 		},
 		Payment: PaymentConfig{
 			Iyzico: IyzicoConfig{
-				Enabled:        parseBool(getEnv("IYZICO_ENABLED", "false")),
-				APIKey:         getEnv("IYZICO_API_KEY", ""),
-				SecretKey:      getEnv("IYZICO_SECRET_KEY", ""),
-				BaseURL:        getEnv("IYZICO_BASE_URL", "https://api.iyzipay.com"),
+				Enabled:         parseBool(getEnv("IYZICO_ENABLED", "false")),
+				APIKey:          getEnv("IYZICO_API_KEY", ""),
+				SecretKey:       getEnv("IYZICO_SECRET_KEY", ""),
+				BaseURL:         getEnv("IYZICO_BASE_URL", "https://api.iyzipay.com"),
 				ThreeDSCallback: getEnv("IYZICO_3DS_CALLBACK_URL", ""),
-				Currency:       getEnv("IYZICO_CURRENCY", "TRY"),
+				Currency:        getEnv("IYZICO_CURRENCY", "TRY"),
 			},
 			Checkout: CheckoutConfig{
 				Enabled:     parseBool(getEnv("CHECKOUT_ENABLED", "false")),

@@ -3,35 +3,35 @@ package blog
 import (
 	"time"
 
-	"nexpaces-api/internal/domain/blog"
+	"github.com/canakyuz/keystone/internal/domain/blog"
 )
 
 // Post DTOs
 type CreatePostRequest struct {
-	CategoryID  *string   `json:"category_id,omitempty"`
-	Title       string    `json:"title" validate:"required"`
-	Slug        string    `json:"slug" validate:"required"`
-	Content     *string   `json:"content,omitempty"`
-	Excerpt     *string   `json:"excerpt,omitempty"`
-	Status      string    `json:"status" validate:"required,oneof=draft published archived"`
-	Featured    bool      `json:"featured"`
-	Image       *string   `json:"image,omitempty"`
-	Tags        []string  `json:"tags,omitempty"`
-	PublishedAt *time.Time `json:"published_at,omitempty"`
+	CategoryID  *string                `json:"category_id,omitempty"`
+	Title       string                 `json:"title" validate:"required"`
+	Slug        string                 `json:"slug" validate:"required"`
+	Content     *string                `json:"content,omitempty"`
+	Excerpt     *string                `json:"excerpt,omitempty"`
+	Status      string                 `json:"status" validate:"required,oneof=draft published archived"`
+	Featured    bool                   `json:"featured"`
+	Image       *string                `json:"image,omitempty"`
+	Tags        []string               `json:"tags,omitempty"`
+	PublishedAt *time.Time             `json:"published_at,omitempty"`
 	Metadata    map[string]interface{} `json:"metadata,omitempty"`
 }
 
 type UpdatePostRequest struct {
-	CategoryID  *string   `json:"category_id,omitempty"`
-	Title       string    `json:"title" validate:"required"`
-	Slug        string    `json:"slug" validate:"required"`
-	Content     *string   `json:"content,omitempty"`
-	Excerpt     *string   `json:"excerpt,omitempty"`
-	Status      string    `json:"status" validate:"required,oneof=draft published archived"`
-	Featured    bool      `json:"featured"`
-	Image       *string   `json:"image,omitempty"`
-	Tags        []string  `json:"tags,omitempty"`
-	PublishedAt *time.Time `json:"published_at,omitempty"`
+	CategoryID  *string                `json:"category_id,omitempty"`
+	Title       string                 `json:"title" validate:"required"`
+	Slug        string                 `json:"slug" validate:"required"`
+	Content     *string                `json:"content,omitempty"`
+	Excerpt     *string                `json:"excerpt,omitempty"`
+	Status      string                 `json:"status" validate:"required,oneof=draft published archived"`
+	Featured    bool                   `json:"featured"`
+	Image       *string                `json:"image,omitempty"`
+	Tags        []string               `json:"tags,omitempty"`
+	PublishedAt *time.Time             `json:"published_at,omitempty"`
 	Metadata    map[string]interface{} `json:"metadata,omitempty"`
 }
 

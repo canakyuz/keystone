@@ -3,9 +3,9 @@ package blog
 import (
 	"strconv"
 
+	blogUsecase "github.com/canakyuz/keystone/internal/usecase/blog"
+	"github.com/canakyuz/keystone/pkg/logger"
 	"github.com/gofiber/fiber/v2"
-	blogUsecase "nexpaces-api/internal/usecase/blog"
-	"nexpaces-api/pkg/logger"
 )
 
 type CategoryHandler struct {

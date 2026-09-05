@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"nexpaces-api/internal/domain/registry"
+	"github.com/canakyuz/keystone/internal/domain/registry"
 )
 
 // ToolCatalogService handles tool catalog and marketplace operations

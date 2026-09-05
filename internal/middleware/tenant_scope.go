@@ -3,8 +3,8 @@ package middleware
 import (
 	"github.com/gofiber/fiber/v2"
 
-	tenantRepo "nexpaces-api/internal/repository/tenant"
-	"nexpaces-api/pkg/database"
+	tenantRepo "github.com/canakyuz/keystone/internal/repository/tenant"
+	"github.com/canakyuz/keystone/pkg/database"
 )
 
 // TenantScope ensures the database session is scoped to the tenant schema before handling the request.

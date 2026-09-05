@@ -3,8 +3,8 @@ package website
 import (
 	"context"
 
+	"github.com/canakyuz/keystone/internal/domain/website"
 	"github.com/google/uuid"
-	"nexpaces-api/internal/domain/website"
 )
 
 // Repository defines the interface for website data access

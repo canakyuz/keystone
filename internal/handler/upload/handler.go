@@ -8,10 +8,10 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/canakyuz/keystone/internal/middleware"
+	"github.com/canakyuz/keystone/pkg/logger"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
-	"nexpaces-api/internal/middleware"
-	"nexpaces-api/pkg/logger"
 )
 
 const (

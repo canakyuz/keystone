@@ -3,7 +3,7 @@ package user
 import (
 	"time"
 
-	"nexpaces-api/internal/domain/user"
+	"github.com/canakyuz/keystone/internal/domain/user"
 )
 
 // RegisterRequest represents user registration request
@@ -59,14 +59,14 @@ type UpdateStatusRequest struct {
 
 // UserResponse represents user response (without password)
 type UserResponse struct {
-	ID        string `json:"id"`
-	TenantID  string `json:"tenant_id"`
-	Email     string `json:"email"`
-	FirstName string `json:"first_name"`
-	LastName  string `json:"last_name"`
-	FullName  string `json:"full_name"`
-	Role      string `json:"role"`
-	Status    string `json:"status"`
+	ID        string    `json:"id"`
+	TenantID  string    `json:"tenant_id"`
+	Email     string    `json:"email"`
+	FirstName string    `json:"first_name"`
+	LastName  string    `json:"last_name"`
+	FullName  string    `json:"full_name"`
+	Role      string    `json:"role"`
+	Status    string    `json:"status"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 

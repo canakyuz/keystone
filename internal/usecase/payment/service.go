@@ -6,23 +6,23 @@ import (
 
 	"github.com/google/uuid"
 
-	"nexpaces-api/internal/domain/payment"
-	domainRefund "nexpaces-api/internal/domain/refund"
-	"nexpaces-api/internal/domain/webhook"
-	providerPayment "nexpaces-api/internal/provider/payment"
-	paymentRepo "nexpaces-api/internal/repository/payment"
+	"github.com/canakyuz/keystone/internal/domain/payment"
+	domainRefund "github.com/canakyuz/keystone/internal/domain/refund"
+	"github.com/canakyuz/keystone/internal/domain/webhook"
+	providerPayment "github.com/canakyuz/keystone/internal/provider/payment"
+	paymentRepo "github.com/canakyuz/keystone/internal/repository/payment"
 )
 
 // Service handles payment business logic
 type Service struct {
-	repo        paymentRepo.Repository
+	repo         paymentRepo.Repository
 	orchestrator *providerPayment.Orchestrator
 }
 
 // NewService creates a new payment service
 func NewService(repo paymentRepo.Repository, orchestrator *providerPayment.Orchestrator) *Service {
 	return &Service{
-		repo:        repo,
+		repo:         repo,
 		orchestrator: orchestrator,
 	}
 }
@@ -40,31 +40,31 @@ func (s *Service) CreatePayment(ctx context.Context, tenantID, userID string, te
 
 	// Build provider request
 	providerReq := &providerPayment.PaymentRequest{
-		TenantID:          tenantID,
-		Amount:            req.Amount,
-		Currency:          req.Currency,
-		Description:       req.Description,
-		OrderID:           req.OrderID,
-		ReferenceID:       referenceID,
-		CustomerEmail:     req.CustomerEmail,
-		CustomerFirstName: req.CustomerFirstName,
-		CustomerLastName:  req.CustomerLastName,
-		CustomerPhone:     req.CustomerPhone,
-		CardToken:         req.CardToken,
-		CardNumber:        req.CardNumber,
-		CardExpMonth:      req.CardExpMonth,
-		CardExpYear:       req.CardExpYear,
-		CardCVV:           req.CardCVV,
-		CardHolderName:    req.CardHolderName,
-		BillingCountry:    req.BillingCountry,
-		BillingCity:       req.BillingCity,
+		TenantID:           tenantID,
+		Amount:             req.Amount,
+		Currency:           req.Currency,
+		Description:        req.Description,
+		OrderID:            req.OrderID,
+		ReferenceID:        referenceID,
+		CustomerEmail:      req.CustomerEmail,
+		CustomerFirstName:  req.CustomerFirstName,
+		CustomerLastName:   req.CustomerLastName,
+		CustomerPhone:      req.CustomerPhone,
+		CardToken:          req.CardToken,
+		CardNumber:         req.CardNumber,
+		CardExpMonth:       req.CardExpMonth,
+		CardExpYear:        req.CardExpYear,
+		CardCVV:            req.CardCVV,
+		CardHolderName:     req.CardHolderName,
+		BillingCountry:     req.BillingCountry,
+		BillingCity:        req.BillingCity,
 		BillingAddressLine: req.BillingAddressLine,
-		BillingZipCode:    req.BillingZipCode,
-		Installment:       req.Installment,
-		CallbackURL:       req.CallbackURL,
-		SuccessURL:        req.SuccessURL,
-		FailureURL:        req.FailureURL,
-		Metadata:          req.Metadata,
+		BillingZipCode:     req.BillingZipCode,
+		Installment:        req.Installment,
+		CallbackURL:        req.CallbackURL,
+		SuccessURL:         req.SuccessURL,
+		FailureURL:         req.FailureURL,
+		Metadata:           req.Metadata,
 	}
 
 	// Create payment via provider

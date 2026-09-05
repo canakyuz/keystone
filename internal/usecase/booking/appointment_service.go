@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/canakyuz/keystone/internal/domain/booking"
+	"github.com/canakyuz/keystone/pkg/logger"
 	"github.com/google/uuid"
-	"nexpaces-api/internal/domain/booking"
-	"nexpaces-api/pkg/logger"
 )
 
 type AppointmentService struct {

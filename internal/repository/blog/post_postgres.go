@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/canakyuz/keystone/internal/domain/blog"
 	"github.com/lib/pq"
-	"nexpaces-api/internal/domain/blog"
 )
 
 type PostPostgresRepository struct {

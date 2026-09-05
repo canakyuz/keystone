@@ -9,9 +9,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"nexpaces-api/internal/domain/tenant"
-	templateRepo "nexpaces-api/internal/repository/template"
-	"nexpaces-api/pkg/logger"
+	"github.com/canakyuz/keystone/internal/domain/tenant"
+	templateRepo "github.com/canakyuz/keystone/internal/repository/template"
+	"github.com/canakyuz/keystone/pkg/logger"
 )
 
 // 🎓 INTEGRATION TEST PATTERN

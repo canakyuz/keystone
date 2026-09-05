@@ -15,14 +15,14 @@ var (
 	ErrInvalidStatus      = errors.New("invalid website status")
 
 	// Business logic errors
-	ErrNotFound          = errors.New("website not found")
-	ErrWebsiteExists     = errors.New("website already exists")
-	ErrSlugExists        = errors.New("website slug already exists")
-	ErrAlreadyPublished  = errors.New("website is already published")
-	ErrNotPublished      = errors.New("website is not published")
-	ErrAlreadyArchived   = errors.New("website is already archived")
-	ErrNotArchived       = errors.New("website is not archived")
-	ErrCannotPublish     = errors.New("website cannot be published: missing homepage or invalid status")
+	ErrNotFound              = errors.New("website not found")
+	ErrWebsiteExists         = errors.New("website already exists")
+	ErrSlugExists            = errors.New("website slug already exists")
+	ErrAlreadyPublished      = errors.New("website is already published")
+	ErrNotPublished          = errors.New("website is not published")
+	ErrAlreadyArchived       = errors.New("website is already archived")
+	ErrNotArchived           = errors.New("website is not archived")
+	ErrCannotPublish         = errors.New("website cannot be published: missing homepage or invalid status")
 	ErrCannotPublishArchived = errors.New("cannot publish archived website")
 
 	// Custom domain errors

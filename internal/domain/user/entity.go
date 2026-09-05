@@ -52,7 +52,7 @@ type User struct {
 	Locale   string `json:"locale,omitempty"`
 
 	// Security
-	TwoFactorEnabled bool       `json:"two_factor_enabled"`
+	TwoFactorEnabled  bool       `json:"two_factor_enabled"`
 	PasswordChangedAt *time.Time `json:"password_changed_at,omitempty"`
 
 	// Metadata
@@ -74,20 +74,20 @@ func New(tenantID, email, password, firstName, lastName string, role UserRole) (
 
 	now := time.Now()
 	user := &User{
-		ID:              uuid.New().String(),
-		TenantID:        tenantID,
-		Email:           email,
-		Password:        hashedPassword,
-		FirstName:       firstName,
-		LastName:        lastName,
-		Role:            role,
-		Status:          UserStatusPending, // Requires email verification
-		CreatedAt:       now,
-		UpdatedAt:       now,
-		EmailVerified:   false,
+		ID:               uuid.New().String(),
+		TenantID:         tenantID,
+		Email:            email,
+		Password:         hashedPassword,
+		FirstName:        firstName,
+		LastName:         lastName,
+		Role:             role,
+		Status:           UserStatusPending, // Requires email verification
+		CreatedAt:        now,
+		UpdatedAt:        now,
+		EmailVerified:    false,
 		TwoFactorEnabled: false,
-		Preferences:     make(map[string]interface{}),
-		Metadata:        make(map[string]interface{}),
+		Preferences:      make(map[string]interface{}),
+		Metadata:         make(map[string]interface{}),
 	}
 
 	// Validate user

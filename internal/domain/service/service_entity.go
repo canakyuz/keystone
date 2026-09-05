@@ -25,10 +25,10 @@ const (
 type PricingModel string
 
 const (
-	PricingOneTime     PricingModel = "one-time"
-	PricingRecurring   PricingModel = "recurring"
+	PricingOneTime      PricingModel = "one-time"
+	PricingRecurring    PricingModel = "recurring"
 	PricingSubscription PricingModel = "subscription"
-	PricingUsageBased  PricingModel = "usage-based"
+	PricingUsageBased   PricingModel = "usage-based"
 )
 
 // Service represents a service offering

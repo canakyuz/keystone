@@ -10,7 +10,7 @@ import (
 
 	"github.com/lib/pq"
 
-	"nexpaces-api/internal/domain/project"
+	"github.com/canakyuz/keystone/internal/domain/project"
 )
 
 // PostgresRepository implements Repository using PostgreSQL

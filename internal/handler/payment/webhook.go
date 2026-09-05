@@ -1,8 +1,8 @@
 package payment
 
 import (
+	"github.com/canakyuz/keystone/internal/usecase/payment"
 	"github.com/gofiber/fiber/v2"
-	"nexpaces-api/internal/usecase/payment"
 )
 
 // WebhookHandler handles webhook HTTP requests from payment providers

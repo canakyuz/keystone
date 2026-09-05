@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"nexpaces-api/internal/domain/project"
-	"nexpaces-api/pkg/logger"
-	"nexpaces-api/pkg/validator"
+	"github.com/canakyuz/keystone/internal/domain/project"
+	"github.com/canakyuz/keystone/pkg/logger"
+	"github.com/canakyuz/keystone/pkg/validator"
 )
 
 // Service implements project business logic

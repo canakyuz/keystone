@@ -3,9 +3,9 @@ package booking
 import (
 	"strconv"
 
+	"github.com/canakyuz/keystone/internal/domain/booking"
+	bookingUsecase "github.com/canakyuz/keystone/internal/usecase/booking"
 	"github.com/gofiber/fiber/v2"
-	"nexpaces-api/internal/domain/booking"
-	bookingUsecase "nexpaces-api/internal/usecase/booking"
 )
 
 type AppointmentHandler struct {

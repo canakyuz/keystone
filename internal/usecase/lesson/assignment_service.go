@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/canakyuz/keystone/internal/domain/lesson"
+	"github.com/canakyuz/keystone/pkg/logger"
 	"github.com/google/uuid"
-	"nexpaces-api/internal/domain/lesson"
-	"nexpaces-api/pkg/logger"
 )
 
 type AssignmentService struct {

@@ -3,9 +3,9 @@ package middleware
 import (
 	"time"
 
+	"github.com/canakyuz/keystone/pkg/logger"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
-	"nexpaces-api/pkg/logger"
 )
 
 // Logger creates a request logging middleware

@@ -3,7 +3,7 @@ package tenant
 import (
 	"context"
 
-	"nexpaces-api/internal/domain/tenant"
+	"github.com/canakyuz/keystone/internal/domain/tenant"
 )
 
 // Repository defines the interface for tenant data operations

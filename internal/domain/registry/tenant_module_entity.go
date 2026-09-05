@@ -21,53 +21,53 @@ const (
 type SubscriptionStatus string
 
 const (
-	SubscriptionStatusTrial    SubscriptionStatus = "trial"
-	SubscriptionStatusActive   SubscriptionStatus = "active"
-	SubscriptionStatusCanceled SubscriptionStatus = "canceled"
-	SubscriptionStatusPastDue  SubscriptionStatus = "past_due"
+	SubscriptionStatusTrial     SubscriptionStatus = "trial"
+	SubscriptionStatusActive    SubscriptionStatus = "active"
+	SubscriptionStatusCanceled  SubscriptionStatus = "canceled"
+	SubscriptionStatusPastDue   SubscriptionStatus = "past_due"
 	SubscriptionStatusSuspended SubscriptionStatus = "suspended"
 )
 
 // TenantModule represents a module activation for a tenant
 type TenantModule struct {
-	ID                 string             `json:"id"`
-	TenantID           string             `json:"tenant_id"`
-	ModuleID           string             `json:"module_id"`
-	Status             TenantModuleStatus `json:"status"`
-	IsEnabled          bool               `json:"is_enabled"`
-	InstalledAt        time.Time          `json:"installed_at"`
-	ActivatedAt        *time.Time         `json:"activated_at,omitempty"`
-	DeactivatedAt      *time.Time         `json:"deactivated_at,omitempty"`
-	LastUsedAt         *time.Time         `json:"last_used_at,omitempty"`
-	InstalledVersion   string             `json:"installed_version"`
-	LatestCompatibleVersion string        `json:"latest_compatible_version,omitempty"`
-	Configuration      json.RawMessage    `json:"configuration"`
-	FeaturesEnabled    json.RawMessage    `json:"features_enabled"`
-	Limits             json.RawMessage    `json:"limits"`
-	CurrentUsage       json.RawMessage    `json:"current_usage"`
-	SubscriptionStatus SubscriptionStatus `json:"subscription_status,omitempty"`
-	SubscriptionStart  *time.Time         `json:"subscription_start,omitempty"`
-	SubscriptionEnd    *time.Time         `json:"subscription_end,omitempty"`
-	TrialEndsAt        *time.Time         `json:"trial_ends_at,omitempty"`
-	NextBillingDate    *time.Time         `json:"next_billing_date,omitempty"`
-	PricingPlan        string             `json:"pricing_plan,omitempty"`
-	BillingCycle       string             `json:"billing_cycle,omitempty"`
-	AmountPaid         float64            `json:"amount_paid,omitempty"`
-	Currency           string             `json:"currency,omitempty"`
-	SetupCompleted     bool               `json:"setup_completed"`
-	SetupStepsCompleted json.RawMessage   `json:"setup_steps_completed"`
-	OnboardingCompleted bool              `json:"onboarding_completed"`
-	AllowedRoles       []string           `json:"allowed_roles,omitempty"`
-	RestrictedFeatures json.RawMessage    `json:"restricted_features"`
-	Notes              string             `json:"notes,omitempty"`
-	Metadata           json.RawMessage    `json:"metadata"`
-	CreatedAt          time.Time          `json:"created_at"`
-	UpdatedAt          time.Time          `json:"updated_at"`
-	DeletedAt          *time.Time         `json:"deleted_at,omitempty"`
-	CreatedBy          string             `json:"created_by,omitempty"`
-	UpdatedBy          string             `json:"updated_by,omitempty"`
-	ActivatedBy        string             `json:"activated_by,omitempty"`
-	DeactivatedBy      string             `json:"deactivated_by,omitempty"`
+	ID                      string             `json:"id"`
+	TenantID                string             `json:"tenant_id"`
+	ModuleID                string             `json:"module_id"`
+	Status                  TenantModuleStatus `json:"status"`
+	IsEnabled               bool               `json:"is_enabled"`
+	InstalledAt             time.Time          `json:"installed_at"`
+	ActivatedAt             *time.Time         `json:"activated_at,omitempty"`
+	DeactivatedAt           *time.Time         `json:"deactivated_at,omitempty"`
+	LastUsedAt              *time.Time         `json:"last_used_at,omitempty"`
+	InstalledVersion        string             `json:"installed_version"`
+	LatestCompatibleVersion string             `json:"latest_compatible_version,omitempty"`
+	Configuration           json.RawMessage    `json:"configuration"`
+	FeaturesEnabled         json.RawMessage    `json:"features_enabled"`
+	Limits                  json.RawMessage    `json:"limits"`
+	CurrentUsage            json.RawMessage    `json:"current_usage"`
+	SubscriptionStatus      SubscriptionStatus `json:"subscription_status,omitempty"`
+	SubscriptionStart       *time.Time         `json:"subscription_start,omitempty"`
+	SubscriptionEnd         *time.Time         `json:"subscription_end,omitempty"`
+	TrialEndsAt             *time.Time         `json:"trial_ends_at,omitempty"`
+	NextBillingDate         *time.Time         `json:"next_billing_date,omitempty"`
+	PricingPlan             string             `json:"pricing_plan,omitempty"`
+	BillingCycle            string             `json:"billing_cycle,omitempty"`
+	AmountPaid              float64            `json:"amount_paid,omitempty"`
+	Currency                string             `json:"currency,omitempty"`
+	SetupCompleted          bool               `json:"setup_completed"`
+	SetupStepsCompleted     json.RawMessage    `json:"setup_steps_completed"`
+	OnboardingCompleted     bool               `json:"onboarding_completed"`
+	AllowedRoles            []string           `json:"allowed_roles,omitempty"`
+	RestrictedFeatures      json.RawMessage    `json:"restricted_features"`
+	Notes                   string             `json:"notes,omitempty"`
+	Metadata                json.RawMessage    `json:"metadata"`
+	CreatedAt               time.Time          `json:"created_at"`
+	UpdatedAt               time.Time          `json:"updated_at"`
+	DeletedAt               *time.Time         `json:"deleted_at,omitempty"`
+	CreatedBy               string             `json:"created_by,omitempty"`
+	UpdatedBy               string             `json:"updated_by,omitempty"`
+	ActivatedBy             string             `json:"activated_by,omitempty"`
+	DeactivatedBy           string             `json:"deactivated_by,omitempty"`
 }
 
 // NewTenantModule creates a new tenant module activation
@@ -75,17 +75,17 @@ func NewTenantModule(tenantID, moduleID, version string) (*TenantModule, error) 
 	now := time.Now()
 
 	tm := &TenantModule{
-		ID:               uuid.New().String(),
-		TenantID:         tenantID,
-		ModuleID:         moduleID,
-		Status:           TenantModuleStatusPendingSetup,
-		IsEnabled:        false,
-		InstalledAt:      now,
-		InstalledVersion: version,
-		SetupCompleted:   false,
+		ID:                  uuid.New().String(),
+		TenantID:            tenantID,
+		ModuleID:            moduleID,
+		Status:              TenantModuleStatusPendingSetup,
+		IsEnabled:           false,
+		InstalledAt:         now,
+		InstalledVersion:    version,
+		SetupCompleted:      false,
 		OnboardingCompleted: false,
-		CreatedAt:        now,
-		UpdatedAt:        now,
+		CreatedAt:           now,
+		UpdatedAt:           now,
 	}
 
 	if err := tm.Validate(); err != nil {

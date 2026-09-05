@@ -42,8 +42,8 @@ const (
 
 // PaymentEvent represents a webhook event from payment providers
 type PaymentEvent struct {
-	ID       string    `json:"id"`
-	TenantID string    `json:"tenant_id"`
+	ID       string `json:"id"`
+	TenantID string `json:"tenant_id"`
 
 	// Provider details
 	Provider        PaymentProvider `json:"provider"`

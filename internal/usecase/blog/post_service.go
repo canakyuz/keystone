@@ -4,9 +4,9 @@ import (
 	"context"
 	"time"
 
+	"github.com/canakyuz/keystone/internal/domain/blog"
+	"github.com/canakyuz/keystone/pkg/logger"
 	"github.com/google/uuid"
-	"nexpaces-api/internal/domain/blog"
-	"nexpaces-api/pkg/logger"
 )
 
 type PostService struct {

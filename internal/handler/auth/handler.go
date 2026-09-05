@@ -1,9 +1,9 @@
 package auth
 
 import (
+	"github.com/canakyuz/keystone/internal/middleware"
+	"github.com/canakyuz/keystone/internal/usecase/user"
 	"github.com/gofiber/fiber/v2"
-	"nexpaces-api/internal/middleware"
-	"nexpaces-api/internal/usecase/user"
 )
 
 // Handler handles authentication HTTP requests

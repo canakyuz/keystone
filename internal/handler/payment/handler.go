@@ -3,9 +3,9 @@ package payment
 import (
 	"strconv"
 
+	"github.com/canakyuz/keystone/internal/middleware"
+	"github.com/canakyuz/keystone/internal/usecase/payment"
 	"github.com/gofiber/fiber/v2"
-	"nexpaces-api/internal/middleware"
-	"nexpaces-api/internal/usecase/payment"
 )
 
 // Handler handles payment HTTP requests

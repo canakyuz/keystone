@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"nexpaces-api/internal/config"
+	"github.com/canakyuz/keystone/internal/config"
 )
 
 // IyzicoProvider implements iyzico payment integration for Turkey
@@ -132,15 +132,15 @@ func (p *IyzicoProvider) CreatePayment(ctx context.Context, req *PaymentRequest)
 	requires3DS := threeDSHtmlContent != ""
 
 	response := &PaymentResponse{
-		ProviderPaymentID: paymentId,
-		Status:            "requires_3ds",
-		Amount:            req.Amount,
-		Currency:          req.Currency,
-		Requires3DS:       requires3DS,
-		ThreeDSVersion:    "2.0",
+		ProviderPaymentID:  paymentId,
+		Status:             "requires_3ds",
+		Amount:             req.Amount,
+		Currency:           req.Currency,
+		Requires3DS:        requires3DS,
+		ThreeDSVersion:     "2.0",
 		ThreeDSHTMLContent: threeDSHtmlContent,
-		Installment:       req.Installment,
-		RawResponse:       respData,
+		Installment:        req.Installment,
+		RawResponse:        respData,
 	}
 
 	// If no 3DS required, payment is completed
@@ -155,9 +155,9 @@ func (p *IyzicoProvider) CreatePayment(ctx context.Context, req *PaymentRequest)
 func (p *IyzicoProvider) CompletePayment(ctx context.Context, req *CompletePaymentRequest) (*PaymentResponse, error) {
 	// Build completion request
 	iyzicoReq := map[string]interface{}{
-		"locale":         "tr",
-		"conversationId": req.PaymentID,
-		"paymentId":      req.ProviderPaymentID,
+		"locale":           "tr",
+		"conversationId":   req.PaymentID,
+		"paymentId":        req.ProviderPaymentID,
 		"conversationData": req.ConversationData,
 	}
 
@@ -273,12 +273,12 @@ func (p *IyzicoProvider) CancelPayment(ctx context.Context, providerPaymentID st
 func (p *IyzicoProvider) CreateRefund(ctx context.Context, req *RefundRequest) (*RefundResponse, error) {
 	// Build request
 	iyzicoReq := map[string]interface{}{
-		"locale":         "tr",
-		"conversationId": req.PaymentID,
+		"locale":               "tr",
+		"conversationId":       req.PaymentID,
 		"paymentTransactionId": req.ProviderPaymentID,
-		"price":          fmt.Sprintf("%.2f", req.Amount),
-		"ip":             "127.0.0.1",
-		"currency":       req.Currency,
+		"price":                fmt.Sprintf("%.2f", req.Amount),
+		"ip":                   "127.0.0.1",
+		"currency":             req.Currency,
 	}
 
 	// Make API request
@@ -430,10 +430,10 @@ func generateRandomString() string {
 // mapIyzicoStatus maps iyzico status to standard status
 func mapIyzicoStatus(iyzicoStatus string) string {
 	statusMap := map[string]string{
-		"SUCCESS":    "succeeded",
-		"FAILURE":    "failed",
+		"SUCCESS":      "succeeded",
+		"FAILURE":      "failed",
 		"INIT_THREEDS": "requires_3ds",
-		"PENDING":    "pending",
+		"PENDING":      "pending",
 	}
 
 	if status, ok := statusMap[strings.ToUpper(iyzicoStatus)]; ok {

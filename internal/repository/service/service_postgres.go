@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/canakyuz/keystone/internal/domain/service"
 	"github.com/lib/pq"
-	"nexpaces-api/internal/domain/service"
 )
 
 type ServicePostgresRepository struct {

@@ -4,15 +4,15 @@ import (
 	"context"
 	"fmt"
 
-	"nexpaces-api/internal/domain/registry"
+	"github.com/canakyuz/keystone/internal/domain/registry"
 )
 
 // TenantActivationService handles module and tool activation/deactivation
 type TenantActivationService struct {
-	moduleRepo       registry.ModuleRepository
-	toolRepo         registry.ToolRepository
-	tenantModuleRepo registry.TenantModuleRepository
-	tenantToolRepo   registry.TenantToolRepository
+	moduleRepo        registry.ModuleRepository
+	toolRepo          registry.ToolRepository
+	tenantModuleRepo  registry.TenantModuleRepository
+	tenantToolRepo    registry.TenantToolRepository
 	dependencyChecker *DependencyCheckerService
 }
 
@@ -25,29 +25,29 @@ func NewTenantActivationService(
 	dependencyChecker *DependencyCheckerService,
 ) *TenantActivationService {
 	return &TenantActivationService{
-		moduleRepo:       moduleRepo,
-		toolRepo:         toolRepo,
-		tenantModuleRepo: tenantModuleRepo,
-		tenantToolRepo:   tenantToolRepo,
+		moduleRepo:        moduleRepo,
+		toolRepo:          toolRepo,
+		tenantModuleRepo:  tenantModuleRepo,
+		tenantToolRepo:    tenantToolRepo,
 		dependencyChecker: dependencyChecker,
 	}
 }
 
 // InstallModuleRequest represents module installation request
 type InstallModuleRequest struct {
-	TenantID         string
-	ModuleID         string
-	InstalledBy      string
-	AutoActivate     bool
-	AutoInstallDeps  bool
+	TenantID        string
+	ModuleID        string
+	InstalledBy     string
+	AutoActivate    bool
+	AutoInstallDeps bool
 }
 
 // InstallModuleResponse represents module installation response
 type InstallModuleResponse struct {
-	TenantModule           *registry.TenantModule
-	DependencyCheckResult  *DependencyCheckResult
-	AutoInstalledModules   []string
-	AutoInstalledTools     []string
+	TenantModule          *registry.TenantModule
+	DependencyCheckResult *DependencyCheckResult
+	AutoInstalledModules  []string
+	AutoInstalledTools    []string
 }
 
 // InstallModule installs a module for a tenant

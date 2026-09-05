@@ -1,10 +1,10 @@
 package registry
 
 import (
+	dto "github.com/canakyuz/keystone/internal/dto/registry"
+	"github.com/canakyuz/keystone/internal/middleware"
+	registryService "github.com/canakyuz/keystone/internal/service/registry"
 	"github.com/gofiber/fiber/v2"
-	"nexpaces-api/internal/middleware"
-	dto "nexpaces-api/internal/dto/registry"
-	registryService "nexpaces-api/internal/service/registry"
 )
 
 // ActivationHandler, modül ve araçların aktivasyon/deaktivasyon gibi yaşam döngüsüyle ilgili HTTP isteklerini yönetir.

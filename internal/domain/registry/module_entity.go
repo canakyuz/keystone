@@ -21,8 +21,8 @@ const (
 type ModuleType string
 
 const (
-	ModuleTypeStandard  ModuleType = "standard"
-	ModuleTypePremium   ModuleType = "premium"
+	ModuleTypeStandard   ModuleType = "standard"
+	ModuleTypePremium    ModuleType = "premium"
 	ModuleTypeEnterprise ModuleType = "enterprise"
 )
 
@@ -30,10 +30,10 @@ const (
 type PricingModel string
 
 const (
-	PricingFree        PricingModel = "free"
-	PricingOneTime     PricingModel = "one_time"
+	PricingFree         PricingModel = "free"
+	PricingOneTime      PricingModel = "one_time"
 	PricingSubscription PricingModel = "subscription"
-	PricingUsageBased  PricingModel = "usage_based"
+	PricingUsageBased   PricingModel = "usage_based"
 )
 
 // ModuleCategory represents module category
@@ -52,47 +52,47 @@ const (
 
 // Module represents a platform module in the catalog
 type Module struct {
-	ID                  string         `json:"id"`
-	Name                string         `json:"name"`
-	Slug                string         `json:"slug"`
-	Code                string         `json:"code"` // e.g., "LMS", "CMS"
-	DisplayName         string         `json:"display_name"`
-	Description         string         `json:"description"`
-	Category            ModuleCategory `json:"category"`
-	ModuleType          ModuleType     `json:"module_type"`
-	Status              ModuleStatus   `json:"status"`
-	IsPublic            bool           `json:"is_public"`
-	IsBeta              bool           `json:"is_beta"`
-	Version             string         `json:"version"`
-	MinPlatformVersion  string         `json:"min_platform_version,omitempty"`
-	PricingModel        PricingModel   `json:"pricing_model"`
-	BasePrice           float64        `json:"base_price"`
-	Currency            string         `json:"currency"`
-	BillingCycle        string         `json:"billing_cycle,omitempty"` // monthly, yearly, one_time
+	ID                  string          `json:"id"`
+	Name                string          `json:"name"`
+	Slug                string          `json:"slug"`
+	Code                string          `json:"code"` // e.g., "LMS", "CMS"
+	DisplayName         string          `json:"display_name"`
+	Description         string          `json:"description"`
+	Category            ModuleCategory  `json:"category"`
+	ModuleType          ModuleType      `json:"module_type"`
+	Status              ModuleStatus    `json:"status"`
+	IsPublic            bool            `json:"is_public"`
+	IsBeta              bool            `json:"is_beta"`
+	Version             string          `json:"version"`
+	MinPlatformVersion  string          `json:"min_platform_version,omitempty"`
+	PricingModel        PricingModel    `json:"pricing_model"`
+	BasePrice           float64         `json:"base_price"`
+	Currency            string          `json:"currency"`
+	BillingCycle        string          `json:"billing_cycle,omitempty"` // monthly, yearly, one_time
 	Features            json.RawMessage `json:"features"`                // JSONB array
 	Capabilities        json.RawMessage `json:"capabilities"`            // JSONB object
-	Icon                string         `json:"icon,omitempty"`
-	CoverImage          string         `json:"cover_image,omitempty"`
-	Screenshots         []string       `json:"screenshots,omitempty"`
-	DemoURL             string         `json:"demo_url,omitempty"`
-	DocumentationURL    string         `json:"documentation_url,omitempty"`
-	RequiresDatabase    bool           `json:"requires_database"`
-	RequiresStorage     bool           `json:"requires_storage"`
-	RequiresEmail       bool           `json:"requires_email"`
-	DatabaseTables      []string       `json:"database_tables,omitempty"`
-	DefaultLimits       json.RawMessage `json:"default_limits"`       // JSONB object
-	InstallationNotes   string         `json:"installation_notes,omitempty"`
+	Icon                string          `json:"icon,omitempty"`
+	CoverImage          string          `json:"cover_image,omitempty"`
+	Screenshots         []string        `json:"screenshots,omitempty"`
+	DemoURL             string          `json:"demo_url,omitempty"`
+	DocumentationURL    string          `json:"documentation_url,omitempty"`
+	RequiresDatabase    bool            `json:"requires_database"`
+	RequiresStorage     bool            `json:"requires_storage"`
+	RequiresEmail       bool            `json:"requires_email"`
+	DatabaseTables      []string        `json:"database_tables,omitempty"`
+	DefaultLimits       json.RawMessage `json:"default_limits"` // JSONB object
+	InstallationNotes   string          `json:"installation_notes,omitempty"`
 	ConfigurationSchema json.RawMessage `json:"configuration_schema"` // JSON Schema
-	Tags                []string       `json:"tags,omitempty"`
+	Tags                []string        `json:"tags,omitempty"`
 	Metadata            json.RawMessage `json:"metadata"` // JSONB object
-	InstallCount        int            `json:"install_count"`
-	Rating              float64        `json:"rating"`
-	ReviewCount         int            `json:"review_count"`
-	CreatedAt           time.Time      `json:"created_at"`
-	UpdatedAt           time.Time      `json:"updated_at"`
-	DeletedAt           *time.Time     `json:"deleted_at,omitempty"`
-	CreatedBy           string         `json:"created_by,omitempty"`
-	UpdatedBy           string         `json:"updated_by,omitempty"`
+	InstallCount        int             `json:"install_count"`
+	Rating              float64         `json:"rating"`
+	ReviewCount         int             `json:"review_count"`
+	CreatedAt           time.Time       `json:"created_at"`
+	UpdatedAt           time.Time       `json:"updated_at"`
+	DeletedAt           *time.Time      `json:"deleted_at,omitempty"`
+	CreatedBy           string          `json:"created_by,omitempty"`
+	UpdatedBy           string          `json:"updated_by,omitempty"`
 }
 
 // NewModule creates a new module

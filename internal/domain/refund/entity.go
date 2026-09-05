@@ -38,9 +38,9 @@ const (
 
 // Refund represents a payment refund transaction
 type Refund struct {
-	ID        string    `json:"id"`
-	TenantID  string    `json:"tenant_id"`
-	PaymentID string    `json:"payment_id"`
+	ID        string `json:"id"`
+	TenantID  string `json:"tenant_id"`
+	PaymentID string `json:"payment_id"`
 
 	// Provider details
 	Provider         PaymentProvider `json:"provider"`

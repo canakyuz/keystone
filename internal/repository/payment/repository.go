@@ -3,9 +3,9 @@ package payment
 import (
 	"context"
 
-	"nexpaces-api/internal/domain/payment"
-	"nexpaces-api/internal/domain/refund"
-	"nexpaces-api/internal/domain/webhook"
+	"github.com/canakyuz/keystone/internal/domain/payment"
+	"github.com/canakyuz/keystone/internal/domain/refund"
+	"github.com/canakyuz/keystone/internal/domain/webhook"
 )
 
 // Repository defines payment data access interface

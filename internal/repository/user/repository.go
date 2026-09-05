@@ -3,7 +3,7 @@ package user
 import (
 	"context"
 
-	"nexpaces-api/internal/domain/user"
+	"github.com/canakyuz/keystone/internal/domain/user"
 )
 
 // Repository defines the interface for user data operations

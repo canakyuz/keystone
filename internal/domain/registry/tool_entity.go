@@ -37,15 +37,15 @@ const (
 type ToolCategory string
 
 const (
-	ToolCategoryPayment      ToolCategory = "payment"
+	ToolCategoryPayment       ToolCategory = "payment"
 	ToolCategoryCommunication ToolCategory = "communication"
-	ToolCategoryAutomation   ToolCategory = "automation"
-	ToolCategoryStorage      ToolCategory = "storage"
-	ToolCategoryAnalytics    ToolCategory = "analytics"
-	ToolCategoryNotification ToolCategory = "notification"
-	ToolCategoryIntegration  ToolCategory = "integration"
-	ToolCategorySecurity     ToolCategory = "security"
-	ToolCategoryOther        ToolCategory = "other"
+	ToolCategoryAutomation    ToolCategory = "automation"
+	ToolCategoryStorage       ToolCategory = "storage"
+	ToolCategoryAnalytics     ToolCategory = "analytics"
+	ToolCategoryNotification  ToolCategory = "notification"
+	ToolCategoryIntegration   ToolCategory = "integration"
+	ToolCategorySecurity      ToolCategory = "security"
+	ToolCategoryOther         ToolCategory = "other"
 )
 
 // IntegrationType represents integration type
@@ -60,55 +60,55 @@ const (
 
 // Tool represents a platform tool in the catalog
 type Tool struct {
-	ID                       string           `json:"id"`
-	Name                     string           `json:"name"`
-	Slug                     string           `json:"slug"`
-	Code                     string           `json:"code"` // e.g., "PAYMENT", "CHAT"
-	DisplayName              string           `json:"display_name"`
-	Description              string           `json:"description"`
-	Category                 ToolCategory     `json:"category"`
-	ToolType                 ToolType         `json:"tool_type"`
-	Scope                    ToolScope        `json:"scope"`
-	Status                   ToolStatus       `json:"status"`
-	IsPublic                 bool             `json:"is_public"`
-	IsBeta                   bool             `json:"is_beta"`
-	Version                  string           `json:"version"`
-	MinPlatformVersion       string           `json:"min_platform_version,omitempty"`
-	PricingModel             PricingModel     `json:"pricing_model"`
-	BasePrice                float64          `json:"base_price"`
-	Currency                 string           `json:"currency"`
-	BillingCycle             string           `json:"billing_cycle,omitempty"`
-	TransactionFeePercentage float64          `json:"transaction_fee_percentage,omitempty"`
-	TransactionFeeFixed      float64          `json:"transaction_fee_fixed,omitempty"`
-	Features                 json.RawMessage  `json:"features"`
-	Capabilities             json.RawMessage  `json:"capabilities"`
-	Icon                     string           `json:"icon,omitempty"`
-	CoverImage               string           `json:"cover_image,omitempty"`
-	Screenshots              []string         `json:"screenshots,omitempty"`
-	DemoURL                  string           `json:"demo_url,omitempty"`
-	DocumentationURL         string           `json:"documentation_url,omitempty"`
-	RequiresAPIKeys          bool             `json:"requires_api_keys"`
-	RequiresWebhook          bool             `json:"requires_webhook"`
-	RequiresStorage          bool             `json:"requires_storage"`
-	RequiresDatabase         bool             `json:"requires_database"`
-	DatabaseTables           []string         `json:"database_tables,omitempty"`
-	IntegrationProvider      string           `json:"integration_provider,omitempty"`
-	IntegrationType          IntegrationType  `json:"integration_type"`
-	APIEndpoints             json.RawMessage  `json:"api_endpoints,omitempty"`
-	DefaultLimits            json.RawMessage  `json:"default_limits"`
-	RateLimits               json.RawMessage  `json:"rate_limits"`
-	ConfigurationSchema      json.RawMessage  `json:"configuration_schema"`
-	DefaultConfiguration     json.RawMessage  `json:"default_configuration"`
-	Tags                     []string         `json:"tags,omitempty"`
-	Metadata                 json.RawMessage  `json:"metadata"`
-	InstallCount             int              `json:"install_count"`
-	Rating                   float64          `json:"rating"`
-	ReviewCount              int              `json:"review_count"`
-	CreatedAt                time.Time        `json:"created_at"`
-	UpdatedAt                time.Time        `json:"updated_at"`
-	DeletedAt                *time.Time       `json:"deleted_at,omitempty"`
-	CreatedBy                string           `json:"created_by,omitempty"`
-	UpdatedBy                string           `json:"updated_by,omitempty"`
+	ID                       string          `json:"id"`
+	Name                     string          `json:"name"`
+	Slug                     string          `json:"slug"`
+	Code                     string          `json:"code"` // e.g., "PAYMENT", "CHAT"
+	DisplayName              string          `json:"display_name"`
+	Description              string          `json:"description"`
+	Category                 ToolCategory    `json:"category"`
+	ToolType                 ToolType        `json:"tool_type"`
+	Scope                    ToolScope       `json:"scope"`
+	Status                   ToolStatus      `json:"status"`
+	IsPublic                 bool            `json:"is_public"`
+	IsBeta                   bool            `json:"is_beta"`
+	Version                  string          `json:"version"`
+	MinPlatformVersion       string          `json:"min_platform_version,omitempty"`
+	PricingModel             PricingModel    `json:"pricing_model"`
+	BasePrice                float64         `json:"base_price"`
+	Currency                 string          `json:"currency"`
+	BillingCycle             string          `json:"billing_cycle,omitempty"`
+	TransactionFeePercentage float64         `json:"transaction_fee_percentage,omitempty"`
+	TransactionFeeFixed      float64         `json:"transaction_fee_fixed,omitempty"`
+	Features                 json.RawMessage `json:"features"`
+	Capabilities             json.RawMessage `json:"capabilities"`
+	Icon                     string          `json:"icon,omitempty"`
+	CoverImage               string          `json:"cover_image,omitempty"`
+	Screenshots              []string        `json:"screenshots,omitempty"`
+	DemoURL                  string          `json:"demo_url,omitempty"`
+	DocumentationURL         string          `json:"documentation_url,omitempty"`
+	RequiresAPIKeys          bool            `json:"requires_api_keys"`
+	RequiresWebhook          bool            `json:"requires_webhook"`
+	RequiresStorage          bool            `json:"requires_storage"`
+	RequiresDatabase         bool            `json:"requires_database"`
+	DatabaseTables           []string        `json:"database_tables,omitempty"`
+	IntegrationProvider      string          `json:"integration_provider,omitempty"`
+	IntegrationType          IntegrationType `json:"integration_type"`
+	APIEndpoints             json.RawMessage `json:"api_endpoints,omitempty"`
+	DefaultLimits            json.RawMessage `json:"default_limits"`
+	RateLimits               json.RawMessage `json:"rate_limits"`
+	ConfigurationSchema      json.RawMessage `json:"configuration_schema"`
+	DefaultConfiguration     json.RawMessage `json:"default_configuration"`
+	Tags                     []string        `json:"tags,omitempty"`
+	Metadata                 json.RawMessage `json:"metadata"`
+	InstallCount             int             `json:"install_count"`
+	Rating                   float64         `json:"rating"`
+	ReviewCount              int             `json:"review_count"`
+	CreatedAt                time.Time       `json:"created_at"`
+	UpdatedAt                time.Time       `json:"updated_at"`
+	DeletedAt                *time.Time      `json:"deleted_at,omitempty"`
+	CreatedBy                string          `json:"created_by,omitempty"`
+	UpdatedBy                string          `json:"updated_by,omitempty"`
 }
 
 // NewTool creates a new tool

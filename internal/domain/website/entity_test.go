@@ -88,7 +88,7 @@ func TestNew_Success(t *testing.T) {
 	assert.Equal(t, websiteType, website.Type, "Type should match")
 	assert.Equal(t, StatusDraft, website.Status, "Status should be draft")
 	assert.Equal(t, name, website.Title, "Title should default to name")
-	assert.Equal(t, slug+".nexpaces.com", website.PrimaryURL, "PrimaryURL should be subdomain")
+	assert.Equal(t, slug+".keystone.dev", website.PrimaryURL, "PrimaryURL should be subdomain")
 	assert.False(t, website.CustomDomainVerified, "CustomDomainVerified should be false")
 	assert.Equal(t, &createdBy, website.CreatedBy, "CreatedBy should match")
 	assert.NotZero(t, website.CreatedAt, "CreatedAt should be set")
@@ -487,7 +487,7 @@ func TestWebsite_RemoveCustomDomain(t *testing.T) {
 	err = website.VerifyCustomDomain()
 	require.NoError(t, err, "VerifyCustomDomain should succeed")
 
-	originalSubdomain := website.Slug + ".nexpaces.com"
+	originalSubdomain := website.Slug + ".keystone.dev"
 
 	// Act
 	website.RemoveCustomDomain()

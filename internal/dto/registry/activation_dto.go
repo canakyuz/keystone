@@ -3,8 +3,8 @@ package registry
 import (
 	"time"
 
-	"nexpaces-api/internal/domain/registry"
-	registryService "nexpaces-api/internal/service/registry"
+	"github.com/canakyuz/keystone/internal/domain/registry"
+	registryService "github.com/canakyuz/keystone/internal/service/registry"
 )
 
 // InstallModuleRequest represents module installation request
@@ -39,82 +39,82 @@ type InstallToolResponse struct {
 
 // TenantModuleResponse represents tenant module response
 type TenantModuleResponse struct {
-	ID                      string                     `json:"id"`
-	TenantID                string                     `json:"tenant_id"`
-	ModuleID                string                     `json:"module_id"`
+	ID                      string                      `json:"id"`
+	TenantID                string                      `json:"tenant_id"`
+	ModuleID                string                      `json:"module_id"`
 	Status                  registry.TenantModuleStatus `json:"status"`
-	IsEnabled               bool                       `json:"is_enabled"`
-	InstalledAt             time.Time                  `json:"installed_at"`
-	ActivatedAt             *time.Time                 `json:"activated_at,omitempty"`
-	DeactivatedAt           *time.Time                 `json:"deactivated_at,omitempty"`
-	LastUsedAt              *time.Time                 `json:"last_used_at,omitempty"`
-	InstalledVersion        string                     `json:"installed_version"`
-	LatestCompatibleVersion string                     `json:"latest_compatible_version,omitempty"`
+	IsEnabled               bool                        `json:"is_enabled"`
+	InstalledAt             time.Time                   `json:"installed_at"`
+	ActivatedAt             *time.Time                  `json:"activated_at,omitempty"`
+	DeactivatedAt           *time.Time                  `json:"deactivated_at,omitempty"`
+	LastUsedAt              *time.Time                  `json:"last_used_at,omitempty"`
+	InstalledVersion        string                      `json:"installed_version"`
+	LatestCompatibleVersion string                      `json:"latest_compatible_version,omitempty"`
 	SubscriptionStatus      registry.SubscriptionStatus `json:"subscription_status,omitempty"`
-	SubscriptionStart       *time.Time                 `json:"subscription_start,omitempty"`
-	SubscriptionEnd         *time.Time                 `json:"subscription_end,omitempty"`
-	TrialEndsAt             *time.Time                 `json:"trial_ends_at,omitempty"`
-	NextBillingDate         *time.Time                 `json:"next_billing_date,omitempty"`
-	PricingPlan             string                     `json:"pricing_plan,omitempty"`
-	BillingCycle            string                     `json:"billing_cycle,omitempty"`
-	AmountPaid              float64                    `json:"amount_paid,omitempty"`
-	Currency                string                     `json:"currency,omitempty"`
-	SetupCompleted          bool                       `json:"setup_completed"`
-	OnboardingCompleted     bool                       `json:"onboarding_completed"`
-	CreatedAt               time.Time                  `json:"created_at"`
-	UpdatedAt               time.Time                  `json:"updated_at"`
+	SubscriptionStart       *time.Time                  `json:"subscription_start,omitempty"`
+	SubscriptionEnd         *time.Time                  `json:"subscription_end,omitempty"`
+	TrialEndsAt             *time.Time                  `json:"trial_ends_at,omitempty"`
+	NextBillingDate         *time.Time                  `json:"next_billing_date,omitempty"`
+	PricingPlan             string                      `json:"pricing_plan,omitempty"`
+	BillingCycle            string                      `json:"billing_cycle,omitempty"`
+	AmountPaid              float64                     `json:"amount_paid,omitempty"`
+	Currency                string                      `json:"currency,omitempty"`
+	SetupCompleted          bool                        `json:"setup_completed"`
+	OnboardingCompleted     bool                        `json:"onboarding_completed"`
+	CreatedAt               time.Time                   `json:"created_at"`
+	UpdatedAt               time.Time                   `json:"updated_at"`
 }
 
 // TenantToolResponse represents tenant tool response
 type TenantToolResponse struct {
-	ID                       string                    `json:"id"`
-	TenantID                 string                    `json:"tenant_id"`
-	ToolID                   string                    `json:"tool_id"`
-	ModuleID                 string                    `json:"module_id,omitempty"`
-	Status                   registry.TenantToolStatus `json:"status"`
-	IsEnabled                bool                      `json:"is_enabled"`
-	InstalledAt              time.Time                 `json:"installed_at"`
-	ActivatedAt              *time.Time                `json:"activated_at,omitempty"`
-	DeactivatedAt            *time.Time                `json:"deactivated_at,omitempty"`
-	LastUsedAt               *time.Time                `json:"last_used_at,omitempty"`
-	InstalledVersion         string                    `json:"installed_version"`
-	LatestCompatibleVersion  string                    `json:"latest_compatible_version,omitempty"`
-	IntegrationEnabled       bool                      `json:"integration_enabled"`
-	IntegrationStatus        registry.IntegrationStatus `json:"integration_status,omitempty"`
-	IntegrationVerified      bool                      `json:"integration_verified"`
-	IntegrationVerifiedAt    *time.Time                `json:"integration_verified_at,omitempty"`
-	ProviderAccountID        string                    `json:"provider_account_id,omitempty"`
+	ID                       string                      `json:"id"`
+	TenantID                 string                      `json:"tenant_id"`
+	ToolID                   string                      `json:"tool_id"`
+	ModuleID                 string                      `json:"module_id,omitempty"`
+	Status                   registry.TenantToolStatus   `json:"status"`
+	IsEnabled                bool                        `json:"is_enabled"`
+	InstalledAt              time.Time                   `json:"installed_at"`
+	ActivatedAt              *time.Time                  `json:"activated_at,omitempty"`
+	DeactivatedAt            *time.Time                  `json:"deactivated_at,omitempty"`
+	LastUsedAt               *time.Time                  `json:"last_used_at,omitempty"`
+	InstalledVersion         string                      `json:"installed_version"`
+	LatestCompatibleVersion  string                      `json:"latest_compatible_version,omitempty"`
+	IntegrationEnabled       bool                        `json:"integration_enabled"`
+	IntegrationStatus        registry.IntegrationStatus  `json:"integration_status,omitempty"`
+	IntegrationVerified      bool                        `json:"integration_verified"`
+	IntegrationVerifiedAt    *time.Time                  `json:"integration_verified_at,omitempty"`
+	ProviderAccountID        string                      `json:"provider_account_id,omitempty"`
 	SubscriptionStatus       registry.SubscriptionStatus `json:"subscription_status,omitempty"`
-	SubscriptionStart        *time.Time                `json:"subscription_start,omitempty"`
-	SubscriptionEnd          *time.Time                `json:"subscription_end,omitempty"`
-	TrialEndsAt              *time.Time                `json:"trial_ends_at,omitempty"`
-	NextBillingDate          *time.Time                `json:"next_billing_date,omitempty"`
-	PricingPlan              string                    `json:"pricing_plan,omitempty"`
-	BillingCycle             string                    `json:"billing_cycle,omitempty"`
-	AmountPaid               float64                   `json:"amount_paid,omitempty"`
-	Currency                 string                    `json:"currency,omitempty"`
-	TransactionFeesCollected float64                   `json:"transaction_fees_collected,omitempty"`
-	SetupCompleted           bool                      `json:"setup_completed"`
-	OnboardingCompleted      bool                      `json:"onboarding_completed"`
-	HealthStatus             registry.HealthStatus     `json:"health_status"`
-	LastHealthCheck          *time.Time                `json:"last_health_check,omitempty"`
-	ErrorCount               int                       `json:"error_count"`
-	LastError                string                    `json:"last_error,omitempty"`
-	LastErrorAt              *time.Time                `json:"last_error_at,omitempty"`
-	CreatedAt                time.Time                 `json:"created_at"`
-	UpdatedAt                time.Time                 `json:"updated_at"`
+	SubscriptionStart        *time.Time                  `json:"subscription_start,omitempty"`
+	SubscriptionEnd          *time.Time                  `json:"subscription_end,omitempty"`
+	TrialEndsAt              *time.Time                  `json:"trial_ends_at,omitempty"`
+	NextBillingDate          *time.Time                  `json:"next_billing_date,omitempty"`
+	PricingPlan              string                      `json:"pricing_plan,omitempty"`
+	BillingCycle             string                      `json:"billing_cycle,omitempty"`
+	AmountPaid               float64                     `json:"amount_paid,omitempty"`
+	Currency                 string                      `json:"currency,omitempty"`
+	TransactionFeesCollected float64                     `json:"transaction_fees_collected,omitempty"`
+	SetupCompleted           bool                        `json:"setup_completed"`
+	OnboardingCompleted      bool                        `json:"onboarding_completed"`
+	HealthStatus             registry.HealthStatus       `json:"health_status"`
+	LastHealthCheck          *time.Time                  `json:"last_health_check,omitempty"`
+	ErrorCount               int                         `json:"error_count"`
+	LastError                string                      `json:"last_error,omitempty"`
+	LastErrorAt              *time.Time                  `json:"last_error_at,omitempty"`
+	CreatedAt                time.Time                   `json:"created_at"`
+	UpdatedAt                time.Time                   `json:"updated_at"`
 }
 
 // DependencyCheckDTO represents dependency check result
 type DependencyCheckDTO struct {
-	CanActivate              bool             `json:"can_activate"`
-	MissingRequiredModules   []DependencyInfo `json:"missing_required_modules,omitempty"`
-	MissingRequiredTools     []DependencyInfo `json:"missing_required_tools,omitempty"`
-	RecommendedModules       []DependencyInfo `json:"recommended_modules,omitempty"`
-	RecommendedTools         []DependencyInfo `json:"recommended_tools,omitempty"`
-	OptionalModules          []DependencyInfo `json:"optional_modules,omitempty"`
-	OptionalTools            []DependencyInfo `json:"optional_tools,omitempty"`
-	AutoInstallSuggestions   []DependencyInfo `json:"auto_install_suggestions,omitempty"`
+	CanActivate            bool             `json:"can_activate"`
+	MissingRequiredModules []DependencyInfo `json:"missing_required_modules,omitempty"`
+	MissingRequiredTools   []DependencyInfo `json:"missing_required_tools,omitempty"`
+	RecommendedModules     []DependencyInfo `json:"recommended_modules,omitempty"`
+	RecommendedTools       []DependencyInfo `json:"recommended_tools,omitempty"`
+	OptionalModules        []DependencyInfo `json:"optional_modules,omitempty"`
+	OptionalTools          []DependencyInfo `json:"optional_tools,omitempty"`
+	AutoInstallSuggestions []DependencyInfo `json:"auto_install_suggestions,omitempty"`
 }
 
 // DependencyInfo represents dependency information
@@ -123,7 +123,7 @@ type DependencyInfo struct {
 	ID                      string `json:"id"`
 	Code                    string `json:"code"`
 	Name                    string `json:"name"`
-	DependencyType          string `json:"dependency_type"`           // "required", "optional", "recommended"
+	DependencyType          string `json:"dependency_type"` // "required", "optional", "recommended"
 	AutoInstallOnActivation bool   `json:"auto_install_on_activation"`
 	InstallOrder            int    `json:"install_order"`
 	AlreadyActivated        bool   `json:"already_activated"`

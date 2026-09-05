@@ -27,17 +27,17 @@ const (
 
 // Student represents a student entity
 type Student struct {
-	ID          string                 `json:"id"`
-	TenantID    string                 `json:"tenant_id"` // ⚠️ CRITICAL: Multi-tenant isolation
-	FirstName   string                 `json:"first_name"`
-	LastName    string                 `json:"last_name"`
-	Email       string                 `json:"email"`
-	Phone       string                 `json:"phone"`
-	DateOfBirth *time.Time             `json:"date_of_birth,omitempty"`
-	Status      StudentStatus          `json:"status"`
-	Level       StudentLevel           `json:"level"`
-	Grade       string                 `json:"grade,omitempty"` // School grade (e.g., "9th Grade")
-	School      string                 `json:"school,omitempty"`
+	ID          string        `json:"id"`
+	TenantID    string        `json:"tenant_id"` // ⚠️ CRITICAL: Multi-tenant isolation
+	FirstName   string        `json:"first_name"`
+	LastName    string        `json:"last_name"`
+	Email       string        `json:"email"`
+	Phone       string        `json:"phone"`
+	DateOfBirth *time.Time    `json:"date_of_birth,omitempty"`
+	Status      StudentStatus `json:"status"`
+	Level       StudentLevel  `json:"level"`
+	Grade       string        `json:"grade,omitempty"` // School grade (e.g., "9th Grade")
+	School      string        `json:"school,omitempty"`
 
 	// Parent/Guardian info
 	ParentName  string `json:"parent_name,omitempty"`
@@ -45,11 +45,11 @@ type Student struct {
 	ParentPhone string `json:"parent_phone,omitempty"`
 
 	// Academic info
-	CurrentGPA  float64  `json:"current_gpa,omitempty"`
-	TargetGPA   float64  `json:"target_gpa,omitempty"`
-	Subjects    []string `json:"subjects,omitempty"` // ["Math", "Physics"]
-	Goals       string   `json:"goals,omitempty"`
-	Notes       string   `json:"notes,omitempty"`
+	CurrentGPA float64  `json:"current_gpa,omitempty"`
+	TargetGPA  float64  `json:"target_gpa,omitempty"`
+	Subjects   []string `json:"subjects,omitempty"` // ["Math", "Physics"]
+	Goals      string   `json:"goals,omitempty"`
+	Notes      string   `json:"notes,omitempty"`
 
 	// Enrollment
 	EnrollmentDate time.Time  `json:"enrollment_date"`
@@ -67,10 +67,10 @@ type Student struct {
 	Metadata map[string]interface{} `json:"metadata,omitempty"`
 
 	// Audit
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
-	CreatedBy string    `json:"created_by,omitempty"`
-	UpdatedBy string    `json:"updated_by,omitempty"`
+	CreatedAt time.Time  `json:"created_at"`
+	UpdatedAt time.Time  `json:"updated_at"`
+	CreatedBy string     `json:"created_by,omitempty"`
+	UpdatedBy string     `json:"updated_by,omitempty"`
 	DeletedAt *time.Time `json:"deleted_at,omitempty"`
 }
 

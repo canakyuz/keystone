@@ -4,17 +4,17 @@ import "time"
 
 // CreateProjectRequest represents request to create a project
 type CreateProjectRequest struct {
-	Title        string   `json:"title" validate:"required,min=3,max=200"`
-	Slug         string   `json:"slug" validate:"required,min=3,max=100"`
-	Description  string   `json:"description" validate:"required"`
-	Content      string   `json:"content,omitempty"`
-	Category     string   `json:"category" validate:"required"`
-	Status       string   `json:"status" validate:"required"`
-	Client       string   `json:"client,omitempty"`
-	Technologies []string `json:"technologies,omitempty"`
-	CoverImage   string   `json:"cover_image,omitempty"`
-	LiveURL      string   `json:"live_url,omitempty"`
-	GithubURL    string   `json:"github_url,omitempty"`
+	Title        string     `json:"title" validate:"required,min=3,max=200"`
+	Slug         string     `json:"slug" validate:"required,min=3,max=100"`
+	Description  string     `json:"description" validate:"required"`
+	Content      string     `json:"content,omitempty"`
+	Category     string     `json:"category" validate:"required"`
+	Status       string     `json:"status" validate:"required"`
+	Client       string     `json:"client,omitempty"`
+	Technologies []string   `json:"technologies,omitempty"`
+	CoverImage   string     `json:"cover_image,omitempty"`
+	LiveURL      string     `json:"live_url,omitempty"`
+	GithubURL    string     `json:"github_url,omitempty"`
 	StartDate    *time.Time `json:"start_date,omitempty"`
 	EndDate      *time.Time `json:"end_date,omitempty"`
 }

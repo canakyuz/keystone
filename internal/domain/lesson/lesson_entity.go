@@ -28,15 +28,15 @@ const (
 
 // Lesson represents a tutoring lesson/session
 type Lesson struct {
-	ID         string       `json:"id"`
-	TenantID   string       `json:"tenant_id"` // ⚠️ CRITICAL: Multi-tenant isolation
-	StudentID  string       `json:"student_id"`
-	Title      string       `json:"title"`
-	Description string      `json:"description,omitempty"`
-	Subject    string       `json:"subject"` // "Math", "Physics", etc.
-	Topic      string       `json:"topic,omitempty"` // "Quadratic Equations"
-	Status     LessonStatus `json:"status"`
-	Type       LessonType   `json:"type"`
+	ID          string       `json:"id"`
+	TenantID    string       `json:"tenant_id"` // ⚠️ CRITICAL: Multi-tenant isolation
+	StudentID   string       `json:"student_id"`
+	Title       string       `json:"title"`
+	Description string       `json:"description,omitempty"`
+	Subject     string       `json:"subject"`         // "Math", "Physics", etc.
+	Topic       string       `json:"topic,omitempty"` // "Quadratic Equations"
+	Status      LessonStatus `json:"status"`
+	Type        LessonType   `json:"type"`
 
 	// Schedule
 	ScheduledAt time.Time  `json:"scheduled_at"`
@@ -47,14 +47,14 @@ type Lesson struct {
 	MeetingURL  string     `json:"meeting_url,omitempty"` // Zoom/Meet link
 
 	// Content
-	Materials  []string `json:"materials,omitempty"`  // URLs to materials
-	Homework   string   `json:"homework,omitempty"`
-	Notes      string   `json:"notes,omitempty"`
-	StudentNotes string `json:"student_notes,omitempty"`
+	Materials    []string `json:"materials,omitempty"` // URLs to materials
+	Homework     string   `json:"homework,omitempty"`
+	Notes        string   `json:"notes,omitempty"`
+	StudentNotes string   `json:"student_notes,omitempty"`
 
 	// Assessment
-	PerformanceScore int     `json:"performance_score,omitempty"` // 1-10
-	AttendanceStatus string  `json:"attendance_status,omitempty"` // "present", "absent", "late"
+	PerformanceScore  int    `json:"performance_score,omitempty"` // 1-10
+	AttendanceStatus  string `json:"attendance_status,omitempty"` // "present", "absent", "late"
 	HomeworkCompleted bool   `json:"homework_completed"`
 
 	// Next lesson planning

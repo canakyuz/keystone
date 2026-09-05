@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"strings"
 
-	"nexpaces-api/internal/domain/registry"
+	"github.com/canakyuz/keystone/internal/domain/registry"
 )
 
 type tenantToolRepository struct {

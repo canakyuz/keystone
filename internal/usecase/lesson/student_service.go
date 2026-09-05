@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/canakyuz/keystone/internal/domain/lesson"
+	"github.com/canakyuz/keystone/pkg/logger"
 	"github.com/google/uuid"
-	"nexpaces-api/internal/domain/lesson"
-	"nexpaces-api/pkg/logger"
 )
 
 type StudentService struct {
@@ -30,32 +30,32 @@ func (s *StudentService) Create(ctx context.Context, tenantID string, req *Creat
 	}
 
 	student := &lesson.Student{
-		ID:            uuid.New().String(),
-		TenantID:      tenantID,
-		FirstName:     req.FirstName,
-		LastName:      req.LastName,
-		Email:         req.Email,
-		Phone:         req.Phone,
-		DateOfBirth:   req.DateOfBirth,
-		Status:        lesson.StudentStatus(req.Status),
-		Level:         lesson.StudentLevel(req.Level),
-		Grade:         req.Grade,
-		School:        req.School,
-		ParentName:    req.ParentName,
-		ParentEmail:   req.ParentEmail,
-		ParentPhone:   req.ParentPhone,
-		CurrentGPA:    req.CurrentGPA,
-		TargetGPA:     req.TargetGPA,
-		Subjects:      req.Subjects,
-		Goals:         req.Goals,
-		Notes:         req.Notes,
+		ID:             uuid.New().String(),
+		TenantID:       tenantID,
+		FirstName:      req.FirstName,
+		LastName:       req.LastName,
+		Email:          req.Email,
+		Phone:          req.Phone,
+		DateOfBirth:    req.DateOfBirth,
+		Status:         lesson.StudentStatus(req.Status),
+		Level:          lesson.StudentLevel(req.Level),
+		Grade:          req.Grade,
+		School:         req.School,
+		ParentName:     req.ParentName,
+		ParentEmail:    req.ParentEmail,
+		ParentPhone:    req.ParentPhone,
+		CurrentGPA:     req.CurrentGPA,
+		TargetGPA:      req.TargetGPA,
+		Subjects:       req.Subjects,
+		Goals:          req.Goals,
+		Notes:          req.Notes,
 		EnrollmentDate: time.Now(),
-		Avatar:        req.Avatar,
-		Metadata:      make(map[string]interface{}),
-		CreatedAt:     time.Now(),
-		UpdatedAt:     time.Now(),
-		CreatedBy:     tenantID,
-		UpdatedBy:     tenantID,
+		Avatar:         req.Avatar,
+		Metadata:       make(map[string]interface{}),
+		CreatedAt:      time.Now(),
+		UpdatedAt:      time.Now(),
+		CreatedBy:      tenantID,
+		UpdatedBy:      tenantID,
 	}
 
 	if err := s.repo.Create(ctx, student); err != nil {

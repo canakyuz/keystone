@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"nexpaces-api/internal/config"
+	"github.com/canakyuz/keystone/internal/config"
 )
 
 // CheckoutProvider implements Checkout.com payment integration for global markets
@@ -42,8 +42,8 @@ func (p *CheckoutProvider) CreatePayment(ctx context.Context, req *PaymentReques
 	// Build Checkout.com payment request
 	checkoutReq := map[string]interface{}{
 		"source": map[string]interface{}{
-			"type":        "token",
-			"token":       req.CardToken, // Checkout.com uses tokenized cards
+			"type":  "token",
+			"token": req.CardToken, // Checkout.com uses tokenized cards
 		},
 		"amount":      int(req.Amount * 100), // Amount in cents
 		"currency":    req.Currency,
@@ -381,12 +381,12 @@ func mapCheckoutStatus(checkoutStatus string, approved bool) string {
 	}
 
 	statusMap := map[string]string{
-		"Pending":   "pending",
+		"Pending":    "pending",
 		"Authorized": "processing",
-		"Captured":  "succeeded",
-		"Declined":  "failed",
-		"Canceled":  "canceled",
-		"Voided":    "canceled",
+		"Captured":   "succeeded",
+		"Declined":   "failed",
+		"Canceled":   "canceled",
+		"Voided":     "canceled",
 	}
 
 	if status, ok := statusMap[checkoutStatus]; ok {

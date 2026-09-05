@@ -3,9 +3,9 @@ package lesson
 import (
 	"strconv"
 
+	"github.com/canakyuz/keystone/internal/domain/lesson"
+	lessonUsecase "github.com/canakyuz/keystone/internal/usecase/lesson"
 	"github.com/gofiber/fiber/v2"
-	"nexpaces-api/internal/domain/lesson"
-	lessonUsecase "nexpaces-api/internal/usecase/lesson"
 )
 
 type AssignmentHandler struct {

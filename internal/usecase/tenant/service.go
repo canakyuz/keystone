@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 
-	"nexpaces-api/internal/domain/tenant"
-	tenantRepo "nexpaces-api/internal/repository/tenant"
-	"nexpaces-api/pkg/logger"
-	"nexpaces-api/pkg/validator"
+	"github.com/canakyuz/keystone/internal/domain/tenant"
+	tenantRepo "github.com/canakyuz/keystone/internal/repository/tenant"
+	"github.com/canakyuz/keystone/pkg/logger"
+	"github.com/canakyuz/keystone/pkg/validator"
 )
 
 // Service handles tenant business logic

@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"time"
 
-	"nexpaces-api/internal/domain/blog"
+	"github.com/canakyuz/keystone/internal/domain/blog"
 )
 
 type CategoryPostgresRepository struct {

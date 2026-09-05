@@ -51,12 +51,12 @@ type PaymentRequest struct {
 	CustomerIPAddress string
 
 	// Card information (PCI-compliant tokenized)
-	CardToken       string
-	CardNumber      string // Only for providers that support direct card
-	CardExpMonth    string
-	CardExpYear     string
-	CardCVV         string
-	CardHolderName  string
+	CardToken      string
+	CardNumber     string // Only for providers that support direct card
+	CardExpMonth   string
+	CardExpYear    string
+	CardCVV        string
+	CardHolderName string
 
 	// Billing address
 	BillingCountry     string
@@ -68,9 +68,9 @@ type PaymentRequest struct {
 	Installment int
 
 	// 3DS settings
-	CallbackURL   string
-	FailureURL    string
-	SuccessURL    string
+	CallbackURL string
+	FailureURL  string
+	SuccessURL  string
 
 	// Additional metadata
 	Metadata map[string]interface{}

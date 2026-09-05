@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/canakyuz/keystone/internal/domain/user"
+	userRepo "github.com/canakyuz/keystone/internal/repository/user"
+	"github.com/canakyuz/keystone/pkg/logger"
+	"github.com/canakyuz/keystone/pkg/validator"
 	"github.com/golang-jwt/jwt/v5"
-	"nexpaces-api/internal/domain/user"
-	userRepo "nexpaces-api/internal/repository/user"
-	"nexpaces-api/pkg/logger"
-	"nexpaces-api/pkg/validator"
 )
 
 // Service handles user business logic

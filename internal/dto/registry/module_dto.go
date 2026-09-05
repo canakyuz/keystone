@@ -3,7 +3,7 @@ package registry
 import (
 	"time"
 
-	"nexpaces-api/internal/domain/registry"
+	"github.com/canakyuz/keystone/internal/domain/registry"
 )
 
 // ModuleListRequest represents module listing request
@@ -33,35 +33,35 @@ type ModuleSearchRequest struct {
 
 // ModuleResponse represents module response
 type ModuleResponse struct {
-	ID                  string                `json:"id"`
-	Name                string                `json:"name"`
-	Slug                string                `json:"slug"`
-	Code                string                `json:"code"`
-	DisplayName         string                `json:"display_name"`
-	Description         string                `json:"description"`
-	Category            registry.ModuleCategory `json:"category"`
-	ModuleType          registry.ModuleType   `json:"module_type"`
-	Status              registry.ModuleStatus `json:"status"`
-	IsPublic            bool                  `json:"is_public"`
-	IsBeta              bool                  `json:"is_beta"`
-	Version             string                `json:"version"`
-	MinPlatformVersion  string                `json:"min_platform_version"`
-	PricingModel        registry.PricingModel `json:"pricing_model"`
-	BasePrice           float64               `json:"base_price,omitempty"`
-	Currency            string                `json:"currency,omitempty"`
-	BillingCycle        string                `json:"billing_cycle,omitempty"`
-	Features            interface{}           `json:"features,omitempty"`
-	Capabilities        interface{}           `json:"capabilities,omitempty"`
-	Icon                string                `json:"icon,omitempty"`
-	CoverImage          string                `json:"cover_image,omitempty"`
-	Screenshots         []string              `json:"screenshots,omitempty"`
-	DemoURL             string                `json:"demo_url,omitempty"`
-	DocumentationURL    string                `json:"documentation_url,omitempty"`
-	InstallCount        int                   `json:"install_count"`
-	Rating              float64               `json:"rating,omitempty"`
-	ReviewCount         int                   `json:"review_count"`
-	CreatedAt           time.Time             `json:"created_at"`
-	UpdatedAt           time.Time             `json:"updated_at"`
+	ID                 string                  `json:"id"`
+	Name               string                  `json:"name"`
+	Slug               string                  `json:"slug"`
+	Code               string                  `json:"code"`
+	DisplayName        string                  `json:"display_name"`
+	Description        string                  `json:"description"`
+	Category           registry.ModuleCategory `json:"category"`
+	ModuleType         registry.ModuleType     `json:"module_type"`
+	Status             registry.ModuleStatus   `json:"status"`
+	IsPublic           bool                    `json:"is_public"`
+	IsBeta             bool                    `json:"is_beta"`
+	Version            string                  `json:"version"`
+	MinPlatformVersion string                  `json:"min_platform_version"`
+	PricingModel       registry.PricingModel   `json:"pricing_model"`
+	BasePrice          float64                 `json:"base_price,omitempty"`
+	Currency           string                  `json:"currency,omitempty"`
+	BillingCycle       string                  `json:"billing_cycle,omitempty"`
+	Features           interface{}             `json:"features,omitempty"`
+	Capabilities       interface{}             `json:"capabilities,omitempty"`
+	Icon               string                  `json:"icon,omitempty"`
+	CoverImage         string                  `json:"cover_image,omitempty"`
+	Screenshots        []string                `json:"screenshots,omitempty"`
+	DemoURL            string                  `json:"demo_url,omitempty"`
+	DocumentationURL   string                  `json:"documentation_url,omitempty"`
+	InstallCount       int                     `json:"install_count"`
+	Rating             float64                 `json:"rating,omitempty"`
+	ReviewCount        int                     `json:"review_count"`
+	CreatedAt          time.Time               `json:"created_at"`
+	UpdatedAt          time.Time               `json:"updated_at"`
 }
 
 // ModuleDetailResponse represents detailed module response
@@ -125,10 +125,10 @@ func ToModuleResponse(m *registry.Module) ModuleResponse {
 // ToModuleDetailResponse converts domain module to detailed response
 func ToModuleDetailResponse(m *registry.Module) ModuleDetailResponse {
 	return ModuleDetailResponse{
-		ModuleResponse: ToModuleResponse(m),
-		RequiresDatabase:    m.RequiresDatabase,
-		RequiresStorage:     m.RequiresStorage,
-		RequiresEmail:       m.RequiresEmail,
-		InstallationNotes:   m.InstallationNotes,
+		ModuleResponse:    ToModuleResponse(m),
+		RequiresDatabase:  m.RequiresDatabase,
+		RequiresStorage:   m.RequiresStorage,
+		RequiresEmail:     m.RequiresEmail,
+		InstallationNotes: m.InstallationNotes,
 	}
 }

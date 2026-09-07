@@ -105,6 +105,17 @@ fırtınası yaratır.
 `/ready` için Redis zorunlu değildir. Önbellek ve limitleyici Redis olmadan
 süreç içi yollarına düşerek çalışır.
 
+## Tasarım kararları
+
+Sistemin neden böyle kurulduğu, alternatiflerinin neler olduğu ve her kararın
+hangi koşulda yanlış hale geleceği [docs/decisions/](docs/decisions/) altında
+yazılı. Yedi karar kaydı var.
+
+Sistemin verdiği sözlerin kod ve test karşılıkları için
+[docs/INVARIANTS.md](docs/INVARIANTS.md) dosyasına bakın. Karşılığı olmayan
+kural orada "henüz yok" olarak işaretli.
+
+
 ## Mimari
 
 ```

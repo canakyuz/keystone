@@ -7,6 +7,9 @@ slogan olarak durmaz, "henüz yok" olarak işaretlenir.
 Durum sütunu üç değer alır. **Uygulanıyor**: kod ve doğrulama var.
 **Kısmi**: bir bölümü var, eksiği açıkça yazılı. **Yok**: henüz uygulanmadı.
 
+Kararların gerekçeleri ve alternatifleri için
+[decisions/](decisions/) altındaki karar kayıtlarına bakın.
+
 ---
 
 ## 1. Yetkilendirme doğrulanmış subject ve tenant üyeliğine dayanır

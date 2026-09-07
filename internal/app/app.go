@@ -21,6 +21,7 @@ import (
 	blogHandler "github.com/canakyuz/keystone/internal/handler/blog"
 	bookingHandler "github.com/canakyuz/keystone/internal/handler/booking"
 	lessonHandler "github.com/canakyuz/keystone/internal/handler/lesson"
+	operationHandler "github.com/canakyuz/keystone/internal/handler/operation"
 	paymentHandler "github.com/canakyuz/keystone/internal/handler/payment"
 	registryHandler "github.com/canakyuz/keystone/internal/handler/registry"
 	serviceHandler "github.com/canakyuz/keystone/internal/handler/service"
@@ -33,6 +34,7 @@ import (
 	blogRepo "github.com/canakyuz/keystone/internal/repository/blog"
 	bookingRepo "github.com/canakyuz/keystone/internal/repository/booking"
 	lessonRepo "github.com/canakyuz/keystone/internal/repository/lesson"
+	operationRepo "github.com/canakyuz/keystone/internal/repository/operation"
 	paymentRepo "github.com/canakyuz/keystone/internal/repository/payment"
 	registryRepo "github.com/canakyuz/keystone/internal/repository/registry"
 	serviceRepo "github.com/canakyuz/keystone/internal/repository/service"
@@ -116,6 +118,12 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 	}
 
 	registerProbes(app, cfg, db, redisClient)
+
+	// Tenant kurulumu ve operasyon sorgulama uçları.
+	// Bunlar tenant context middleware'i kullanmaz: yeni tenant henüz yok.
+	operationRepository := operationRepo.New(db)
+	registerOperationRoutes(app, cfg.Auth.JWTSecret,
+		operationHandler.New(operationRepository, appLogger))
 
 	// Global Middleware (Ara Katman) tanımlamaları.
 	// Bu middleware'ler gelen her istek için çalıştırılır.

@@ -17,9 +17,13 @@ help: ## Komut listesini göster
 dev: ## Geliştirme sunucusunu çalıştır
 	go run cmd/server/main.go
 
-build: ## Binary oluştur
+build: ## Her iki binary'yi oluştur
 	mkdir -p bin
 	CGO_ENABLED=0 go build -ldflags="-w -s" -o bin/keystone cmd/server/main.go
+	CGO_ENABLED=0 go build -ldflags="-w -s" -o bin/keystone-worker cmd/worker/main.go
+
+worker: ## Provisioning worker'ı çalıştır
+	go run cmd/worker/main.go
 
 run: build ## Binary’i çalıştır
 	./bin/keystone

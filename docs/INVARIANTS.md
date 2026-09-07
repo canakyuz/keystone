@@ -33,6 +33,11 @@ geliyor ama "bu subject bu tenant'ın üyesi mi" sorusu ayrı bir kayıttan
 doğrulanmıyor. Aynı insanın bir tenant'ta yönetici, başkasında görüntüleyici
 olması bu tablo eklenmeden temsil edilemez.
 
+**Eksik:** `POST /api/v1/tenants` yalnızca kimlik doğrulamasıyla korunuyor.
+Yeni tenant oluşturma platform seviyesinde bir yetki olmalı, ama böyle bir
+yetki modeli henüz yok. Bu uç tenant üyeliği aramaz, arayamaz da: tenant
+henüz mevcut değil.
+
 ---
 
 ## 2. Aynı idempotency anahtarı farklı içerikle yeniden kullanılamaz
@@ -89,8 +94,18 @@ Tenant aktifleştirme ile operasyon kapatma aynı transaction içindedir. Ayrı
 yazılsaydı, aralarında süreç kapandığında kullanıcıya "tamamlandı" görünen
 ama tenant'ı kullanılamaz bir kayıt kalabilirdi.
 
+Tenant'ı `active` yapmak worker handler'ının işi değildir; aktifleştirme işin
+tamamlandı işaretlenmesiyle aynı transaction içindedir.
+
+Worker'ın yaptığı ara durum yazımları (`provisioning`, `failed`) fencing
+korumasının dışındadır. Bu yüzden geçişler kaynak duruma koşulludur: aktif bir
+tenant geri `provisioning` durumuna çekilemez. Lease'ini kaybetmiş eski bir
+worker'ın gecikmiş çağrısı sessizce etkisiz kalır.
+
 - Kod: `internal/repository/operation/claim.go`, `CompleteSuccess`
 - Kod: `internal/repository/operation/provision.go`, `insertPendingTenant`
+- Kod: `internal/repository/tenant/lifecycle.go`, korumalı geçişler
+- Kod: `internal/worker/provision_handler.go`, `Handle`
 - Şema: `migrations/032_extend_tenant_lifecycle_states.up.sql`
 - Test: `TestCompleteSuccess_ActivatesTenantInSameTransaction`
 

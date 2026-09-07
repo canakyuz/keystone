@@ -76,7 +76,15 @@ func setupRoutes(
 	// Tenant (Kiracı) rotaları, kimlik doğrulaması gerektirir ve kiracıya özel işlemleri yönetir.
 	// Middleware sırası: Auth → TenantContext → TenantScope
 	tenants := v1.Group("/tenants", middleware.AuthMiddleware(cfg.Auth.JWTSecret), tenantContextMiddleware, tenantScope)
-	tenants.Post("/", tenantH.Create)                              // Yeni bir kiracı oluşturur.
+	// Tenant oluşturma bu grupta DEĞİL. İki nedeni var.
+	//
+	// Birincisi: bu grup tenantContextMiddleware kullanıyor, o da isteğin
+	// tenant'ının şemasını çözmeye çalışıyor. Yeni tenant henüz olmadığı için
+	// istek şema çözümlemesinde düşerdi.
+	//
+	// İkincisi: kurulum artık senkron değil. Uç 202 Accepted ve bir operasyon
+	// adresi döndürüyor; istemci durumu oradan sorguluyor. Bkz.
+	// internal/app/operations.go ve docs/INVARIANTS.md.
 	tenants.Get("/current", tenantH.GetCurrent)                    // Mevcut (aktif) kiracıyı getirir.
 	tenants.Get("/stats", tenantH.GetStats)                        // Kiracı ile ilgili istatistikleri sunar.
 	tenants.Get("/slug/:slug", tenantH.GetBySlug)                  // 'slug' ile bir kiracıyı bulur.

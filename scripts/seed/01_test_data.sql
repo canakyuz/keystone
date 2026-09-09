@@ -17,7 +17,7 @@ INSERT INTO tenants (
     updated_at
 ) VALUES (
     'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
-    'Can Akyüz Personal Site',
+    'Demo Personal Site',
     'canakyuz',
     'canakyuz.co',
     'active',
@@ -52,7 +52,7 @@ INSERT INTO users (
     'admin@canakyuz.co',
     '$2a$10$X7KV4nqQ7L5YZ8Y5Z8Y5ZeO5Z8Y5Z8Y5Z8Y5Z8Y5Z8Y5Z8Y5Z8Y5Z',
     'Can',
-    'Akyüz',
+    'Doe',
     'admin',
     'active',
     true,
@@ -106,7 +106,7 @@ INSERT INTO blog_categories (
     'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
     'Teknoloji',
     'teknoloji',
-    'Teknoloji ve yazılım geliştirme hakkında yazılar',
+    'Posts about technology and software development',
     0,
     '{"color": "#3B82F6"}'::jsonb,
     NOW(),
@@ -115,9 +115,9 @@ INSERT INTO blog_categories (
 (
     'e4eebc99-9c0b-4ef8-bb6d-6bb9bd380a55',
     'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
-    'Kişisel Gelişim',
+    'Personal Growth',
     'kisisel-gelisim',
-    'Kişisel gelişim ve kariyer üzerine yazılar',
+    'Posts about personal growth and careers',
     0,
     '{"color": "#10B981"}'::jsonb,
     NOW(),
@@ -152,23 +152,23 @@ INSERT INTO blog_posts (
     'd3eebc99-9c0b-4ef8-bb6d-6bb9bd380a44',
     'Keystone: Multi-Tenant SaaS Platform',
     'keystone-multi-tenant-saas',
-    '# Keystone Nedir?
+    '# What is Keystone?
 
-Keystone, modern web uygulamaları için güçlü bir multi-tenant SaaS platformudur...
+Keystone is a multi-tenant SaaS platform for modern web applications.
 
-## Özellikler
+## Features
 - Multi-tenant architecture
 - Role-based access control
 - Template marketplace
 - Scalable infrastructure',
-    'Keystone multi-tenant SaaS platform hakkında detaylı bilgi',
+    'A detailed look at the Keystone multi-tenant SaaS platform',
     'published',
     true,
     42,
     '/images/blog/keystone-cover.jpg',
     ARRAY['saas', 'multi-tenant', 'go', 'nextjs'],
     NOW(),
-    '{"readTime": 5, "author": "Can Akyüz"}'::jsonb,
+    '{"readTime": 5, "author": "Demo Author"}'::jsonb,
     NOW(),
     NOW(),
     'b1eebc99-9c0b-4ef8-bb6d-6bb9bd380a22',
@@ -235,13 +235,13 @@ INSERT INTO students (
     '22eebc99-9c0b-4ef8-bb6d-6bb9bd380a88',
     'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
     'Ali',
-    'Yılmaz',
+    'Doe',
     'ali.yilmaz@example.com',
     '+905551234567',
     '2005-03-15',
     '10',
     'active',
-    'Matematik ve fizik dersleri alıyor',
+    'Taking mathematics and physics lessons',
     '{"parentPhone": "+905559876543"}'::jsonb,
     NOW(),
     NOW()
@@ -265,7 +265,7 @@ INSERT INTO websites (
 ) VALUES (
     '33eebc99-9c0b-4ef8-bb6d-6bb9bd380a99',
     'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
-    'Can Akyüz - Personal Website',
+    'Demo - Personal Website',
     'canakyuz-co',
     'canakyuz.co',
     'personal',
@@ -278,7 +278,7 @@ INSERT INTO websites (
             {"label": "Ana Sayfa", "url": "/"},
             {"label": "Blog", "url": "/blog"},
             {"label": "Hizmetler", "url": "/services"},
-            {"label": "İletişim", "url": "/contact"}
+            {"label": "Contact", "url": "/contact"}
         ]
     }'::jsonb,
     '{"analytics": "GA-XXXXXXXXX"}'::jsonb,

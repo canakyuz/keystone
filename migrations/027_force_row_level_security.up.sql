@@ -1,24 +1,25 @@
--- 027: Row Level Security'yi tablo sahibine de zorunlu kıl.
+-- 027: force Row Level Security on the table owner too.
 --
 -- SORUN
--- Önceki migration'ların hepsi "ALTER TABLE x ENABLE ROW LEVEL SECURITY" kullanıyor.
--- PostgreSQL'de ENABLE, tablonun SAHİBİNİ policy'lerden muaf tutar. Uygulama
--- neredeyse her kurulumda tabloları oluşturan rolle bağlandığı için (bu repodaki
--- docker-compose dahil) tenant izolasyon policy'leri sessizce devre dışı kalıyordu.
+-- Every earlier migration used "ALTER TABLE x ENABLE ROW LEVEL SECURITY". In
+-- PostgreSQL, ENABLE exempts the table's OWNER from the policies. Because the
+-- application connects as the role that created the tables in nearly every setup
+-- (including the docker-compose in this repository), the tenant isolation policies
+-- were silently inactive.
 --
--- ÖLÇÜM (süper kullanıcı olmayan, tablo sahibi rolle)
---   ENABLE  -> iki farklı tenant'ın satırlarından 2'si de görünüyor
---   FORCE   -> yalnızca 1'i görünüyor, yani policy uygulanıyor
+-- MEASURED (as a non-superuser role that owns the tables)
+--   ENABLE  -> both rows, from two different tenants, are visible
+--   FORCE   -> only one is visible, so the policy is being applied
 --
--- ÇÖZÜM
--- FORCE ROW LEVEL SECURITY, sahibi de policy'lere tabi kılar.
+-- FIX
+-- FORCE ROW LEVEL SECURITY subjects the owner to the policies as well.
 --
--- KALAN OPERASYONEL KOŞUL
--- Süper kullanıcılar RLS'i her koşulda atlar, FORCE bunu değiştirmez. Uygulama
--- bağlantısı ASLA süper kullanıcı olmamalıdır. Bkz. SECURITY.md.
+-- REMAINING OPERATIONAL REQUIREMENT
+-- Superusers bypass RLS under all circumstances and FORCE does not change that. The
+-- application connection must NEVER be a superuser. See SECURITY.md.
 --
--- NOT: tenants tablosu bilinçli olarak kapsam dışıdır. O tablo control-plane
--- verisidir ve tenant'a göre daraltılamaz; izolasyonu uygulama katmanında yapılır.
+-- NOTE: the tenants table is deliberately out of scope. It is control-plane data and
+-- cannot be narrowed by tenant; its isolation happens in the application layer.
 
 ALTER TABLE appointments     FORCE ROW LEVEL SECURITY;
 ALTER TABLE assignments      FORCE ROW LEVEL SECURITY;

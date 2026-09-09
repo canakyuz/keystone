@@ -6,32 +6,32 @@ APP_ENV ?= development
         migrate-up migrate-down migrate-status migrate-bootstrap test fmt lint vet check clean-all
 
 # ==============================================================================
-# Yardım
+# Help
 # ==============================================================================
-help: ## Komut listesini göster
+help: ## Show the list of commands
 	@awk 'BEGIN {FS=":.*##"; print "\n\033[36mAvailable Commands:\033[0m"} /^[a-zA-Z_-]+:.*##/ {printf "  \033[36m%-18s\033[0m%s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
 # ==============================================================================
-# Geliştirme
+# Development
 # ==============================================================================
-dev: ## Geliştirme sunucusunu çalıştır
+dev: ## Run the development server
 	go run cmd/server/main.go
 
-build: ## Her iki binary'yi oluştur
+build: ## Build both binaries
 	mkdir -p bin
 	CGO_ENABLED=0 go build -ldflags="-w -s" -o bin/keystone cmd/server/main.go
 	CGO_ENABLED=0 go build -ldflags="-w -s" -o bin/keystone-worker cmd/worker/main.go
 
-worker: ## Provisioning worker'ı çalıştır
+worker: ## Run the provisioning worker
 	go run cmd/worker/main.go
 
-run: build ## Binary’i çalıştır
+run: build ## Run the binary
 	./bin/keystone
 
 # ==============================================================================
 # Docker
 # ==============================================================================
-up: ## Servisleri başlat
+up: ## Start the services
 	docker compose up -d
 	@echo "\033[32m✓ Services started\033[0m"
 	@echo "→ API: http://localhost:8080"
@@ -40,27 +40,27 @@ up: ## Servisleri başlat
 down: ## Servisleri durdur
 	docker compose down
 
-restart: ## Servisleri yeniden başlat
+restart: ## Restart the services
 	docker compose down
 	@echo ”\033[32m✓ Temizlendi”
 	docker compose up -d
 
-rebuild: ## API’yi yeniden build edip başlat
+rebuild: ## Rebuild the API and restart it
 	docker compose up -d --build api
 
-logs: ## API loglarını izle
+logs: ## Follow the API logs
 	docker compose logs -f api
 
-ps: ## Container durumlarını göster
+ps: ## Show container status
 	docker compose ps
 
-shell: ## API container’ına shell
+shell: ## Open a shell in the API container
 	docker compose exec api sh
 
 db-shell: ## PostgreSQL shell
 	docker compose exec -T postgres psql -U postgres -d keystone_dev
 
-db-reset: ## Development veritabanını sıfırla ve migrationları uygula
+db-reset: ## Reset the development database and apply the migrations
 	docker compose exec -T postgres psql -U postgres -d postgres -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = 'keystone_dev' AND pid <> pg_backend_pid();"
 	docker compose exec -T postgres psql -U postgres -d postgres -c "DROP DATABASE IF EXISTS keystone_dev;"
 	docker compose exec -T postgres psql -U postgres -d postgres -c "CREATE DATABASE keystone_dev;"
@@ -68,9 +68,9 @@ db-reset: ## Development veritabanını sıfırla ve migrationları uygula
 	docker compose exec -T postgres psql -U postgres -d keystone_dev -c "CREATE EXTENSION IF NOT EXISTS pgcrypto;"
 	APP_ENV=$(APP_ENV) $(MAKE) migrate-up
 
-seed-dev: ## Development tenant ve kullanıcı seed'lerini yükle
+seed-dev: ## Load the development tenant and user seeds
 	@if [ ! -f scripts/seed/dev_seed.sql ]; then \
-		echo "\033[31mSeed script bulunamadı: scripts/seed/dev_seed.sql\033[0m"; \
+		echo "\033[31mSeed script not found: scripts/seed/dev_seed.sql\033[0m"; \
 		exit 1; \
 	fi
 	docker compose exec -T postgres psql -U postgres -d keystone_dev < scripts/seed/dev_seed.sql
@@ -78,42 +78,42 @@ seed-dev: ## Development tenant ve kullanıcı seed'lerini yükle
 # ==============================================================================
 # Migration
 # ==============================================================================
-migrate-up: ## Migrationları çalıştır (*.up.sql)
-	@echo "\033[32m✓ Başlatıldı\033[0m"
+migrate-up: ## Run the migrations (*.up.sql)
+	@echo "\033[32mDone\033[0m"
 	@APP_ENV=$(APP_ENV) scripts/run_migrations.sh
 
-migrate-down: ## Migrationları geri al (*.down.sql)
+migrate-down: ## Roll the migrations back (*.down.sql)
 	@for f in $(shell ls -r migrations/*.down.sql 2>/dev/null); do \
 		echo "→ $$f" && cat $$f | docker compose exec -T postgres psql -U postgres -d keystone_dev; \
 	done
 	@echo "\033[33m✓ Rollback complete\033[0m"
 
-migrate-status: ## Migration dosyalarını listele
+migrate-status: ## List the migration files
 	@echo "Up migrations:";   ls -1 migrations/*.up.sql 2>/dev/null || echo "  None"
 	@echo ""; echo "Down migrations:"; ls -1 migrations/*.down.sql 2>/dev/null || echo "  None"
 
 # ==============================================================================
 # Test ve Kalite
 # ==============================================================================
-test: ## Testleri çalıştır
+test: ## Run the tests
 	go test -v -race ./...
 
 fmt: ## Kod formatla
 	gofmt -s -w .
 	go mod tidy
 
-lint: ## Linter çalıştır
+lint: ## Run the linter
 	golangci-lint run --timeout 5m
 
 vet: ## go vet
 	go vet ./...
 
-check: fmt vet lint test ## Tüm kontrolleri çalıştır
+check: fmt vet lint test ## Run every check
 
 # ==============================================================================
 # Temizlik
 # ==============================================================================
-clean-all: ## Her şeyi temizle
+clean-all: ## Clean everything
 	rm -rf bin/ coverage.out coverage.html
 migrate-bootstrap: ## Mevcut veritabanini schema_migrations ile esitle
 	@echo "\033[33m⚠  Bootstrap modunda schema_migrations dolduruluyor\033[0m"

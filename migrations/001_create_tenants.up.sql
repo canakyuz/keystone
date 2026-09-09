@@ -85,4 +85,4 @@ COMMENT ON COLUMN tenants.status IS 'Tenant status: active, suspended, inactive,
 COMMENT ON COLUMN tenants.plan IS 'Subscription plan: free, starter, pro, enterprise';
 
 -- Insert default tenant for development
--- Development seed artık scripts/seed/dev_seed.sql içinde yönetiliyor
+-- The development seed now lives in scripts/seed/dev_seed.sql

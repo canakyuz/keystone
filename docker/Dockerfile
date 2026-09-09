@@ -1,19 +1,21 @@
 # syntax=docker/dockerfile:1.7
 
 # --- build ---------------------------------------------------------------
-# Sürüm sabitlenmiştir: :latest ile build'ler yeniden üretilebilir olmaz.
+# The version is pinned: :latest makes builds non-reproducible.
 FROM golang:1.24-alpine AS builder
 
 WORKDIR /app
 
-# Bağımlılıklar önce kopyalanır: kaynak değiştiğinde bu katman cache'ten gelir.
+# Dependencies are copied first, so this layer comes from cache when only the
+# source changes.
 COPY go.mod go.sum ./
 RUN --mount=type=cache,target=/go/pkg/mod go mod download
 
 COPY . .
 
-# CGO kapalı: statik binary, distroless/scratch tabanlı runner'da libc gerekmez.
-# -trimpath: build yollarını binary'den siler (bilgi sızıntısı + reproducibility).
+# CGO off: a static binary needs no libc on a distroless or scratch runner.
+# -trimpath strips build paths from the binary, for both reproducibility and to
+# avoid leaking local paths.
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
     CGO_ENABLED=0 GOOS=linux go build \
@@ -30,8 +32,8 @@ RUN apk add --no-cache ca-certificates wget \
 
 WORKDIR /app
 
-# Yalnızca çalışmak için gereken dosyalar. .env KOPYALANMAZ:
-# yapılandırma ortam değişkeni veya secret mount ile gelir, imaja gömülmez.
+# Only what is needed at runtime. .env is NOT copied: configuration arrives through
+# environment variables or a secret mount, never baked into the image.
 COPY --from=builder --chown=65532:65532 /out/keystone ./keystone
 COPY --from=builder --chown=65532:65532 /app/migrations ./migrations
 COPY --from=builder --chown=65532:65532 /app/api ./api

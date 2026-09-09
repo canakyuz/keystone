@@ -1,6 +1,6 @@
 -- ============================================================================
 -- Migration Rollback: 026 - CMS Page Builder Tables
--- Description: CMS tablolarını ve ilgili fonksiyonları sil
+-- Description: drop the CMS tables and their related functions
 -- ============================================================================
 
 -- Drop triggers first

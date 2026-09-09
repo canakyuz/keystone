@@ -1,5 +1,5 @@
 -- 027 geri alma: sahibi yeniden policy'lerden muaf tutar.
--- DİKKAT: bu, tenant izolasyonunu uygulama sahibi rolü için devre dışı bırakır.
+-- WARNING: this disables tenant isolation for the owning application role.
 
 ALTER TABLE appointments     NO FORCE ROW LEVEL SECURITY;
 ALTER TABLE assignments      NO FORCE ROW LEVEL SECURITY;

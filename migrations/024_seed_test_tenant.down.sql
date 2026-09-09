@@ -1,5 +1,5 @@
 -- Migration: Rollback Test Tenant
--- Description: Remove Can Akyüz test tenant and all related data
+-- Description: remove the development test tenant and all related data
 -- Author: Keystone Team
 -- Date: 2025-10-05
 

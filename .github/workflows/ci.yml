@@ -12,9 +12,9 @@ jobs:
   test:
     runs-on: ubuntu-latest
 
-    # Testler gerçek PostgreSQL'e karşı koşar. Mock kullanılmaz: bu repodaki
-    # hataların çoğu (RLS bypass, şema kayması, search_path sızıntısı) yalnızca
-    # gerçek bir veritabanında görünür.
+    # The tests run against real PostgreSQL. No mocks: most of the bugs in this
+    # repository (RLS bypass, schema drift, search_path leaking) only appear against
+    # a real database.
     services:
       postgres:
         image: postgres:16-alpine
@@ -47,7 +47,7 @@ jobs:
         run: |
           unformatted=$(gofmt -l . | grep -v '^vendor/' || true)
           if [ -n "$unformatted" ]; then
-            echo "Bicimlendirilmemis dosyalar:"; echo "$unformatted"; exit 1
+            echo "Unformatted files:"; echo "$unformatted"; exit 1
           fi
 
       - name: go vet

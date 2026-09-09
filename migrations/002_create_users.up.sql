@@ -83,4 +83,4 @@ COMMENT ON COLUMN users.status IS 'User status: active, inactive, suspended, pen
 COMMENT ON COLUMN users.email_verified IS 'Email verification status';
 COMMENT ON COLUMN users.two_factor_enabled IS '2FA enabled flag';
 
--- Development kullanıcı seed'leri scripts/seed/dev_seed.sql üzerinden uygulanır
+-- Development user seeds are applied through scripts/seed/dev_seed.sql

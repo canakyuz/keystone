@@ -1,7 +1,7 @@
--- 028: users tablosundaki sınırsız okuma policy'sini daralt.
+-- 028: narrow the unbounded read policy on the users table.
 --
 -- SORUN
--- 002_create_users.up.sql iki permissive policy tanımlıyordu:
+-- 002_create_users.up.sql defined two permissive policies:
 --
 --   CREATE POLICY tenant_isolation_policy ON users FOR ALL
 --     USING (tenant_id = current_setting('app.current_tenant', TRUE)::UUID);
@@ -9,21 +9,21 @@
 --   CREATE POLICY auth_policy ON users FOR SELECT
 --     USING (TRUE);
 --
--- PostgreSQL permissive policy'leri OR ile birleştirir. İkincisi sabit TRUE
--- olduğu için birleşik koşul her SELECT'te TRUE'ya düşüyordu. Sonuç: users
--- tablosunda okuma yönünde hiçbir tenant izolasyonu yoktu. Herhangi bir tenant
--- bağlamı, tüm tenant'ların kullanıcı satırlarını (password_hash dahil)
--- okuyabiliyordu. FORCE ROW LEVEL SECURITY bunu düzeltmez; sorun policy
--- mantığındadır, sahiplik muafiyetinde değil.
+-- PostgreSQL combines permissive policies with OR. Because the second one was a
+-- constant TRUE, the combined condition collapsed to TRUE on every SELECT. The
+-- result: there was no tenant isolation at all on reads from the users table. Any
+-- tenant context could read every tenant's user rows, password_hash included. FORCE
+-- ROW LEVEL SECURITY does not fix this; the problem is in the policy logic, not in
+-- the ownership exemption.
 --
--- auth_policy'nin amacı meşruydu: tenant henüz bilinmeden yapılan login
--- aramasına (GetByEmailGlobal) izin vermek. Ama bunu kalıcı ve koşulsuz bir
--- açıklık olarak uyguluyordu.
+-- auth_policy's intent was legitimate: allow the login lookup (GetByEmailGlobal)
+-- that happens before the tenant is known. But it implemented that as a permanent,
+-- unconditional opening.
 --
--- ÇÖZÜM
--- Genişletilmiş görünürlük artık açık bir oturum bayrağı ister. Repository
--- bu bayrağı yalnızca global login araması için, SET LOCAL ile ve tek bir
--- transaction sınırında açar. Transaction bitince yetki kendiliğinden kapanır.
+-- FIX
+-- The widened visibility now requires an explicit session flag. The repository opens
+-- that flag only for the global login lookup, with SET LOCAL, confined to a single
+-- transaction. The privilege closes by itself when the transaction ends.
 
 DROP POLICY IF EXISTS auth_policy ON users;
 
@@ -32,4 +32,4 @@ CREATE POLICY auth_lookup_policy ON users
     USING (current_setting('app.auth_lookup', TRUE) = 'on');
 
 COMMENT ON POLICY auth_lookup_policy ON users IS
-    'Yalnızca tenant bilinmeden yapılan login aramasi icin. Repository SET LOCAL app.auth_lookup ile transaction basina acar.';
+    'Only for the login lookup performed before the tenant is known. The repository opens it per transaction with SET LOCAL app.auth_lookup.';

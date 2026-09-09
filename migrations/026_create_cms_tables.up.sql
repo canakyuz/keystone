@@ -1,26 +1,26 @@
 -- ============================================================================
 -- Migration: 026 - CMS Page Builder Tables
--- Description: Pages, Sections, Components için multi-tenant CMS sistemi
+-- Description: multi-tenant CMS system of pages, sections and components
 -- Created: 2025-10-13
 -- ============================================================================
 
 -- ============================================================================
 -- 1. PAGES TABLE (Ana Sayfalar)
 -- ============================================================================
--- Her tenant için page listesi (homepage, about, contact, vs.)
+-- The page list for each tenant (homepage, about, contact, and so on)
 CREATE TABLE IF NOT EXISTS pages (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     slug VARCHAR(255) NOT NULL,                    -- URL slug: "/", "/about", "/blog"
 
     -- Multi-language support (JSONB)
     title JSONB NOT NULL,                          -- {"tr": "Anasayfa", "en": "Home"}
-    meta_description JSONB,                        -- SEO için meta description
+    meta_description JSONB,                        -- SEO meta description
     meta_keywords JSONB,                           -- SEO keywords
 
     -- Page settings
     template_type VARCHAR(50) DEFAULT 'custom',    -- "landing", "blog-list", "custom"
-    is_published BOOLEAN DEFAULT false,            -- Yayında mı?
-    is_homepage BOOLEAN DEFAULT false,             -- Ana sayfa mı?
+    is_published BOOLEAN DEFAULT false,            -- Is it published?
+    is_homepage BOOLEAN DEFAULT false,             -- Is it the homepage?
 
     -- Publishing
     published_at TIMESTAMP,
@@ -41,9 +41,9 @@ CREATE INDEX idx_pages_published ON pages(is_published, published_at);
 CREATE INDEX idx_pages_created ON pages(created_at DESC);
 
 -- ============================================================================
--- 2. SECTIONS TABLE (Sayfadaki Bölümler)
+-- 2. SECTIONS TABLE (the sections of a page)
 -- ============================================================================
--- Her page içinde sıralı section'lar (hero, features, cta, vs.)
+-- Ordered sections within each page (hero, features, cta, and so on)
 CREATE TABLE IF NOT EXISTS sections (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     page_id UUID NOT NULL REFERENCES pages(id) ON DELETE CASCADE,
@@ -51,7 +51,7 @@ CREATE TABLE IF NOT EXISTS sections (
     -- Section type (hero, features, testimonials, cta, custom)
     section_type VARCHAR(50) NOT NULL,
 
-    -- Sıralama (0'dan başlar)
+    -- Ordering, zero-based
     order_index INT NOT NULL DEFAULT 0,
 
     -- Section configuration (JSONB)
@@ -83,9 +83,9 @@ CREATE INDEX idx_sections_type ON sections(section_type);
 CREATE INDEX idx_sections_visible ON sections(is_visible);
 
 -- ============================================================================
--- 3. COMPONENTS TABLE (Section İçindeki Micro Components)
+-- 3. COMPONENTS TABLE (micro components inside a section)
 -- ============================================================================
--- Her section içinde component'ler (button, text, image, form, vs.)
+-- Components within each section (button, text, image, form, and so on)
 CREATE TABLE IF NOT EXISTS components (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     section_id UUID NOT NULL REFERENCES sections(id) ON DELETE CASCADE,
@@ -93,7 +93,7 @@ CREATE TABLE IF NOT EXISTS components (
     -- Component type (button, text, heading, image, video, form, etc.)
     component_type VARCHAR(50) NOT NULL,
 
-    -- Sıralama (0'dan başlar)
+    -- Ordering, zero-based
     order_index INT NOT NULL DEFAULT 0,
 
     -- Component properties (JSONB)
@@ -146,13 +146,13 @@ CREATE INDEX idx_components_visible ON components(is_visible);
 -- ============================================================================
 -- 4. LANGUAGES TABLE (Aktif Diller)
 -- ============================================================================
--- Tenant'ın aktif olarak kullandığı diller
+-- The languages a tenant actively uses
 CREATE TABLE IF NOT EXISTS languages (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     code VARCHAR(5) NOT NULL UNIQUE,               -- "tr", "en", "de", "fr"
     name VARCHAR(50) NOT NULL,                     -- "Türkçe", "English", "Deutsch"
     native_name VARCHAR(50) NOT NULL,              -- "Türkçe", "English", "Deutsch"
-    is_default BOOLEAN DEFAULT false,              -- Varsayılan dil mi?
+    is_default BOOLEAN DEFAULT false,              -- Is it the default language?
     is_active BOOLEAN DEFAULT true,                -- Aktif mi?
     flag_emoji VARCHAR(10),                        -- "🇹🇷", "🇬🇧", "🇩🇪"
 
@@ -289,18 +289,18 @@ EXECUTE FUNCTION update_updated_at();
 -- 8. COMMENTS (Documentation)
 -- ============================================================================
 
-COMMENT ON TABLE pages IS 'CMS sayfaları - multi-language destekli';
-COMMENT ON COLUMN pages.title IS 'JSONB format: {"tr": "Başlık", "en": "Title"}';
-COMMENT ON COLUMN pages.slug IS 'URL slug, "/" ile başlamalı';
-COMMENT ON COLUMN pages.is_homepage IS 'Ana sayfa flagı (tenant başına 1 tane olmalı)';
+COMMENT ON TABLE pages IS 'CMS pages, with multi-language support';
+COMMENT ON COLUMN pages.title IS 'JSONB format: {"tr": "Baslik", "en": "Title"}';
+COMMENT ON COLUMN pages.slug IS 'URL slug, must start with "/"';
+COMMENT ON COLUMN pages.is_homepage IS 'Homepage flag, at most one per tenant';
 
-COMMENT ON TABLE sections IS 'Page içindeki bölümler (hero, features, cta, vs.)';
-COMMENT ON COLUMN sections.config IS 'Section özellikleri (background, padding, vs.)';
-COMMENT ON COLUMN sections.order_index IS 'Sıralama (0-indexed, auto-reorder on delete)';
+COMMENT ON TABLE sections IS 'Sections within a page (hero, features, cta)';
+COMMENT ON COLUMN sections.config IS 'Section properties (background, padding)';
+COMMENT ON COLUMN sections.order_index IS 'Ordering, 0-indexed, auto-reorder on delete';
 
-COMMENT ON TABLE components IS 'Section içindeki micro component''ler (button, text, image, vs.)';
-COMMENT ON COLUMN components.props IS 'Component özellikleri (variant, size, text, vs.)';
-COMMENT ON COLUMN components.order_index IS 'Sıralama (0-indexed, auto-reorder on delete)';
+COMMENT ON TABLE components IS 'Micro components within a section (button, text, image)';
+COMMENT ON COLUMN components.props IS 'Component properties (variant, size, text)';
+COMMENT ON COLUMN components.order_index IS 'Ordering, 0-indexed, auto-reorder on delete';
 
 COMMENT ON TABLE languages IS 'Aktif diller ve metadata';
 

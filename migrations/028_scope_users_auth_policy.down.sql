@@ -1,5 +1,5 @@
 -- 028 geri alma.
--- DİKKAT: bu, users tablosundaki okuma izolasyonunu tamamen kaldırır.
+-- WARNING: this removes read isolation from the users table entirely.
 
 DROP POLICY IF EXISTS auth_lookup_policy ON users;
 

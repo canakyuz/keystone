@@ -9,36 +9,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// 🎓 EDUCATIONAL NOTE: Go Testing Best Practices
-//
-// Bu test dosyası aşağıdaki Go konseptlerini kullanır:
-//
-// 1. Table-Driven Tests (test senaryolarını tablo olarak organize etme)
-//    - Birden fazla test case'ini tek bir test fonksiyonunda çalıştırma
-//    - Her case için: name (test adı), input (girdi), expected (beklenen)
-//
-// 2. Test Helpers (yardımcı fonksiyonlar)
-//    - createTestWebsite(): Hızlı test website oluşturma
-//    - Test kodunu DRY yapma (Don't Repeat Yourself)
-//
-// 3. Assertions vs Requirements
-//    - assert: Test devam eder (failed olur ama çalışır)
-//    - require: Test durur (critical error)
-//
-// 4. Test Isolation
-//    - Her test bağımsızdır, başkaları etkilemez
-//    - Test sırası önemli değildir
-
 // ═════════════════════════════════════════════════════════════
-// TEST HELPERS (Yardımcı Fonksiyonlar)
+// TEST HELPERS
 // ═════════════════════════════════════════════════════════════
 
-// createTestWebsite creates a valid website for testing
-//
-// 🎓 WHY: Test'lerde sık kullanılan objeler için helper yazmak
-// test kodunu temiz ve okunabilir tutar.
+// createTestWebsite creates a valid website for testing.
 func createTestWebsite(t *testing.T) *Website {
-	t.Helper() // Go'ya bu bir helper olduğunu söyler
+	t.Helper()
 
 	tenantID := uuid.New()
 	createdBy := uuid.New()
@@ -62,11 +39,8 @@ func createTestWebsite(t *testing.T) *Website {
 // ═════════════════════════════════════════════════════════════
 
 // TestNew_Success tests successful website creation
-//
-// 🎓 WHAT: Constructor'ın doğru çalıştığını test eder
-// 🎓 WHY: New() en kritik fonksiyondur, doğru başlatma önemlidir
 func TestNew_Success(t *testing.T) {
-	// Arrange (Hazırlık)
+	// Arrange
 	tenantID := uuid.New()
 	createdBy := uuid.New()
 	name := "My Awesome Website"
@@ -76,7 +50,7 @@ func TestNew_Success(t *testing.T) {
 	// Act (Aksiyon)
 	website, err := New(tenantID, name, slug, websiteType, &createdBy)
 
-	// Assert (Doğrulama)
+	// Assert
 	require.NoError(t, err, "New() should not return error")
 	require.NotNil(t, website, "New() should return website")
 
@@ -99,22 +73,20 @@ func TestNew_Success(t *testing.T) {
 //
 // 🎓 TABLE-DRIVEN TEST PATTERN:
 // Go'da birden fazla validation senaryosunu test etmenin en iyi yolu.
-// Her test case bir struct olarak tanımlanır ve loop ile çalıştırılır.
+// Each case is a struct, run in a loop.
 func TestNew_ValidationErrors(t *testing.T) {
 	tenantID := uuid.New()
 	createdBy := uuid.New()
 
 	// Test cases table
-	// 🎓 WHY: Aynı test mantığını farklı inputlarla tekrarlamak yerine
-	// tüm senaryoları bir tabloda tutarız.
 	tests := []struct {
-		name         string      // Test senaryosunun açıklaması
+		name         string
 		tenantID     uuid.UUID   // Input: tenant ID
 		websiteName  string      // Input: website name
 		slug         string      // Input: slug
 		websiteType  WebsiteType // Input: type
 		expectedErr  error       // Beklenen hata
-		errorMessage string      // Assert mesajı
+		errorMessage string
 	}{
 		{
 			name:         "Empty name should fail",
@@ -182,8 +154,6 @@ func TestNew_ValidationErrors(t *testing.T) {
 	}
 
 	// Run all test cases
-	// 🎓 t.Run(): Her case için alt-test oluşturur
-	// Test output'ta "TestNew_ValidationErrors/Empty_name_should_fail" gibi görünür
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Act
@@ -198,7 +168,7 @@ func TestNew_ValidationErrors(t *testing.T) {
 }
 
 // ═════════════════════════════════════════════════════════════
-// LIFECYCLE TESTS (Status değişimi testleri)
+// LIFECYCLE TESTS
 // ═════════════════════════════════════════════════════════════
 
 // TestWebsite_Publish_Success tests successful publishing
@@ -221,7 +191,7 @@ func TestWebsite_Publish_Success(t *testing.T) {
 
 // TestWebsite_Publish_AlreadyPublished tests error when already published
 //
-// 🎓 EDGE CASE: İkinci kez publish etmeye çalışma
+// Edge case: publishing a second time.
 func TestWebsite_Publish_AlreadyPublished(t *testing.T) {
 	// Arrange
 	website := createTestWebsite(t)
@@ -238,7 +208,7 @@ func TestWebsite_Publish_AlreadyPublished(t *testing.T) {
 
 // TestWebsite_Publish_ArchivedWebsite tests error when publishing archived website
 //
-// 🎓 BUSINESS RULE: Arşivlenmiş website publish edilemez
+// Business rule: an archived website cannot be published.
 func TestWebsite_Publish_ArchivedWebsite(t *testing.T) {
 	// Arrange
 	website := createTestWebsite(t)
@@ -389,12 +359,12 @@ func TestWebsite_Restore_NotArchived(t *testing.T) {
 }
 
 // ═════════════════════════════════════════════════════════════
-// CUSTOM DOMAIN TESTS (Özel alan adı testleri)
+// CUSTOM DOMAIN TESTS
 // ═════════════════════════════════════════════════════════════
 
 // TestWebsite_SetCustomDomain_Success tests setting custom domain
 //
-// 🎓 DOMAIN MANAGEMENT: Özel alan adı ekleme
+// Adding a custom domain.
 func TestWebsite_SetCustomDomain_Success(t *testing.T) {
 	// Arrange
 	website := createTestWebsite(t)
@@ -427,7 +397,7 @@ func TestWebsite_SetCustomDomain_EmptyDomain(t *testing.T) {
 
 // TestWebsite_VerifyCustomDomain_Success tests domain verification
 //
-// 🎓 DOMAIN VERIFICATION: DNS doğrulaması sonrası
+// After DNS verification.
 func TestWebsite_VerifyCustomDomain_Success(t *testing.T) {
 	// Arrange
 	website := createTestWebsite(t)
@@ -478,7 +448,7 @@ func TestWebsite_VerifyCustomDomain_AlreadyVerified(t *testing.T) {
 
 // TestWebsite_RemoveCustomDomain tests domain removal
 //
-// 🎓 CLEANUP: Özel alan adını kaldırma ve subdomain'e geri dönüş
+// Removing the custom domain and falling back to the subdomain.
 func TestWebsite_RemoveCustomDomain(t *testing.T) {
 	// Arrange
 	website := createTestWebsite(t)
@@ -500,12 +470,12 @@ func TestWebsite_RemoveCustomDomain(t *testing.T) {
 }
 
 // ═════════════════════════════════════════════════════════════
-// TEMPLATE TESTS (Şablon yönetimi testleri)
+// TEMPLATE TESTS
 // ═════════════════════════════════════════════════════════════
 
 // TestWebsite_SetTemplate tests template association
 //
-// 🎓 TEMPLATE SYSTEM: Website'a şablon atama
+// Assigning a template to a website.
 func TestWebsite_SetTemplate(t *testing.T) {
 	// Arrange
 	website := createTestWebsite(t)
@@ -526,7 +496,7 @@ func TestWebsite_SetTemplate(t *testing.T) {
 }
 
 // ═════════════════════════════════════════════════════════════
-// UPDATE TESTS (Güncelleme testleri)
+// UPDATE TESTS
 // ═════════════════════════════════════════════════════════════
 
 // TestWebsite_Update tests basic update
@@ -627,7 +597,7 @@ func TestWebsiteType_IsValid(t *testing.T) {
 
 // TestWebsiteType_GetDescription tests type descriptions
 //
-// 🎓 ENUM WITH DESCRIPTIONS: Her enum değeri için human-readable açıklama
+// Every enum value carries a human-readable description.
 func TestWebsiteType_GetDescription(t *testing.T) {
 	tests := []struct {
 		wType       WebsiteType
@@ -654,7 +624,7 @@ func TestWebsiteType_GetDescription(t *testing.T) {
 }
 
 // ═════════════════════════════════════════════════════════════
-// HELPER METHOD TESTS (Yardımcı metodlar)
+// HELPER METHOD TESTS
 // ═════════════════════════════════════════════════════════════
 
 // TestWebsite_CanPublish tests publish eligibility

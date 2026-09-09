@@ -11,16 +11,15 @@ import (
 	"github.com/lib/pq"
 )
 
-// 🎓 EDUCATIONAL NOTE: PostgreSQL Repository Pattern
+// The PostgreSQL implementation of the website repository.
 //
-// Bu dosya Repository Pattern'in PostgreSQL implementasyonudur.
-//
-// KEY CONCEPTS:
-// 1. **Tenant Isolation**: Her query'de tenant_id kontrolü zorunlu
-// 2. **Soft Delete**: deleted_at IS NULL ile silinen kayıtları filtrele
-// 3. **Context**: Timeout ve cancellation için context.Context kullan
-// 4. **Prepared Statements**: SQL injection'dan korunma (automatic with $1, $2)
-// 5. **Error Handling**: PostgreSQL error kodlarını domain error'larına map'le
+// Conventions used throughout this file:
+//   - Every query filters on tenant_id. This is the isolation boundary, not an
+//     optimisation.
+//   - Deleted rows are excluded with deleted_at IS NULL; deletes are soft.
+//   - Every method takes a context, so timeouts and cancellation propagate.
+//   - Values are always passed as $1, $2 placeholders, never interpolated.
+//   - PostgreSQL error codes are mapped to domain errors at this boundary.
 //
 // POSTGRES ERROR CODES:
 // - 23505: unique_violation (duplicate key)
@@ -31,9 +30,8 @@ type postgresRepo struct {
 	db *sql.DB
 }
 
-// NewPostgresRepository creates a new PostgreSQL website repository
-//
-// 🎓 CONSTRUCTOR PATTERN: Interface döner, concrete type değil
+// NewPostgresRepository creates a new PostgreSQL website repository. It returns the
+// interface rather than the concrete type.
 func NewPostgresRepository(db *sql.DB) Repository {
 	return &postgresRepo{db: db}
 }
@@ -43,9 +41,6 @@ func NewPostgresRepository(db *sql.DB) Repository {
 // ═════════════════════════════════════════════════════════════
 
 // List returns all websites for a tenant
-//
-// 🎓 MULTI-TENANT QUERY: tenant_id filtresi zorunlu
-// 🎓 SOFT DELETE: deleted_at IS NULL ile silinen kayıtlar dahil değil
 func (r *postgresRepo) List(ctx context.Context, tenantID uuid.UUID) ([]*website.Website, error) {
 	query := `
 		SELECT
@@ -113,8 +108,8 @@ func (r *postgresRepo) GetByID(ctx context.Context, id, tenantID uuid.UUID) (*we
 
 // GetBySlug retrieves a website by slug (global, for public access)
 //
-// 🎓 PUBLIC ACCESS: Slug global unique olduğu için tenant_id gerekmez
-// Ancak published status kontrol edilebilir (caller'ın sorumluluğu)
+// The slug is globally unique, so no tenant_id is needed here. Checking the
+// published status is the caller's responsibility.
 func (r *postgresRepo) GetBySlug(ctx context.Context, slug string) (*website.Website, error) {
 	query := `
 		SELECT
@@ -142,7 +137,7 @@ func (r *postgresRepo) GetBySlug(ctx context.Context, slug string) (*website.Web
 
 // SlugExists checks if a slug already exists
 //
-// 🎓 VALIDATION HELPER: Slug uniqueness kontrolü için
+// Checks slug uniqueness.
 func (r *postgresRepo) SlugExists(ctx context.Context, slug string) (bool, error) {
 	query := `SELECT EXISTS(SELECT 1 FROM websites WHERE slug = $1 AND deleted_at IS NULL)`
 
@@ -162,8 +157,8 @@ func (r *postgresRepo) SlugExists(ctx context.Context, slug string) (bool, error
 // Create creates a new website
 //
 // 🎓 INSERT PATTERN:
-// - RETURNING clause ile generated values'ları al (id, timestamps)
-// - Duplicate key error'ı yakalayıp domain error'a map'le
+//   - RETURNING gives back the generated values (id, timestamps).
+//   - A duplicate key error is caught and mapped to a domain error.
 func (r *postgresRepo) Create(ctx context.Context, site *website.Website) error {
 	query := `
 		INSERT INTO websites (
@@ -219,7 +214,7 @@ func (r *postgresRepo) Create(ctx context.Context, site *website.Website) error 
 	).Scan(&site.ID, &site.CreatedAt, &site.UpdatedAt)
 
 	if err != nil {
-		// 🎓 POSTGRES ERROR HANDLING: Error code'larını kontrol et
+		// Inspect the PostgreSQL error code.
 		if pqErr, ok := err.(*pq.Error); ok {
 			switch pqErr.Code {
 			case "23505": // unique_violation
@@ -239,7 +234,7 @@ func (r *postgresRepo) Create(ctx context.Context, site *website.Website) error 
 // 🎓 UPDATE PATTERN:
 // - SET updated_at = NOW() otomatik
 // - WHERE id AND tenant_id (security)
-// - RowsAffected() ile not found kontrolü
+//   - RowsAffected() distinguishes "updated" from "not found".
 func (r *postgresRepo) Update(ctx context.Context, site *website.Website) error {
 	query := `
 		UPDATE websites
@@ -318,7 +313,7 @@ func (r *postgresRepo) Update(ctx context.Context, site *website.Website) error 
 
 // Delete soft-deletes a website (tenant-scoped)
 //
-// 🎓 SOFT DELETE: deleted_at timestamp'i set et, kaydı silme
+// Soft delete: set the deleted_at timestamp rather than removing the row.
 // WHY: Data recovery, audit trail, referential integrity
 func (r *postgresRepo) Delete(ctx context.Context, id, tenantID uuid.UUID) error {
 	query := `
@@ -352,8 +347,8 @@ func (r *postgresRepo) Delete(ctx context.Context, id, tenantID uuid.UUID) error
 //
 // 🎓 SCAN PATTERN:
 // - Interface ile hem *sql.Row hem *sql.Rows destekle
-// - NULL değerleri pointer (*string, *uuid.UUID) ile handle et
-// - Scan sırası SELECT sırası ile aynı olmalı
+//   - NULL values are handled with pointers (*string, *uuid.UUID).
+//   - The scan order must match the SELECT order.
 func scanWebsite(scanner interface {
 	Scan(dest ...interface{}) error
 }) (*website.Website, error) {
@@ -397,14 +392,3 @@ func scanWebsite(scanner interface {
 
 	return &site, nil
 }
-
-// 🎓 SELF-REVIEW:
-//
-// ✅ Multi-tenant isolation: Her query'de tenant_id kontrolü
-// ✅ Soft delete: deleted_at IS NULL kullanımı
-// ✅ Context support: Timeout/cancellation için
-// ✅ Error handling: PostgreSQL error kodlarını domain error'larına map
-// ✅ Resource cleanup: defer rows.Close()
-// ✅ Security: Cross-tenant access prevention
-// ✅ Full entity mapping: Tüm alanlar database'e yazılıyor
-// ✅ Idiomatic Go: Interface return, error wrapping

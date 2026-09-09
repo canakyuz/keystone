@@ -7,14 +7,14 @@ import (
 	"github.com/gofiber/fiber/v2"
 )
 
-// ActivationHandler, modül ve araçların aktivasyon/deaktivasyon gibi yaşam döngüsüyle ilgili HTTP isteklerini yönetir.
+// ActivationHandler serves the module and tool lifecycle endpoints: install,
+// activate, deactivate and uninstall.
 type ActivationHandler struct {
 	activationService *registryService.TenantActivationService
 	dependencyChecker *registryService.DependencyCheckerService
 }
 
-// NewActivationHandler, yeni bir ActivationHandler örneği oluşturur.
-// Bu yapıcı metod, bağımlılıkların enjekte edilmesini (dependency injection) sağlar.
+// NewActivationHandler builds an ActivationHandler.
 func NewActivationHandler(
 	activationService *registryService.TenantActivationService,
 	dependencyChecker *registryService.DependencyCheckerService,
@@ -25,24 +25,24 @@ func NewActivationHandler(
 	}
 }
 
-// InstallModule, mevcut kiracı (tenant) için bir modül kurar.
+// InstallModule installs a module for the current tenant.
 // POST /api/v1/registry/tenant/modules/install
 func (h *ActivationHandler) InstallModule(c *fiber.Ctx) error {
-	// Middleware'den kiracı ve kullanıcı ID'lerini al.
+	// Take the tenant and user ids set by the middleware.
 	tenantID := middleware.GetTenantID(c)
 	userID := middleware.GetUserID(c)
 
 	if tenantID == "" || userID == "" {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Yetkisiz erişim"})
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 	}
 
-	// Gelen isteğin gövdesini (body) DTO'ya (Data Transfer Object) parse et.
+	// Parse the request body into the DTO.
 	var req dto.InstallModuleRequest
 	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Geçersiz istek gövdesi"})
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid request body"})
 	}
 
-	// Servis katmanına gönderilecek isteği oluştur.
+	// Build the request for the service layer.
 	serviceReq := registryService.InstallModuleRequest{
 		TenantID:        tenantID,
 		ModuleID:        req.ModuleID,
@@ -51,13 +51,13 @@ func (h *ActivationHandler) InstallModule(c *fiber.Ctx) error {
 		AutoInstallDeps: req.AutoInstallDeps,
 	}
 
-	// Aktivasyon servisini çağırarak modülü kur.
+	// Install the module through the activation service.
 	result, err := h.activationService.InstallModule(c.Context(), serviceReq)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
 
-	// Servisten gelen sonucu HTTP cevabına dönüştür.
+	// Turn the service result into an HTTP response.
 	response := dto.InstallModuleResponse{
 		TenantModule:         dto.ToTenantModuleResponse(result.TenantModule),
 		DependencyCheck:      dto.ToDependencyCheckDTO(result.DependencyCheckResult),
@@ -68,7 +68,7 @@ func (h *ActivationHandler) InstallModule(c *fiber.Ctx) error {
 	return c.Status(fiber.StatusCreated).JSON(fiber.Map{"data": response})
 }
 
-// ActivateModule, kurulmuş bir modülü aktif hale getirir.
+// ActivateModule activates an installed module.
 // POST /api/v1/registry/tenant/modules/:module_id/activate
 func (h *ActivationHandler) ActivateModule(c *fiber.Ctx) error {
 	tenantID := middleware.GetTenantID(c)
@@ -76,17 +76,17 @@ func (h *ActivationHandler) ActivateModule(c *fiber.Ctx) error {
 	moduleID := c.Params("module_id")
 
 	if tenantID == "" || userID == "" {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Yetkisiz erişim"})
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 	}
 
 	if err := h.activationService.ActivateModule(c.Context(), tenantID, moduleID, userID); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
 
-	return c.JSON(fiber.Map{"message": "Modül başarıyla aktive edildi"})
+	return c.JSON(fiber.Map{"message": "module activated"})
 }
 
-// DeactivateModule, aktif bir modülü pasif hale getirir.
+// DeactivateModule deactivates an active module.
 // POST /api/v1/registry/tenant/modules/:module_id/deactivate
 func (h *ActivationHandler) DeactivateModule(c *fiber.Ctx) error {
 	tenantID := middleware.GetTenantID(c)
@@ -94,24 +94,24 @@ func (h *ActivationHandler) DeactivateModule(c *fiber.Ctx) error {
 	moduleID := c.Params("module_id")
 
 	if tenantID == "" || userID == "" {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Yetkisiz erişim"})
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 	}
 
 	if err := h.activationService.DeactivateModule(c.Context(), tenantID, moduleID, userID); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
 
-	return c.JSON(fiber.Map{"message": "Modül başarıyla devre dışı bırakıldı"})
+	return c.JSON(fiber.Map{"message": "module deactivated"})
 }
 
-// UninstallModule, bir modülü kiracıdan tamamen kaldırır.
+// UninstallModule removes a module from the tenant entirely.
 // DELETE /api/v1/registry/tenant/modules/:module_id
 func (h *ActivationHandler) UninstallModule(c *fiber.Ctx) error {
 	tenantID := middleware.GetTenantID(c)
 	moduleID := c.Params("module_id")
 
 	if tenantID == "" {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Yetkisiz erişim"})
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 	}
 
 	if err := h.activationService.UninstallModule(c.Context(), tenantID, moduleID); err != nil {
@@ -121,39 +121,39 @@ func (h *ActivationHandler) UninstallModule(c *fiber.Ctx) error {
 	return c.Status(fiber.StatusNoContent).Send(nil)
 }
 
-// CompleteModuleSetup, bir modülün kurulum sonrası adımlarının tamamlandığını işaretler.
+// CompleteModuleSetup marks a module's post-install steps as done.
 // POST /api/v1/registry/tenant/modules/:module_id/complete-setup
 func (h *ActivationHandler) CompleteModuleSetup(c *fiber.Ctx) error {
 	tenantID := middleware.GetTenantID(c)
 	moduleID := c.Params("module_id")
 
 	if tenantID == "" {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Yetkisiz erişim"})
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 	}
 
 	if err := h.activationService.CompleteModuleSetup(c.Context(), tenantID, moduleID); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
 
-	return c.JSON(fiber.Map{"message": "Modül kurulumu başarıyla tamamlandı"})
+	return c.JSON(fiber.Map{"message": "module setup completed"})
 }
 
-// InstallTool, mevcut kiracı için bir araç kurar.
+// InstallTool installs a tool for the current tenant.
 // POST /api/v1/registry/tenant/tools/install
 func (h *ActivationHandler) InstallTool(c *fiber.Ctx) error {
 	tenantID := middleware.GetTenantID(c)
 	userID := middleware.GetUserID(c)
 
 	if tenantID == "" || userID == "" {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Yetkisiz erişim"})
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 	}
 
 	var req dto.InstallToolRequest
 	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Geçersiz istek gövdesi"})
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid request body"})
 	}
 
-	// Servis katmanına gönderilecek isteği oluştur.
+	// Build the request for the service layer.
 	serviceReq := registryService.InstallToolRequest{
 		TenantID:        tenantID,
 		ToolID:          req.ToolID,
@@ -168,7 +168,7 @@ func (h *ActivationHandler) InstallTool(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
 
-	// Servisten gelen sonucu HTTP cevabına dönüştür.
+	// Turn the service result into an HTTP response.
 	response := dto.InstallToolResponse{
 		TenantTool:         dto.ToTenantToolResponse(result.TenantTool),
 		DependencyCheck:    dto.ToDependencyCheckDTO(result.DependencyCheckResult),
@@ -178,7 +178,7 @@ func (h *ActivationHandler) InstallTool(c *fiber.Ctx) error {
 	return c.Status(fiber.StatusCreated).JSON(fiber.Map{"data": response})
 }
 
-// ActivateTool, kurulmuş bir aracı aktif hale getirir.
+// ActivateTool activates an installed tool.
 // POST /api/v1/registry/tenant/tools/:tool_id/activate
 func (h *ActivationHandler) ActivateTool(c *fiber.Ctx) error {
 	tenantID := middleware.GetTenantID(c)
@@ -186,17 +186,17 @@ func (h *ActivationHandler) ActivateTool(c *fiber.Ctx) error {
 	toolID := c.Params("tool_id")
 
 	if tenantID == "" || userID == "" {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Yetkisiz erişim"})
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 	}
 
 	if err := h.activationService.ActivateTool(c.Context(), tenantID, toolID, userID); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
 
-	return c.JSON(fiber.Map{"message": "Araç başarıyla aktive edildi"})
+	return c.JSON(fiber.Map{"message": "tool activated"})
 }
 
-// DeactivateTool, aktif bir aracı pasif hale getirir.
+// DeactivateTool deactivates an active tool.
 // POST /api/v1/registry/tenant/tools/:tool_id/deactivate
 func (h *ActivationHandler) DeactivateTool(c *fiber.Ctx) error {
 	tenantID := middleware.GetTenantID(c)
@@ -204,24 +204,24 @@ func (h *ActivationHandler) DeactivateTool(c *fiber.Ctx) error {
 	toolID := c.Params("tool_id")
 
 	if tenantID == "" || userID == "" {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Yetkisiz erişim"})
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 	}
 
 	if err := h.activationService.DeactivateTool(c.Context(), tenantID, toolID, userID); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
 
-	return c.JSON(fiber.Map{"message": "Araç başarıyla devre dışı bırakıldı"})
+	return c.JSON(fiber.Map{"message": "tool deactivated"})
 }
 
-// UninstallTool, bir aracı kiracıdan tamamen kaldırır.
+// UninstallTool removes a tool from the tenant entirely.
 // DELETE /api/v1/registry/tenant/tools/:tool_id
 func (h *ActivationHandler) UninstallTool(c *fiber.Ctx) error {
 	tenantID := middleware.GetTenantID(c)
 	toolID := c.Params("tool_id")
 
 	if tenantID == "" {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Yetkisiz erişim"})
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 	}
 
 	if err := h.activationService.UninstallTool(c.Context(), tenantID, toolID); err != nil {
@@ -231,30 +231,30 @@ func (h *ActivationHandler) UninstallTool(c *fiber.Ctx) error {
 	return c.Status(fiber.StatusNoContent).Send(nil)
 }
 
-// CompleteToolSetup, bir aracın kurulum sonrası adımlarının tamamlandığını işaretler.
+// CompleteToolSetup marks a tool's post-install steps as done.
 // POST /api/v1/registry/tenant/tools/:tool_id/complete-setup
 func (h *ActivationHandler) CompleteToolSetup(c *fiber.Ctx) error {
 	tenantID := middleware.GetTenantID(c)
 	toolID := c.Params("tool_id")
 
 	if tenantID == "" {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Yetkisiz erişim"})
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 	}
 
 	if err := h.activationService.CompleteToolSetup(c.Context(), tenantID, toolID); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
 
-	return c.JSON(fiber.Map{"message": "Araç kurulumu başarıyla tamamlandı"})
+	return c.JSON(fiber.Map{"message": "tool setup completed"})
 }
 
-// GetActivatedModules, mevcut kiracı için aktif olan modülleri listeler.
+// GetActivatedModules lists the modules active for the current tenant.
 // GET /api/v1/registry/tenant/modules
 func (h *ActivationHandler) GetActivatedModules(c *fiber.Ctx) error {
 	tenantID := middleware.GetTenantID(c)
 
 	if tenantID == "" {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Yetkisiz erişim"})
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 	}
 
 	modules, err := h.activationService.GetActivatedModules(c.Context(), tenantID)
@@ -262,7 +262,7 @@ func (h *ActivationHandler) GetActivatedModules(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
 
-	// Servisten gelen veriyi DTO'ya çevir.
+	// Convert the service result into DTOs.
 	response := make([]dto.TenantModuleResponse, len(modules))
 	for i, module := range modules {
 		response[i] = dto.ToTenantModuleResponse(module)
@@ -271,13 +271,13 @@ func (h *ActivationHandler) GetActivatedModules(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{"data": response})
 }
 
-// GetActivatedTools, mevcut kiracı için aktif olan araçları listeler.
+// GetActivatedTools lists the tools active for the current tenant.
 // GET /api/v1/registry/tenant/tools
 func (h *ActivationHandler) GetActivatedTools(c *fiber.Ctx) error {
 	tenantID := middleware.GetTenantID(c)
 
 	if tenantID == "" {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Yetkisiz erişim"})
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 	}
 
 	tools, err := h.activationService.GetActivatedTools(c.Context(), tenantID)
@@ -285,7 +285,7 @@ func (h *ActivationHandler) GetActivatedTools(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
 
-	// Servisten gelen veriyi DTO'ya çevir.
+	// Convert the service result into DTOs.
 	response := make([]dto.TenantToolResponse, len(tools))
 	for i, tool := range tools {
 		response[i] = dto.ToTenantToolResponse(tool)
@@ -294,14 +294,14 @@ func (h *ActivationHandler) GetActivatedTools(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{"data": response})
 }
 
-// CheckModuleDependencies, bir modülün kurulum için gerekli olan diğer modül/araç bağımlılıklarını kontrol eder.
+// CheckModuleDependencies reports which other modules or tools a module requires.
 // GET /api/v1/registry/tenant/modules/:module_id/dependencies
 func (h *ActivationHandler) CheckModuleDependencies(c *fiber.Ctx) error {
 	tenantID := middleware.GetTenantID(c)
 	moduleID := c.Params("module_id")
 
 	if tenantID == "" {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Yetkisiz erişim"})
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 	}
 
 	result, err := h.dependencyChecker.CheckModuleDependencies(c.Context(), tenantID, moduleID)
@@ -314,14 +314,14 @@ func (h *ActivationHandler) CheckModuleDependencies(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{"data": response})
 }
 
-// CheckToolDependencies, bir aracın kurulum için gerekli olan diğer modül/araç bağımlılıklarını kontrol eder.
+// CheckToolDependencies reports which other modules or tools a tool requires.
 // GET /api/v1/registry/tenant/tools/:tool_id/dependencies
 func (h *ActivationHandler) CheckToolDependencies(c *fiber.Ctx) error {
 	tenantID := middleware.GetTenantID(c)
 	toolID := c.Params("tool_id")
 
 	if tenantID == "" {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Yetkisiz erişim"})
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 	}
 
 	result, err := h.dependencyChecker.CheckToolDependencies(c.Context(), tenantID, toolID)

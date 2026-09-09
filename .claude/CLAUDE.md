@@ -1,49 +1,51 @@
-# Keystone API - Claude Code Kuralları
+# Keystone - working rules
 
-> **Multi-Tenant SaaS Backend (Go + Fiber + PostgreSQL)**
-> **Mimari:** Clean Architecture + Schema-per-Tenant
-
----
-
-## ⚠️ YASAKLAR (Zaman Kaybı)
-
-- **❌ Mock/Test Data:** Gerçek PostgreSQL kullan
-- **❌ Unit Test Obsesyonu:** Sadece kritik business logic test et
-- **❌ İki Aşamalı Yaklaşım:** Direkt implementation yap
-- **❌ Test-First:** Önce kodu yaz, sonra test ekle
-- **✅ ZORUNLU:** Her anlamlı değişiklikten sonra git commit at
+> Multi-tenant SaaS control plane (Go + Fiber + PostgreSQL)
+> Architecture: clean architecture + schema-per-tenant
 
 ---
 
-## 🎯 Öncelikler
+## Non-negotiables
 
-1. **Tenant Isolation** - Tenant'lar arası veri sızıntısı = 0
-2. **Clean Architecture** - Katman ayrımı mutlak
-3. **Production Ready** - Her commit production'a gidebilir
-4. **Performance** - P95 <200ms
-5. **Security** - SOC 2 + GDPR uyumlu
+- **Real PostgreSQL, not mocks.** Most bugs in this repository (RLS bypass, schema
+  drift, `search_path` leaking) only appear against a real database. A test that
+  passes against a mock proves nothing about isolation.
+- **Test what is load-bearing.** Isolation, concurrency and the state machine get
+  tests. Getters do not.
+- **Write the code, then the test.** Not the other way around.
+- **Commit every meaningful change.** Conventional commits, one line.
 
 ---
 
-## 🏗️ Mimari Katmanlar
+## Priorities, in order
+
+1. **Tenant isolation.** Cross-tenant leakage is zero, and that claim is tested.
+2. **Clean architecture.** The layer boundary is absolute.
+3. **Production ready.** Every commit could ship.
+4. **Performance.** P95 under 200ms — currently an unmeasured claim, see the roadmap.
+5. **Security.** SOC 2 and GDPR aligned.
+
+---
+
+## Layers
 
 ```
-Handlers (HTTP)
-    ↓
-Services (Business Logic)
-    ↓
-Entities (Domain)
-    ↓
-Repository (Database)
+Handlers (HTTP)  ->  Usecases (business logic)  ->  Domain  ->  Repository (database)
 ```
 
-**Kural:** İçteki katman dıştaki katmana bağımlı OLAMAZ.
+Dependencies point inward only. An inner layer must never import an outer one. If
+the repository layer needs something from HTTP middleware, the shared piece belongs
+in a leaf package — see `pkg/tenantctx`.
+
+Two processes: `cmd/server` serves HTTP, `cmd/worker` drains the provisioning queue.
+They share the management schema; see ADR-0001 for why, and what that costs.
 
 ---
 
-## 🔒 Multi-Tenant Kuralları
+## Multi-tenant rules
 
-### Her Request'te Zorunlu Context
+Every request carries a tenant identity, read only from a verified JWT claim.
+
 ```go
 type RequestContext struct {
     TenantID   string `validate:"required"`
@@ -52,51 +54,42 @@ type RequestContext struct {
 }
 ```
 
-### Database İzolasyonu
+**Database.** Queries inside a tenant context must run on the connection
+`ExecuteInTenantContext` hands to the callback. Going through the pool (`*sql.DB`)
+silently lands on a different connection whose `search_path` is not set.
+
 ```go
-// ❌ YANLIŞ: Tenant context yok
+// Wrong: no tenant context
 db.Query("SELECT * FROM users WHERE email = $1", email)
 
-// ✅ DOĞRU: Schema scoping
-db.Exec("SET search_path TO tenant_acme, public")
-db.Query("SELECT * FROM users WHERE email = $1", email)
+// Right: the callback's connection, with search_path already set
+mgr.ExecuteInTenantContext(ctx, schema, func(conn *sql.Conn) error {
+    return conn.QueryRowContext(ctx, "SELECT ... WHERE email = $1", email).Scan(&u)
+})
 ```
 
-### Cache İzolasyonu
-```typescript
-// ✅ Tenant prefix zorunlu
-const cacheKey = `tenant:${tenantId}:${resource}:${id}`;
-```
+**RLS policies are fail-closed.** With no context set the result is the empty set,
+never every row. Adding one `USING (TRUE)` policy neutralises every other isolation
+policy on that table — this repository lost read isolation on `users` exactly that
+way.
+
+**Cache keys carry the tenant prefix:** `tenant:{tenant_id}:{resource}:{id}`.
 
 ---
 
-## 💎 Kod Kuralları
+## Code rules
 
-### DRY
-```go
-// ≥3 tekrar görürsen, fonksiyon çıkar
-```
-
-### KISS
-```go
-// En basit çalışan çözüm. Gereksiz soyutlama yapma.
-```
-
-### YAGNI
-```go
-// Bugün gerekmeyen özelliği ekleme.
-```
-
-### Single Responsibility
-```go
-// Her servis/fonksiyon tek iş yapsın
-```
+- **DRY:** factor out on the third repetition, not the second.
+- **KISS:** the simplest thing that works. No speculative abstraction.
+- **YAGNI:** do not build for a requirement that does not exist today.
+- **Single responsibility:** one job per function.
 
 ---
 
-## 🔐 Güvenlik
+## Security
 
-### Input Validation
+**Validate input at the boundary.**
+
 ```go
 type CreateTenantRequest struct {
     Name  string `validate:"required,min=3,max=100"`
@@ -104,161 +97,142 @@ type CreateTenantRequest struct {
 }
 ```
 
-### SQL Injection
+**Never interpolate into SQL.** Use `$1`, `$2`. Where a placeholder is impossible —
+a schema name in `SET search_path` — validate the identifier by hand and quote it
+with `pq.QuoteIdentifier`.
+
+**Do not leak internals in errors.** Log the detail, return the generic message.
+
 ```go
-// ❌ String concatenation
-query := fmt.Sprintf("SELECT * FROM users WHERE email = '%s'", email)
-
-// ✅ Parameterized query
-db.Query("SELECT * FROM users WHERE email = $1", email)
-```
-
-### Error Messages
-```go
-// ❌ Implementation detail leak
-return fmt.Errorf("database error: %v", err)
-
-// ✅ Generic message, internal logging
 logger.Error("db_error", zap.Error(err))
 return errors.New("failed to process request")
 ```
 
 ---
 
-## 📊 Performance
+## Performance
 
-### N+1 Engellemek
+**No N+1.** Batch instead.
+
 ```go
-// ❌ Loop içinde query
+// Wrong: a query per iteration
 for _, user := range users {
-    roles := repo.GetUserRoles(user.ID) // BAD!
+    roles := repo.GetUserRoles(user.ID)
 }
 
-// ✅ Batch query
-userIDs := extractIDs(users)
-rolesByUserID := repo.GetRolesByUserIDs(userIDs) // GOOD!
+// Right: one query for all of them
+rolesByUserID := repo.GetRolesByUserIDs(extractIDs(users))
 ```
 
-### Index Stratejisi
+**Indexes lead with `tenant_id`.**
+
 ```sql
--- ❌ Tenant_id yok
+-- Wrong
 CREATE INDEX idx_users_email ON users(email);
 
--- ✅ Tenant_id ilk sırada
+-- Right
 CREATE INDEX idx_users_tenant_email ON users(tenant_id, email);
 ```
 
-### Cache Stratejisi
-```go
-// L1: App cache (5 min)
-// L2: Redis (15 min)
-// L3: Database
-// Key format: "tenant:{tenant_id}:{resource}:{id}"
-```
+**Cache tiers:** L1 in-process, L2 Redis, database underneath. TTLs carry jitter.
 
 ---
 
-## 🚀 Git Commit Standartları
+## Commits
 
-```bash
-# Conventional commits
+Conventional commits, single line, English.
+
+```
 feat(tenant): add schema provisioning
-fix(auth): prevent cross-tenant session leak
+fix(rls): force row level security on tenant tables
 refactor(user): extract validation logic
 perf(db): optimize tenant queries
 ```
 
-### Commit Öncesi Kontrol
-- [ ] Testler geçiyor mu?
-- [ ] Lint temiz mi?
-- [ ] Build başarılı mı?
-- [ ] Hassas veri yok mu?
-- [ ] Tenant isolation korunuyor mu?
+Before committing: tests pass, `gofmt -l .` is empty, `go vet ./...` is clean, no
+credentials in the diff, tenant isolation intact.
 
 ---
 
-## 📝 Dokümantasyon
+## Comments
 
-### Yorumlar
+Explain WHY, not WHAT. The code already says what it does.
+
 ```go
-// ❌ NE yaptığını açıklama
-counter++ // Increment counter
+// Useless
+counter++ // increment counter
 
-// ✅ NEDEN yaptığını açıkla
-// Exponential backoff kullanıyoruz çünkü payment API'si
-// yüksek trafikte rate limit yapıyor. Max 3 retry, 8s delay.
+// Useful
+// Exponential backoff, because the payment API rate limits under load.
+// Three attempts, 8s ceiling.
 ```
 
+When a comment records a bug that was fixed, describe the bug concretely. Those
+comments are the most valuable ones in this repository.
+
 ---
 
-## 🚨 Anti-Patterns (ASLA YAPMA)
+## Anti-patterns
 
 ```go
-// ❌ Hardcoded credentials
+// Hardcoded credentials
 const dbPassword = "secret"
 
-// ❌ Library'de panic
+// Panicking in a library
 func ProcessData(data string) {
     if data == "" {
-        panic("empty data") // WRONG
+        panic("empty data")
     }
 }
 
-// ❌ Error ignore
+// Ignored error
 db.Exec("UPDATE users SET active = true")
 
-// ❌ Global mutable state
-var currentTenantID string // Race condition
+// Global mutable state, a race waiting to happen
+var currentTenantID string
 
-// ❌ Handler'da database logic
+// Database access in a handler
 func (h *Handler) GetUser(c *fiber.Ctx) error {
-    row := h.db.QueryRow("SELECT ...") // WRONG
+    row := h.db.QueryRow("SELECT ...")
 }
 ```
 
 ---
 
-## 📦 Proje Yapısı
+## Layout
 
 ```
 keystone/
-├── cmd/server/              # Entry point
+├── cmd/server/          # HTTP entry point
+├── cmd/worker/          # provisioning worker
 ├── internal/
-│   ├── domain/              # Entities (pure)
-│   ├── usecase/             # Services (business logic)
-│   ├── repository/          # Data access
-│   └── handlers/            # HTTP handlers
-├── pkg/                     # Shared utilities
-├── migrations/              # Database migrations
-└── scripts/seed/            # Dev seed data only
+│   ├── domain/          # entities, pure
+│   ├── usecase/         # business logic
+│   ├── repository/      # data access
+│   ├── handler/         # HTTP handlers
+│   ├── middleware/      # auth, tenant context, rate limit
+│   └── worker/          # job claiming, leases, shutdown
+├── pkg/                 # cache, ratelimit, database, tenantctx
+├── migrations/          # the single source of truth for the schema
+├── docs/decisions/      # architecture decision records
+└── scripts/seed/        # development seed data only
 ```
 
 ---
 
-## ✅ Definition of Done
+## Definition of done
 
-1. **Kod Kalitesi**
-   - [ ] Clean architecture uyumlu
-   - [ ] DRY, KISS, YAGNI uygulandı
-   - [ ] Lint temiz
+**Quality:** layer boundaries respected, no speculative abstraction, `gofmt` and
+`go vet` clean.
 
-2. **Güvenlik**
-   - [ ] Input validation var
-   - [ ] Tenant isolation doğrulandı
-   - [ ] Logda hassas veri yok
-   - [ ] SQL injection korumalı
+**Security:** input validated, tenant isolation verified by a test, no sensitive
+data in logs, no string-built SQL.
 
-3. **Performance**
-   - [ ] N+1 query yok
-   - [ ] Index optimize
-   - [ ] Cache stratejisi var
+**Performance:** no N+1, indexes lead with `tenant_id`, caching strategy stated.
 
-4. **Production Ready**
-   - [ ] Error handling tam
-   - [ ] Structured logging
-   - [ ] Migration backward-compatible
+**Production ready:** errors handled, logging structured, migration backward
+compatible with a tested rollback.
 
----
-
-**Son Güncelleme:** Ekim 2025
-**Versiyon:** 2.0
+**Documented:** if the change alters a guarantee, `docs/INVARIANTS.md` is updated.
+If it settles a design question, a decision record is added — including the
+condition under which the decision becomes wrong.

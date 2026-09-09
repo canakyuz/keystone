@@ -27,7 +27,7 @@ func (r *PostgresRepository) MarkProvisioning(ctx context.Context, tenantID stri
 		  AND deleted_at IS NULL
 		  AND status IN ('pending', 'provisioning', 'failed')`, tenantID)
 	if err != nil {
-		return fmt.Errorf("tenant 'provisioning' yapılamadı: %w", err)
+		return fmt.Errorf("could not move tenant to 'provisioning': %w", err)
 	}
 
 	return nil
@@ -45,7 +45,7 @@ func (r *PostgresRepository) MarkFailed(ctx context.Context, tenantID string) er
 		  AND deleted_at IS NULL
 		  AND status IN ('pending', 'provisioning')`, tenantID)
 	if err != nil {
-		return fmt.Errorf("tenant 'failed' yapılamadı: %w", err)
+		return fmt.Errorf("could not move tenant to 'failed': %w", err)
 	}
 
 	return nil

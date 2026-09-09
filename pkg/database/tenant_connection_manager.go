@@ -11,46 +11,47 @@ import (
 	"github.com/canakyuz/keystone/pkg/logger"
 )
 
-// TenantConnectionManager, schema-per-tenant mimarisinde tenant izolasyonu sağlar.
+// TenantConnectionManager provides tenant isolation in a schema-per-tenant setup.
 //
-// PostgreSQL'de search_path, sorguların hangi schema'da çalışacağını belirler.
-// Bu manager, her request için doğru tenant schema'sının set edilmesini ve
-// işlem sonrası temizlenmesini garanti eder.
+// In PostgreSQL, search_path decides which schema a query runs against. This
+// manager guarantees that the right tenant schema is set for every request and
+// cleared again afterwards.
 type TenantConnectionManager interface {
-	// SetSearchPath belirtilen tenant schema'sını aktif eder.
+	// SetSearchPath activates the given tenant schema.
 	// UYARI: Mutlaka ResetSearchPath ile temizlenmelidir (defer kullan).
 	SetSearchPath(ctx context.Context, schemaName string) error
 
-	// ResetSearchPath search_path'i varsayılan değere (public) döndürür.
-	// Cross-tenant veri sızıntısını önlemek için kritik bir güvenlik adımıdır.
+	// ResetSearchPath returns search_path to its default (public). This is a
+	// security-critical step: it is what stops cross-tenant data leaking through a
+	// pooled connection.
 	ResetSearchPath(ctx context.Context) error
 
-	// ExecuteInTenantContext bir fonksiyonu tenant schema context'i içinde çalıştırır.
+	// ExecuteInTenantContext runs a function inside the tenant schema context.
 	//
-	// Callback, search_path'i ayarlanmış BAĞLANTIYI parametre olarak alır ve
-	// tüm sorgularını bu bağlantı üzerinden yapmak ZORUNDADIR. Havuzdan
-	// (*sql.DB) sorgu çalıştırmak sessizce başka bir bağlantıya düşer; o
-	// bağlantının search_path'i bu tenant'a ayarlı değildir.
+	// The callback receives the CONNECTION whose search_path was set, and MUST run
+	// every one of its queries on that connection. Running a query through the pool
+	// (*sql.DB) silently lands on a different connection, and that connection's
+	// search_path is not set to this tenant.
 	//
-	// Örnek:
+	// Example:
 	//   err := manager.ExecuteInTenantContext(ctx, "tenant_acme", func(conn *sql.Conn) error {
 	//       return conn.QueryRowContext(ctx, "SELECT ...").Scan(&x)
 	//   })
 	ExecuteInTenantContext(ctx context.Context, schemaName string, fn func(conn *sql.Conn) error) error
 
-	// GetConnection connection pool'dan yeni bir bağlantı alır.
-	// İleri düzey senaryolar için. Çoğu durumda ExecuteInTenantContext kullan.
+	// GetConnection takes a fresh connection from the pool. For advanced cases;
+	// prefer ExecuteInTenantContext.
 	GetConnection(ctx context.Context) (*sql.Conn, error)
 }
 
-// connectionManager, TenantConnectionManager'ın implementasyonudur.
+// connectionManager is the TenantConnectionManager implementation.
 type connectionManager struct {
 	db     *sql.DB
 	logger *logger.Logger
 	mu     sync.RWMutex
 }
 
-// NewTenantConnectionManager yeni bir TenantConnectionManager oluşturur.
+// NewTenantConnectionManager creates a new TenantConnectionManager.
 func NewTenantConnectionManager(db *sql.DB, log *logger.Logger) TenantConnectionManager {
 	return &connectionManager{
 		db:     db,
@@ -58,13 +59,13 @@ func NewTenantConnectionManager(db *sql.DB, log *logger.Logger) TenantConnection
 	}
 }
 
-// SetSearchPath, database bağlantısının search_path'ini değiştirir.
+// SetSearchPath changes the search_path of the database connection.
 func (m *connectionManager) SetSearchPath(ctx context.Context, schemaName string) error {
 	if err := validateSchemaName(schemaName); err != nil {
-		return fmt.Errorf("geçersiz schema adı: %w", err)
+		return fmt.Errorf("invalid schema name: %w", err)
 	}
 
-	// pq.QuoteIdentifier ile SQL injection koruması
+	// pq.QuoteIdentifier guards against SQL injection here.
 	quotedSchema := pq.QuoteIdentifier(schemaName)
 	setCmd := fmt.Sprintf("SET search_path TO %s, public", quotedSchema)
 
@@ -73,21 +74,21 @@ func (m *connectionManager) SetSearchPath(ctx context.Context, schemaName string
 			m.logger.WithFields(logger.Fields{
 				"schema_name": schemaName,
 				"error":       err.Error(),
-			}).Error("search_path ayarlanamadı")
+			}).Error("could not set search_path")
 		}
-		return fmt.Errorf("search_path ayarlanamadı: %w", err)
+		return fmt.Errorf("could not set search_path: %w", err)
 	}
 
 	if m.logger != nil {
 		m.logger.WithFields(logger.Fields{
 			"schema_name": schemaName,
-		}).Debug("search_path ayarlandı")
+		}).Debug("search_path set")
 	}
 
 	return nil
 }
 
-// ResetSearchPath, search_path'i public schema'ya döndürür.
+// ResetSearchPath returns search_path to the public schema.
 func (m *connectionManager) ResetSearchPath(ctx context.Context) error {
 	resetCmd := "SET search_path TO public"
 
@@ -95,40 +96,41 @@ func (m *connectionManager) ResetSearchPath(ctx context.Context) error {
 		if m.logger != nil {
 			m.logger.WithFields(logger.Fields{
 				"error": err.Error(),
-			}).Error("search_path sıfırlanamadı")
+			}).Error("could not reset search_path")
 		}
-		return fmt.Errorf("search_path sıfırlanamadı: %w", err)
+		return fmt.Errorf("could not reset search_path: %w", err)
 	}
 
 	if m.logger != nil {
-		m.logger.Debug("search_path public'e döndürüldü")
+		m.logger.Debug("search_path reset to public")
 	}
 
 	return nil
 }
 
-// ExecuteInTenantContext, verilen fonksiyonu tenant schema context'inde çalıştırır.
+// ExecuteInTenantContext runs the given function in the tenant schema context.
 //
-// ÖNEMLİ: sql.Conn kullanma sebebi:
-// - sql.DB: Connection pool (birden fazla bağlantı)
-// - sql.Conn: Pool'dan alınmış TEK bağlantı
-// - search_path sql.Conn üzerinde set edilir, böylece diğer request'ler etkilenmez
-// - Connection Close() ile pool'a geri döner (reusable)
-// ExecuteInTenantContext, havuzdan tek bir bağlantı ayırır, o bağlantıda tenant
-// schema'sını aktif eder ve callback'e AYNI bağlantıyı verir.
+// Why sql.Conn rather than sql.DB:
+//   - sql.DB is the pool, that is, several connections.
+//   - sql.Conn is ONE connection checked out of that pool.
+//   - search_path is set on the sql.Conn, so other requests are unaffected.
+//   - Close() returns the connection to the pool for reuse.
 //
-// NEDEN callback bağlantıyı alıyor: önceki imza fn func() error idi. Bağlantı
-// ayrılıyor, search_path ona yazılıyor, ama callback ona erişemediği için
-// sorgular havuz üzerinden (*sql.DB) çalışıyordu. Sonuç iki yönlü hataydı:
-// tenant schema'sı sorgular için hiçbir zaman aktif olmuyordu ve eşzamanlı
-// yükte sorgu, başka bir tenant için ayarlanmış ve henüz sıfırlanmamış bir
-// bağlantıya düşebiliyordu. Bağlantıyı imzaya taşımak bu sınıfı derleme
-// zamanında kapatır.
+// ExecuteInTenantContext checks out a single connection, activates the tenant
+// schema on it, and hands THAT SAME connection to the callback.
 //
-// Karmaşıklık: O(1) bağlantı ayırma + callback'in kendi maliyeti.
+// WHY the callback receives the connection: the previous signature was
+// fn func() error. A connection was checked out and search_path was written to it,
+// but since the callback could not reach it, the queries ran through the pool
+// (*sql.DB) instead. The bug cut both ways: the tenant schema was never actually
+// active for the queries, and under concurrent load a query could land on a
+// connection still set to another tenant and not yet reset. Moving the connection
+// into the signature closes this whole class at compile time.
+//
+// Complexity: O(1) to check out the connection, plus whatever the callback costs.
 func (m *connectionManager) ExecuteInTenantContext(ctx context.Context, schemaName string, fn func(conn *sql.Conn) error) error {
 	if err := validateSchemaName(schemaName); err != nil {
-		return fmt.Errorf("geçersiz schema adı: %w", err)
+		return fmt.Errorf("invalid schema name: %w", err)
 	}
 
 	// Pool'dan dedicated connection al
@@ -137,15 +139,15 @@ func (m *connectionManager) ExecuteInTenantContext(ctx context.Context, schemaNa
 		if m.logger != nil {
 			m.logger.WithFields(logger.Fields{
 				"error": err.Error(),
-			}).Error("Database bağlantısı alınamadı")
+			}).Error("could not acquire database connection")
 		}
-		return fmt.Errorf("database bağlantısı alınamadı: %w", err)
+		return fmt.Errorf("could not acquire database connection: %w", err)
 	}
 
-	// Connection'ı pool'a geri döndür (panic olsa bile)
+	// Return the connection to the pool, even on panic.
 	defer conn.Close()
 
-	// Tenant schema'sını aktif et
+	// Activate the tenant schema.
 	quotedSchema := pq.QuoteIdentifier(schemaName)
 	setCmd := fmt.Sprintf("SET search_path TO %s, public", quotedSchema)
 
@@ -154,14 +156,14 @@ func (m *connectionManager) ExecuteInTenantContext(ctx context.Context, schemaNa
 			m.logger.WithFields(logger.Fields{
 				"schema_name": schemaName,
 				"error":       err.Error(),
-			}).Error("Connection'da search_path ayarlanamadı")
+			}).Error("could not set search_path on connection")
 		}
-		return fmt.Errorf("search_path ayarlanamadı: %w", err)
+		return fmt.Errorf("could not set search_path: %w", err)
 	}
 
-	// İşlem bitince search_path'i temizle (güvenlik kritik!)
+	// Clear search_path when the work is done. This one is security-critical.
 	defer func() {
-		// Context iptal olmuş olsa bile reset yapılmalı
+		// The reset has to happen even if the context was cancelled.
 		resetCtx := context.Background()
 
 		if _, err := conn.ExecContext(resetCtx, "SET search_path TO public"); err != nil {
@@ -169,64 +171,64 @@ func (m *connectionManager) ExecuteInTenantContext(ctx context.Context, schemaNa
 				m.logger.WithFields(logger.Fields{
 					"schema_name": schemaName,
 					"error":       err.Error(),
-				}).Error("defer'da search_path sıfırlanamadı")
+				}).Error("could not reset search_path in defer")
 			}
 		}
 	}()
 
-	// Kullanıcı fonksiyonunu çalıştır
+	// Run the caller's function.
 	if m.logger != nil {
 		m.logger.WithFields(logger.Fields{
 			"schema_name": schemaName,
-		}).Debug("Tenant context'inde fonksiyon çalıştırılıyor")
+		}).Debug("running function in tenant context")
 	}
 
 	return fn(conn)
 }
 
-// GetConnection, pool'dan yeni bir bağlantı döndürür.
+// GetConnection returns a fresh connection from the pool.
 func (m *connectionManager) GetConnection(ctx context.Context) (*sql.Conn, error) {
 	conn, err := m.db.Conn(ctx)
 	if err != nil {
 		if m.logger != nil {
 			m.logger.WithFields(logger.Fields{
 				"error": err.Error(),
-			}).Error("Database bağlantısı alınamadı")
+			}).Error("could not acquire database connection")
 		}
-		return nil, fmt.Errorf("database bağlantısı alınamadı: %w", err)
+		return nil, fmt.Errorf("could not acquire database connection: %w", err)
 	}
 
 	return conn, nil
 }
 
-// validateSchemaName, schema adının güvenli olduğunu doğrular.
+// validateSchemaName verifies that a schema name is safe to interpolate.
 //
 // Kurallar:
-// - 'tenant_' ile başlamalı
-// - Sadece küçük harf, rakam ve underscore
+//   - must start with 'tenant_'
+//   - lowercase letters, digits and underscore only
 // - Maksimum 63 karakter (PostgreSQL limiti)
 //
-// Sebep: SET search_path komutunda schema adı parameterize edilemiyor,
-// bu yüzden SQL injection'a karşı manuel validasyon şart.
+// Reason: the schema name in a SET search_path statement cannot be parameterised,
+// so validating it by hand is the only defence against SQL injection.
 func validateSchemaName(schemaName string) error {
 	if len(schemaName) == 0 || len(schemaName) > 63 {
-		return fmt.Errorf("schema adı 1-63 karakter arasında olmalı")
+		return fmt.Errorf("schema name must be between 1 and 63 characters")
 	}
 
-	// Tüm tenant schema'ları 'tenant_' ile başlar
-	// Bu sayede system schema'larına (pg_catalog, information_schema) erişim engellenir
+	// Every tenant schema starts with 'tenant_'. That prefix is what keeps the system
+	// schemas (pg_catalog, information_schema) out of reach.
 	if len(schemaName) < 7 || schemaName[:7] != "tenant_" {
-		return fmt.Errorf("schema adı 'tenant_' ile başlamalı")
+		return fmt.Errorf("schema name must start with 'tenant_'")
 	}
 
-	// Sadece güvenli karakterlere izin ver (SQL injection koruması)
+	// Allow safe characters only.
 	for i, ch := range schemaName {
 		isLower := ch >= 'a' && ch <= 'z'
 		isDigit := ch >= '0' && ch <= '9'
 		isUnderscore := ch == '_'
 
 		if !isLower && !isDigit && !isUnderscore {
-			return fmt.Errorf("schema adında geçersiz karakter (pos %d): %c", i, ch)
+			return fmt.Errorf("invalid character in schema name at position %d: %c", i, ch)
 		}
 	}
 

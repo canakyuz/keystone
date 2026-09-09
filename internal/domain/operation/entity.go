@@ -41,17 +41,17 @@ func (s Status) IsTerminal() bool {
 
 var (
 	// ErrNotFound, operasyonun bulunamadigini bildirir.
-	ErrNotFound = errors.New("operation: bulunamadı")
+	ErrNotFound = errors.New("operation: not found")
 
 	// ErrInvalidTransition, izin verilmeyen bir durum gecisini bildirir.
-	ErrInvalidTransition = errors.New("operation: geçersiz durum geçişi")
+	ErrInvalidTransition = errors.New("operation: invalid state transition")
 
 	// ErrStaleFence, gecikmis bir worker bildirimini reddeder.
-	ErrStaleFence = errors.New("operation: fence eskimiş, bildirim reddedildi")
+	ErrStaleFence = errors.New("operation: stale fence, report rejected")
 
 	// ErrIdempotencyConflict, ayni anahtarin farkli govdeyle kullanildigini
 	// bildirir.
-	ErrIdempotencyConflict = errors.New("operation: idempotency anahtarı farklı istekle kullanılmış")
+	ErrIdempotencyConflict = errors.New("operation: idempotency key reused with a different request")
 )
 
 // Operation, kullaniciya donuk islem kaydidir.

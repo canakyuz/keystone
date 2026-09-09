@@ -1,46 +1,45 @@
-// Package tenantctx, tenant bilgisinin Go context'i üzerinden taşınmasını tanımlar.
+// Package tenantctx defines how tenant information is carried through a Go context.
 //
-// NEDEN ayrı bir paket: bu anahtarlar daha önce internal/middleware içinde
-// duruyordu. Repository katmanı onları okumak için HTTP middleware paketini
-// import etmek zorunda kalıyordu; yani veri erişim katmanı taşıma katmanına
-// bağımlıydı. Bu, clean architecture'ın bağımlılık yönünü tersine çevirir ve
-// pratikte test helper'ları devreye girdiğinde import döngüsüne yol açtı.
+// WHY a separate package: these keys used to live in internal/middleware. To read
+// them, the repository layer had to import the HTTP middleware package, which made
+// the data access layer depend on the transport layer. That inverts the dependency
+// direction of clean architecture, and in practice it produced an import cycle once
+// the test helpers came into play.
 //
-// tenantctx bir yaprak pakettir: hiçbir proje paketini import etmez, dolayısıyla
-// her katmandan güvenle kullanılabilir.
+// tenantctx is a leaf package: it imports no project package, so it can be used
+// safely from every layer.
 package tenantctx
 
 import "context"
 
-// Key, context anahtarları için kullanılan tiptir.
-// Düz string yerine ayrı bir tip kullanılır ki başka paketlerin yazdığı
-// anahtarlarla çakışma olmasın.
+// Key is the type used for context keys. A distinct type is used rather than a
+// plain string so that keys written by other packages cannot collide with these.
 type Key string
 
 const (
-	// SchemaKey, tenant'ın PostgreSQL schema adını taşır.
+	// SchemaKey carries the tenant's PostgreSQL schema name.
 	SchemaKey Key = "tenant_schema"
-	// IDKey, tenant'ın kimliğini taşır.
+	// IDKey carries the tenant's identifier.
 	IDKey Key = "tenant_id"
 )
 
-// WithSchema, schema adını context'e yerleştirir.
+// WithSchema places the schema name into the context.
 func WithSchema(ctx context.Context, schemaName string) context.Context {
 	return context.WithValue(ctx, SchemaKey, schemaName)
 }
 
-// WithID, tenant kimliğini context'e yerleştirir.
+// WithID places the tenant identifier into the context.
 func WithID(ctx context.Context, tenantID string) context.Context {
 	return context.WithValue(ctx, IDKey, tenantID)
 }
 
-// Schema, context'teki schema adını döner. Yoksa boş string.
+// Schema returns the schema name from the context, or the empty string.
 func Schema(ctx context.Context) string {
 	schema, _ := ctx.Value(SchemaKey).(string)
 	return schema
 }
 
-// ID, context'teki tenant kimliğini döner. Yoksa boş string.
+// ID returns the tenant identifier from the context, or the empty string.
 func ID(ctx context.Context) string {
 	id, _ := ctx.Value(IDKey).(string)
 	return id

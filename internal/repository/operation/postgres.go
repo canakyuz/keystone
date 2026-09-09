@@ -112,7 +112,7 @@ func (r *Repository) Create(ctx context.Context, req CreateRequest) (*CreateResu
 }
 
 // errKeyExists, benzersizlik ihlalini dahili olarak isaretler.
-var errKeyExists = errors.New("idempotency anahtarı mevcut")
+var errKeyExists = errors.New("idempotency key already exists")
 
 // lookupIdempotent, anahtar daha once gorulduyse sonucu dondurur.
 // Gorulmediyse (nil, nil) doner.
@@ -132,7 +132,7 @@ func (r *Repository) lookupIdempotent(
 	case errors.Is(err, sql.ErrNoRows):
 		return nil, nil
 	case err != nil:
-		return nil, fmt.Errorf("idempotency kaydı okunamadı: %w", err)
+		return nil, fmt.Errorf("could not read idempotency record: %w", err)
 	case storedFingerprint != fingerprint:
 		return nil, domain.ErrIdempotencyConflict
 	}
@@ -154,7 +154,7 @@ func (r *Repository) lookupIdempotentStrict(
 		return nil, err
 	}
 	if result == nil {
-		return nil, fmt.Errorf("idempotency yarışı çözülemedi: anahtar kayboldu")
+		return nil, fmt.Errorf("could not resolve idempotency race: key disappeared")
 	}
 
 	return result, nil
@@ -166,7 +166,7 @@ func (r *Repository) insertAll(
 ) (*CreateResult, error) {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
-		return nil, fmt.Errorf("transaction başlatılamadı: %w", err)
+		return nil, fmt.Errorf("could not begin transaction: %w", err)
 	}
 	defer func() { _ = tx.Rollback() }()
 
@@ -182,7 +182,7 @@ func (r *Repository) insertAll(
 	}
 
 	if err := tx.Commit(); err != nil {
-		return nil, fmt.Errorf("commit başarısız: %w", err)
+		return nil, fmt.Errorf("commit failed: %w", err)
 	}
 
 	return &CreateResult{Operation: op, JobID: jobID}, nil
@@ -212,7 +212,7 @@ func insertIdempotencyKey(
 		return errKeyExists
 	}
 
-	return fmt.Errorf("idempotency kaydı yazılamadı: %w", err)
+	return fmt.Errorf("could not write idempotency record: %w", err)
 }
 
 // GetOperation, operasyonu kimligiyle getirir.
@@ -233,7 +233,7 @@ func (r *Repository) GetOperation(ctx context.Context, id string) (*domain.Opera
 	case errors.Is(err, sql.ErrNoRows):
 		return nil, domain.ErrNotFound
 	case err != nil:
-		return nil, fmt.Errorf("operasyon okunamadı: %w", err)
+		return nil, fmt.Errorf("could not read operation: %w", err)
 	}
 
 	op.ErrorCode = errCode.String
@@ -259,7 +259,7 @@ func insertOperationAndJobTx(ctx context.Context, tx *sql.Tx, req CreateRequest)
 		req.TenantID, string(req.Kind), req.CreatedBy,
 	).Scan(&op.ID, &op.CreatedAt, &op.UpdatedAt)
 	if err != nil {
-		return nil, "", fmt.Errorf("operasyon yazılamadı: %w", err)
+		return nil, "", fmt.Errorf("could not write operation: %w", err)
 	}
 
 	maxAttempts := req.MaxAttempts
@@ -275,7 +275,7 @@ func insertOperationAndJobTx(ctx context.Context, tx *sql.Tx, req CreateRequest)
 		op.ID, req.TenantID, maxAttempts,
 	).Scan(&jobID)
 	if err != nil {
-		return nil, "", fmt.Errorf("iş yazılamadı: %w", err)
+		return nil, "", fmt.Errorf("could not write job: %w", err)
 	}
 
 	return op, jobID, nil

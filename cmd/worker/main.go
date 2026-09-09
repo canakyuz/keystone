@@ -44,7 +44,7 @@ func main() {
 func run() error {
 	cfg, err := config.Load()
 	if err != nil {
-		return fmt.Errorf("yapılandırma yüklenemedi: %w", err)
+		return fmt.Errorf("could not load configuration: %w", err)
 	}
 
 	log := logger.New(logger.Config{
@@ -54,7 +54,7 @@ func run() error {
 
 	db, err := database.NewPostgresDB(cfg.Database)
 	if err != nil {
-		return fmt.Errorf("veritabanına bağlanılamadı: %w", err)
+		return fmt.Errorf("could not connect to the database: %w", err)
 	}
 	defer db.Close()
 
@@ -80,7 +80,7 @@ func run() error {
 		"max_per_tenant": cfgWorker.MaxPerTenant,
 		"lease_duration": cfgWorker.LeaseDuration.String(),
 		"shutdown_grace": cfgWorker.ShutdownGrace.String(),
-	}).Info("Worker başladı")
+	}).Info("worker started")
 
 	// Run, ctx iptal edilene kadar surer. Kapanma sirasi:
 	// yeni is alimi durur, calisanlara sinirli sure verilir, sure dolunca

@@ -44,7 +44,7 @@ type RateLimitConfig struct {
 	Plans *TenantPlanCache
 
 	// SkipPaths, limitlemeden muaf yollardir.
-	// Saglik ucu muaf olmalidir: load balancer'in yoklamasi, limit dolduğu
+	// The health endpoints must be exempt: a load balancer probe must not be rejected
 	// icin basarisiz olursa saglikli instance havuzdan cikarilir.
 	SkipPaths map[string]bool
 
@@ -75,7 +75,7 @@ func RateLimit(cfg RateLimitConfig) fiber.Handler {
 			cfg.Logger.WithFields(logger.Fields{
 				"key":   key,
 				"error": err.Error(),
-			}).Warn("Rate limit sorgusu başarısız")
+			}).Warn("rate limit query failed")
 		}
 
 		writeRateLimitHeaders(c, result)
@@ -134,9 +134,9 @@ func tooManyRequests(c *fiber.Ctx, result ratelimit.Result) error {
 
 	return c.Status(fiber.StatusTooManyRequests).JSON(fiber.Map{
 		"type":   "https://keystone.dev/problems/rate-limit-exceeded",
-		"title":  "İstek limiti aşıldı",
+		"title":  "Rate limit exceeded",
 		"status": fiber.StatusTooManyRequests,
-		"detail": "Çok fazla istek gönderildi. Retry-After başlığına bakın.",
+		"detail": "Too many requests. See the Retry-After header.",
 	})
 }
 

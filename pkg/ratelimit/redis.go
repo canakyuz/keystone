@@ -105,7 +105,7 @@ func (r *Redis) Allow(ctx context.Context, key string, quota Quota) (Result, err
 		quota.Burst, quota.Rate, time.Now().UnixMilli(), int(ttl.Seconds()),
 	).Slice()
 	if err != nil {
-		return r.onFailure(quota), fmt.Errorf("rate limit sorgusu başarısız: %w", err)
+		return r.onFailure(quota), fmt.Errorf("rate limit query failed: %w", err)
 	}
 
 	return parseResult(raw, quota)
@@ -138,7 +138,7 @@ func (r *Redis) onFailure(quota Quota) Result {
 // parseResult, Lua betiginin donusunu Result'a cevirir.
 func parseResult(raw []any, quota Quota) (Result, error) {
 	if len(raw) != 3 {
-		return Result{}, fmt.Errorf("beklenmeyen rate limit yanıtı: %d alan", len(raw))
+		return Result{}, fmt.Errorf("unexpected rate limit response: %d fields", len(raw))
 	}
 
 	allowed, _ := raw[0].(int64)

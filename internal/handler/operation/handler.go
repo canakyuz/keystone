@@ -76,7 +76,7 @@ type OperationResponse struct {
 func (h *Handler) CreateTenant(c *fiber.Ctx) error {
 	var req CreateTenantRequest
 	if err := c.BodyParser(&req); err != nil {
-		return problem(c, http.StatusBadRequest, "invalid_body", "İstek gövdesi okunamadı")
+		return problem(c, http.StatusBadRequest, "invalid_body", "could not read request body")
 	}
 
 	if msg := validateCreate(req); msg != "" {
@@ -126,7 +126,7 @@ func (h *Handler) GetOperation(c *fiber.Ctx) error {
 
 	switch {
 	case errors.Is(err, domain.ErrNotFound):
-		return problem(c, http.StatusNotFound, "operation_not_found", "Operasyon bulunamadı")
+		return problem(c, http.StatusNotFound, "operation_not_found", "operation not found")
 	case err != nil:
 		return h.internal(c, err)
 	}
@@ -138,13 +138,13 @@ func (h *Handler) GetOperation(c *fiber.Ctx) error {
 func (h *Handler) mapCreateError(c *fiber.Ctx, err error) error {
 	switch {
 	case errors.Is(err, domain.ErrIdempotencyConflict):
-		// 409: anahtar aynı ama gövde farklı. Sessizce eski sonucu döndürmek
-		// istemciye göndermediği isteğin işlendiğini düşündürürdü.
+		// 409: same key, different body. Silently returning the old result would make
+		// the client believe a request it never sent had been processed.
 		return problem(c, http.StatusConflict, "idempotency_key_reused",
-			"Bu Idempotency-Key farklı bir istek gövdesiyle kullanılmış")
+			"this Idempotency-Key was used with a different request body")
 
 	case errors.Is(err, oprepo.ErrSlugTaken):
-		return problem(c, http.StatusConflict, "slug_taken", "Bu slug kullanımda")
+		return problem(c, http.StatusConflict, "slug_taken", "slug already taken")
 
 	default:
 		return h.internal(c, err)
@@ -158,10 +158,10 @@ func (h *Handler) internal(c *fiber.Ctx, err error) error {
 		h.log.WithFields(logger.Fields{
 			"path":  c.Path(),
 			"error": err.Error(),
-		}).Error("İstek işlenemedi")
+		}).Error("request failed")
 	}
 
-	return problem(c, http.StatusInternalServerError, "internal_error", "İstek işlenemedi")
+	return problem(c, http.StatusInternalServerError, "internal_error", "request failed")
 }
 
 // validateCreate, zorunlu alanlari dogrular.

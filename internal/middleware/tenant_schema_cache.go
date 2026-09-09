@@ -14,7 +14,7 @@ import (
 
 // ErrTenantNotFound, tenant'in bulunamadigini bildirir.
 // Cagiran bunu 404'e cevirmelidir.
-var ErrTenantNotFound = errors.New("tenant bulunamadı")
+var ErrTenantNotFound = errors.New("tenant not found")
 
 const (
 	// tenantSchemaKeyPrefix, Redis anahtarlarini isimlendirir.
@@ -108,7 +108,7 @@ func (c *TenantSchemaCache) InvalidateTenantSchema(ctx context.Context, tenantID
 			c.logger.WithFields(logger.Fields{
 				"tenant_id": tenantID,
 				"error":     err.Error(),
-			}).Error("Cache invalidation başarısız")
+			}).Error("cache invalidation failed")
 		}
 		return err
 	}

@@ -47,7 +47,7 @@ type StatusSetter interface {
 //
 // TEKRARLANABILIRLIK
 // Bu handler birden fazla kez calisabilir ve calismalidir. Lease suresi dolan
-// bir is baska bir worker'a gecer ve adimlar bastan calisir. Belgedeki arıza
+// a job moves to another worker and the steps run again from the start. The failure
 // matrisinde bu satir soyle: "Sema olusturuldu, sonuc kaydedilmedi -> yeni
 // deneme mevcut semayi dogrulayarak ilerler."
 //
@@ -83,33 +83,33 @@ func NewProvisionHandler(
 func (h *ProvisionHandler) Handle(ctx context.Context, job *domain.Job) error {
 	t, err := h.tenants.GetByID(ctx, job.TenantID)
 	if err != nil {
-		return fmt.Errorf("tenant yüklenemedi: %w", err)
+		return fmt.Errorf("could not load tenant: %w", err)
 	}
 	if t == nil {
-		return errors.New("tenant bulunamadı")
+		return errors.New("tenant not found")
 	}
 
 	// Onceki deneme isi bitirmis ama sonucunu kaydedememis olabilir.
 	// Bu durumda adimlari tekrar calistirmaya gerek yok.
 	if t.Status == tenant.TenantStatusActive {
-		h.logStep(job, "tenant zaten aktif, kurulum atlandı")
+		h.logStep(job, "tenant already active, provisioning skipped")
 		return nil
 	}
 
 	if err := h.status.MarkProvisioning(ctx, t.ID); err != nil {
-		return fmt.Errorf("durum 'provisioning' yapılamadı: %w", err)
+		return fmt.Errorf("could not move status to 'provisioning': %w", err)
 	}
 
-	h.logStep(job, "şema hazırlanıyor")
+	h.logStep(job, "preparing schema")
 
 	// ProvisionTenantSchema, CREATE SCHEMA IF NOT EXISTS kullanir ve
 	// migration'lari kendi transaction'inda uygular. Yarida kesilirse
 	// transaction geri alinir; yeni deneme temiz bir noktadan baslar.
 	if err := h.provisioner.ProvisionTenantSchema(ctx, t); err != nil {
-		return fmt.Errorf("şema hazırlanamadı: %w", err)
+		return fmt.Errorf("could not prepare schema: %w", err)
 	}
 
-	h.logStep(job, "şema hazır")
+	h.logStep(job, "schema ready")
 
 	return nil
 }

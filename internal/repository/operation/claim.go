@@ -11,7 +11,7 @@ import (
 )
 
 // ErrNoJob, devralinabilir is olmadigini bildirir.
-var ErrNoJob = errors.New("devralınabilir iş yok")
+var ErrNoJob = errors.New("no claimable job")
 
 // Claim, calistirilabilir bir isi belirli sure icin sahiplenir.
 //
@@ -42,7 +42,7 @@ func (r *Repository) Claim(
 	ctx context.Context, workerID string, leaseDuration time.Duration,
 ) (*domain.Job, error) {
 	if workerID == "" {
-		return nil, errors.New("worker kimliği zorunlu")
+		return nil, errors.New("worker identity is required")
 	}
 
 	job := &domain.Job{}
@@ -84,7 +84,7 @@ func (r *Repository) Claim(
 	case errors.Is(err, sql.ErrNoRows):
 		return nil, ErrNoJob
 	case err != nil:
-		return nil, fmt.Errorf("iş sahiplenilemedi: %w", err)
+		return nil, fmt.Errorf("could not claim job: %w", err)
 	}
 
 	job.LeaseOwner = leaseOwner.String
@@ -145,7 +145,7 @@ func (r *Repository) CompleteSuccess(
 			UPDATE tenants SET status = 'active', updated_at = NOW()
 			WHERE id = $1 AND deleted_at IS NULL`, tenantID)
 		if err != nil {
-			return fmt.Errorf("tenant aktifleştirilemedi: %w", err)
+			return fmt.Errorf("could not activate tenant: %w", err)
 		}
 
 		return nil
@@ -166,7 +166,7 @@ func (r *Repository) CompleteFailure(
 			`SELECT attempts, max_attempts FROM provisioning_jobs WHERE id = $1`, jobID,
 		).Scan(&attempts, &maxAttempts)
 		if err != nil {
-			return fmt.Errorf("deneme sayısı okunamadı: %w", err)
+			return fmt.Errorf("could not read attempt count: %w", err)
 		}
 
 		if attempts >= maxAttempts {
@@ -188,7 +188,7 @@ func (r *Repository) completeInTx(
 ) error {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
-		return fmt.Errorf("transaction başlatılamadı: %w", err)
+		return fmt.Errorf("could not begin transaction: %w", err)
 	}
 	defer func() { _ = tx.Rollback() }()
 
@@ -207,14 +207,14 @@ func (r *Repository) completeInTx(
 	case errors.Is(err, sql.ErrNoRows):
 		return domain.ErrNotFound
 	case err != nil:
-		return fmt.Errorf("iş okunamadı: %w", err)
+		return fmt.Errorf("could not read job: %w", err)
 	}
 
 	// Hem fence hem sahip dogrulanir. Fence tek basina yeterlidir, ancak
 	// sahip kontrolu hatali bir cagriyi daha erken ve daha anlasilir bicimde
 	// yakalar.
 	if currentFence != fence || currentOwner.String != workerID {
-		return fmt.Errorf("%w: iş fence=%d owner=%s, bildirim fence=%d owner=%s",
+		return fmt.Errorf("%w: job fence=%d owner=%s, report fence=%d owner=%s",
 			domain.ErrStaleFence, currentFence, currentOwner.String, fence, workerID)
 	}
 
@@ -223,7 +223,7 @@ func (r *Repository) completeInTx(
 	}
 
 	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("commit başarısız: %w", err)
+		return fmt.Errorf("commit failed: %w", err)
 	}
 
 	return nil
@@ -236,7 +236,7 @@ func markJobSucceeded(ctx context.Context, tx *sql.Tx, jobID string) error {
 		    last_error = NULL, updated_at = NOW()
 		WHERE id = $1`, jobID)
 	if err != nil {
-		return fmt.Errorf("iş tamamlanamadı: %w", err)
+		return fmt.Errorf("could not complete job: %w", err)
 	}
 
 	return nil
@@ -248,7 +248,7 @@ func markOperationSucceeded(ctx context.Context, tx *sql.Tx, jobID string) error
 		SET status = 'succeeded', completed_at = NOW(), updated_at = NOW()
 		WHERE id = (SELECT operation_id FROM provisioning_jobs WHERE id = $1)`, jobID)
 	if err != nil {
-		return fmt.Errorf("operasyon tamamlanamadı: %w", err)
+		return fmt.Errorf("could not complete operation: %w", err)
 	}
 
 	return nil
@@ -262,7 +262,7 @@ func exhaustJob(ctx context.Context, tx *sql.Tx, jobID, errCode, errMessage stri
 		    last_error = $2, updated_at = NOW()
 		WHERE id = $1`, jobID, errMessage)
 	if err != nil {
-		return fmt.Errorf("iş ölü işaretlenemedi: %w", err)
+		return fmt.Errorf("could not mark job dead: %w", err)
 	}
 
 	_, err = tx.ExecContext(ctx, `
@@ -272,7 +272,7 @@ func exhaustJob(ctx context.Context, tx *sql.Tx, jobID, errCode, errMessage stri
 		WHERE id = (SELECT operation_id FROM provisioning_jobs WHERE id = $1)`,
 		jobID, errCode, errMessage)
 	if err != nil {
-		return fmt.Errorf("operasyon başarısız işaretlenemedi: %w", err)
+		return fmt.Errorf("could not mark operation failed: %w", err)
 	}
 
 	return nil
@@ -292,7 +292,7 @@ func rescheduleJob(ctx context.Context, tx *sql.Tx, jobID, errMessage string, re
 		    updated_at       = NOW()
 		WHERE id = $1`, jobID, int(retryAfter.Seconds()), errMessage)
 	if err != nil {
-		return fmt.Errorf("iş yeniden planlanamadı: %w", err)
+		return fmt.Errorf("could not reschedule job: %w", err)
 	}
 
 	return nil
@@ -302,7 +302,7 @@ func rescheduleJob(ctx context.Context, tx *sql.Tx, jobID, errMessage string, re
 func requireOneRow(result sql.Result, onMismatch error) error {
 	affected, err := result.RowsAffected()
 	if err != nil {
-		return fmt.Errorf("etkilenen satır sayısı okunamadı: %w", err)
+		return fmt.Errorf("could not read affected row count: %w", err)
 	}
 	if affected != 1 {
 		return onMismatch

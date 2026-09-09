@@ -12,7 +12,7 @@ import (
 )
 
 // ErrSlugTaken, slug'in baska bir tenant tarafindan kullanildigini bildirir.
-var ErrSlugTaken = errors.New("slug kullanımda")
+var ErrSlugTaken = errors.New("slug already taken")
 
 // ProvisionRequest, yeni bir tenant kurulumu talebidir.
 type ProvisionRequest struct {
@@ -78,7 +78,7 @@ func (r *Repository) insertProvision(
 ) (*ProvisionResult, error) {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
-		return nil, fmt.Errorf("transaction başlatılamadı: %w", err)
+		return nil, fmt.Errorf("could not begin transaction: %w", err)
 	}
 	defer func() { _ = tx.Rollback() }()
 
@@ -108,7 +108,7 @@ func (r *Repository) insertProvision(
 	}
 
 	if err := tx.Commit(); err != nil {
-		return nil, fmt.Errorf("commit başarısız: %w", err)
+		return nil, fmt.Errorf("commit failed: %w", err)
 	}
 
 	return &ProvisionResult{Operation: op, TenantID: tenantID, JobID: jobID}, nil
@@ -122,7 +122,7 @@ func (r *Repository) insertProvision(
 func insertPendingTenant(ctx context.Context, tx *sql.Tx, req ProvisionRequest) (string, error) {
 	var schemaName string
 	if err := tx.QueryRowContext(ctx, `SELECT generate_schema_name($1)`, req.Slug).Scan(&schemaName); err != nil {
-		return "", fmt.Errorf("şema adı üretilemedi: %w", err)
+		return "", fmt.Errorf("could not generate schema name: %w", err)
 	}
 
 	plan := req.Plan
@@ -143,7 +143,7 @@ func insertPendingTenant(ctx context.Context, tx *sql.Tx, req ProvisionRequest) 
 		if errors.As(err, &pgErr) && string(pgErr.Code) == pgUniqueViolation {
 			return "", ErrSlugTaken
 		}
-		return "", fmt.Errorf("tenant yazılamadı: %w", err)
+		return "", fmt.Errorf("could not write tenant: %w", err)
 	}
 
 	return tenantID, nil
@@ -176,7 +176,7 @@ func (r *Repository) lookupProvisionStrict(
 		return nil, err
 	}
 	if result == nil {
-		return nil, fmt.Errorf("idempotency yarışı çözülemedi: anahtar kayboldu")
+		return nil, fmt.Errorf("could not resolve idempotency race: key disappeared")
 	}
 
 	return result, nil

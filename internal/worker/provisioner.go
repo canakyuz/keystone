@@ -197,7 +197,7 @@ func (p *Provisioner) loop(ctx, jobCtx context.Context) {
 // Iptal edildiyse true doner.
 func (p *Provisioner) waitBeforeRetry(ctx context.Context, ticker *time.Ticker, err error) bool {
 	if !errors.Is(err, oprepo.ErrNoJob) && p.log != nil {
-		p.log.WithFields(logger.Fields{"error": err.Error()}).Warn("İş sahiplenilemedi")
+		p.log.WithFields(logger.Fields{"error": err.Error()}).Warn("could not claim job")
 	}
 
 	select {
@@ -222,7 +222,8 @@ func (p *Provisioner) execute(parent context.Context, job *domain.Job) {
 	stopRenew := p.startLeaseRenewal(ctx, job)
 	defer stopRenew()
 
-	// Panik, worker surecini dusurmemeli. Panige duşen is basarisiz sayilir
+	// A panic must not take the worker process down. A job that panics is treated as
+	// a failed job.
 	// ve yeniden denenir.
 	err := p.runHandler(ctx, job)
 
@@ -233,7 +234,7 @@ func (p *Provisioner) execute(parent context.Context, job *domain.Job) {
 func (p *Provisioner) runHandler(ctx context.Context, job *domain.Job) (err error) {
 	defer func() {
 		if recovered := recover(); recovered != nil {
-			err = fmt.Errorf("iş panikledi: %v", recovered)
+			err = fmt.Errorf("job panicked: %v", recovered)
 		}
 	}()
 
@@ -281,11 +282,11 @@ func (p *Provisioner) logReportFailure(job *domain.Job, err error) {
 	})
 
 	if errors.Is(err, domain.ErrStaleFence) {
-		level.Info("Sonuç bildirilemedi: iş devredilmiş")
+		level.Info("could not report result: job was handed over")
 		return
 	}
 
-	level.Error("Sonuç bildirilemedi")
+	level.Error("could not report result")
 }
 
 // startLeaseRenewal, arka planda lease yenilemeyi baslatir ve durdurma
@@ -319,12 +320,12 @@ func (p *Provisioner) startLeaseRenewal(ctx context.Context, job *domain.Job) fu
 // releaseJob, sahiplenilen ama calistirilamayan isi geri birakir.
 func (p *Provisioner) releaseJob(ctx context.Context, job *domain.Job) {
 	err := p.store.CompleteFailure(ctx, job.ID, p.cfg.ID, job.Fence,
-		"tenant_capacity", "tenant eşzamanlılık sınırı dolu", p.cfg.PollInterval)
+		"tenant_capacity", "per-tenant concurrency limit reached", p.cfg.PollInterval)
 	if err != nil && p.log != nil {
 		p.log.WithFields(logger.Fields{
 			"job_id": job.ID,
 			"error":  err.Error(),
-		}).Warn("İş geri bırakılamadı")
+		}).Warn("could not release job")
 	}
 }
 
@@ -373,5 +374,5 @@ func (p *Provisioner) drain(cancelJobs context.CancelFunc) error {
 
 	// Iptal edilen isler tamamlanmis sayilmaz. Lease sureleri dolunca baska
 	// bir worker tarafindan devralinirlar.
-	return fmt.Errorf("kapanma süresi doldu, çalışan işler iptal edildi")
+	return fmt.Errorf("shutdown grace period expired, running jobs were cancelled")
 }

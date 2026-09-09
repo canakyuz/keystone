@@ -12,76 +12,74 @@ import (
 	"sync/atomic"
 )
 
-// Context anahtarları pkg/tenantctx'e taşındı. Repository katmanının HTTP
-// middleware paketini import etmesi gerekmesin diye; bkz. pkg/tenantctx.
-// Buradaki adlar geriye dönük uyumluluk için korunuyor.
+// The context keys moved to pkg/tenantctx so that the repository layer does not
+// have to import the HTTP middleware package; see pkg/tenantctx. The names here
+// are kept for backward compatibility.
 type TenantContextKey = tenantctx.Key
 
 const (
-	// TenantSchemaKey, context'te schema_name'i sakladığımız key
+	// TenantSchemaKey is the context key holding schema_name.
 	TenantSchemaKey = tenantctx.SchemaKey
-	// TenantIDKey, context'te tenant_id'yi sakladığımız key
+	// TenantIDKey is the context key holding tenant_id.
 	TenantIDKey = tenantctx.IDKey
 )
 
-// TenantContextMiddleware, her request için tenant bilgilerini context'e ekler.
+// TenantContextMiddleware puts the tenant information into the context on every
+// request.
 //
-// Çalışma Akışı:
-// 1. Request'ten tenant_id'yi çıkar (JWT claims veya X-Tenant-ID header'ından)
-// 2. tenant_id ile cache-aware schema_name lookup yap (Redis + DB fallback)
-// 3. Schema bilgisini hem Fiber context'ine hem de Go context'ine kaydet
-// 4. Handler'ların bu bilgiyi kullanmasına izin ver
+// Flow:
+//  1. Extract tenant_id from the request (JWT claims, or the X-Tenant-ID header).
+//  2. Resolve schema_name from tenant_id through the cache (Redis, DB fallback).
+//  3. Store the schema in both the Fiber context and the Go context.
+//  4. Let the handlers use it.
 //
-// UYARI: Bu middleware, authentication middleware'inden SONRA çalışmalıdır.
-//
-// 🎓 PERFORMANS: Cache kullanımıyla ~10-20ms latency kazancı (DB query bypass)
+// WARNING: this middleware must run AFTER the authentication middleware.
 func TenantContextMiddleware(schemaCache *TenantSchemaCache) fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		// Adım 1: Tenant ID'yi request'ten al
+		// Step 1: take the tenant id from the request.
 		tenantID := extractTenantID(c)
 		if tenantID == "" {
 			if schemaCache.logger != nil {
-				schemaCache.logger.Warn("Request'te tenant_id bulunamadı")
+				schemaCache.logger.Warn("no tenant_id on request")
 			}
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-				"error": "tenant_id gerekli",
+				"error": "tenant_id is required",
 			})
 		}
 
-		// Adım 2: Tenant ID ile schema_name lookup yap (Cache-aware)
-		// 🎓 PERFORMANS: Cache hit -> ~1ms, Cache miss -> ~6-21ms
+		// Step 2: resolve schema_name from the tenant id, through the cache.
 		schemaName, err := schemaCache.GetTenantSchema(c.Context(), tenantID)
 		if err != nil {
 			if schemaCache.logger != nil {
 				schemaCache.logger.WithFields(logger.Fields{
 					"tenant_id": tenantID,
 					"error":     err.Error(),
-				}).Error("Tenant schema bulunamadı")
+				}).Error("tenant schema not found")
 			}
 
-			// Tenant bulunamadıysa 404 dön.
-			// TenantSchemaCache, sql.ErrNoRows'u ErrTenantNotFound'a çevirir:
-			// bulunamayan tenant negatif önbelleğe alındığı için ikinci istek
-			// veritabanına hiç inmez ve hata sql katmanından gelmez.
+			// Return 404 when the tenant does not exist.
+			// TenantSchemaCache converts sql.ErrNoRows into ErrTenantNotFound: a missing
+			// tenant is negatively cached, so a second request never reaches the database
+			// and the error no longer comes from the sql layer.
 			if errors.Is(err, ErrTenantNotFound) {
 				return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
-					"error": "tenant bulunamadı",
+					"error": "tenant not found",
 				})
 			}
 
-			// Diğer hatalar 500
+			// Anything else is a 500.
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-				"error": "tenant bilgisi alınamadı",
+				"error": "could not resolve tenant",
 			})
 		}
 
-		// Adım 3: Tenant bilgilerini context'e kaydet
+		// Step 3: store the tenant information in the context.
 		//
-		// c.Locals(): Fiber'in kendi context sistemi (request lifecycle boyunca)
+		// c.Locals() is Fiber's own per-request context.
 		c.Locals("tenant_id", tenantID)
 		c.Locals("tenant_schema", schemaName)
 
-		// Go context'ine de ekle (repository layer'da kullanmak için)
+		// Also put it on the Go context, for the repository layer.
 		ctx := context.WithValue(c.Context(), TenantIDKey, tenantID)
 		ctx = context.WithValue(ctx, TenantSchemaKey, schemaName)
 		c.SetUserContext(ctx)
@@ -90,24 +88,24 @@ func TenantContextMiddleware(schemaCache *TenantSchemaCache) fiber.Handler {
 			schemaCache.logger.WithFields(logger.Fields{
 				"tenant_id":   tenantID,
 				"schema_name": schemaName,
-			}).Debug("Tenant context ayarlandı")
+			}).Debug("tenant context set")
 		}
 
-		// Sonraki middleware/handler'a geç
+		// Hand off to the next middleware or handler.
 		return c.Next()
 	}
 }
 
-// extractTenantID, request'ten tenant_id bilgisini çıkarır.
+// extractTenantID pulls the tenant id out of the request.
 //
-// Öncelik sırası:
-// 1. JWT claims'den (önerilen - güvenli)
-// 2. X-Tenant-ID header'ından (development/test)
-// 3. Query parameter'dan (ÖNERILMEZ)
-// allowUntrustedTenantHeader, X-Tenant-ID header'i ve tenant_id query
-// parametresiyle tenant secilmesine izin verilip verilmedigini tutar.
+// Order of precedence:
+//  1. The JWT claim (the only trusted source).
+//  2. The X-Tenant-ID header (development and test only).
+//  3. The query parameter (development and test only).
+// allowUntrustedTenantHeader records whether selecting the tenant through the
+// X-Tenant-ID header or the tenant_id query parameter is permitted.
 //
-// Varsayilan false'tur ve yalnizca AllowUntrustedTenantSource ile acilir.
+// It defaults to false and is only opened by AllowUntrustedTenantSource.
 // Uretimde ASLA acilmamalidir.
 var allowUntrustedTenantHeader atomic.Bool
 
@@ -150,16 +148,16 @@ func extractTenantID(c *fiber.Ctx) string {
 	return c.Query("tenant_id")
 }
 
-// GetTenantSchemaFromContext, Go context'inden tenant schema'sını alır.
+// GetTenantSchemaFromContext reads the tenant schema from the Go context.
 //
-// Kullanım (Repository layer):
+// Usage, from the repository layer:
 //
 //	schema := middleware.GetTenantSchemaFromContext(ctx)
 func GetTenantSchemaFromContext(ctx context.Context) string {
 	return tenantctx.Schema(ctx)
 }
 
-// GetTenantIDFromContext, Go context'inden tenant ID'yi alır.
+// GetTenantIDFromContext reads the tenant id from the Go context.
 func GetTenantIDFromContext(ctx context.Context) string {
 	return tenantctx.ID(ctx)
 }

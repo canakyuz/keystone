@@ -63,10 +63,10 @@ func registerProbes(app *fiber.App, cfg *config.Config, db *sql.DB, rdb *redis.C
 // probeDatabase, veritabani baglantisini yoklar.
 func probeDatabase(ctx context.Context, db *sql.DB) string {
 	if db == nil {
-		return "yapılandırılmamış"
+		return "not configured"
 	}
 	if err := db.PingContext(ctx); err != nil {
-		return "erişilemiyor"
+		return "unreachable"
 	}
 
 	return "ok"
@@ -75,10 +75,10 @@ func probeDatabase(ctx context.Context, db *sql.DB) string {
 // probeRedis, Redis baglantisini yoklar.
 func probeRedis(ctx context.Context, rdb *redis.Client) string {
 	if rdb == nil {
-		return "yapılandırılmamış"
+		return "not configured"
 	}
 	if err := rdb.Ping(ctx).Err(); err != nil {
-		return "erişilemiyor"
+		return "unreachable"
 	}
 
 	return "ok"

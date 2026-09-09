@@ -1,89 +1,91 @@
-# 0003. Sahiplenme lease ve fencing token ile korunur
+# 0003. Claims are protected by a lease and a fencing token
 
-**Durum:** Kabul edildi, 2026-09-07
+**Status:** Accepted, 2026-09-07
 
-## Bağlam
+## Context
 
-Bir worker işi aldıktan sonra süreç kapanabilir. Kapanma haber verilmez:
-sunucu çöker, container öldürülür, ağ bölünür.
+A worker's process can die after it has taken a job. The death is not announced:
+the server crashes, the container is killed, the network partitions.
 
-İş sahipli görünürken worker ölmüşse, iş kimsenin yürütmediği bir durumda
-kalır.
+If the job looks claimed but the worker is gone, the job is left in a state where
+nobody is running it.
 
-## Korunması gereken kurallar
+## Rules that must hold
 
-- Süreç iş ortasında kapanırsa iş yeniden devralınabilir olmalıdır.
-- Yalnızca güncel sahip sonuç kaydedebilir.
-- Devralınan bir işin eski sahibi, sonucu bozamamalıdır.
+- If a process dies mid-job, the job must be reclaimable.
+- Only the current holder can record a result.
+- The previous holder of a reclaimed job must not be able to corrupt the result.
 
-## Değerlendirilen yaklaşımlar
+## Options considered
 
-### A. Kalıcı "işleniyor" bayrağı
+### A. A persistent "processing" flag
 
-İş alındığında `status = 'processing'` yazılır, bitince değişir.
+`status = 'processing'` is written when the job is taken, and changed when it
+finishes.
 
-Zayıf tarafı: worker ölürse bayrak sonsuza kadar kalır. İş hiçbir zaman
-devralınmaz. Kurtarma için manuel müdahale veya "şu kadar süredir processing
-olanları sıfırla" gibi bir temizlik işi gerekir. İkincisi zaten lease'in
-kötü uygulanmış hali.
+Weakness: if the worker dies, the flag stays forever. The job is never reclaimed.
+Recovery needs manual intervention, or a cleanup job along the lines of "reset
+anything that has been processing for longer than X". The latter is just a badly
+implemented lease.
 
-### B. Yalnızca lease
+### B. A lease alone
 
-Sahiplenme süreli yazılır. Süre dolunca iş devralınabilir.
+The claim is written with an expiry. Once it expires, the job can be reclaimed.
 
-Zayıf tarafı: eski worker geri dönüp sonuç bildirebilir. Kendi adını bildiği
-için `lease_owner` kontrolünü geçer. Güncel sahibin işini bozar.
+Weakness: the old worker can come back and report a result. It knows its own name,
+so it passes the `lease_owner` check. It corrupts the current holder's work.
 
-### C. Lease artı fencing token
+### C. A lease plus a fencing token
 
-Sahiplenme süreli, ve her sahiplenmede artan bir sayaç tutulur. Sonuç bildirimi
-güncel sayaç değeriyle yapılmak zorundadır.
+The claim has an expiry, and a counter is incremented on every claim. A result
+must be reported with the current counter value.
 
-## Karar
+## Decision
 
 C.
 
-## Gerekçe
+## Rationale
 
-B tek başına yetersiz ve bunun nedeni ince. Eski worker'ın kimliği değişmiyor;
-kimlik kontrolü onu durdurmuyor. Durduran şey, sahiplenmenin kaçıncı kez
-yapıldığı bilgisi. Eski worker elindeki sayıyla geliyor, güncel sayı ondan
-büyük, bildirim reddediliyor.
+B alone is not enough, and the reason is subtle. The old worker's identity does
+not change; an identity check does not stop it. What stops it is knowing how many
+times the job has been claimed. The old worker arrives with the number it holds,
+the current number is larger, and the report is rejected.
 
-Fence yenilemede artmıyor, yalnızca sahiplenmede artıyor. Yenilemede artsaydı,
-worker'ın elindeki değer kendi yenilemesiyle geçersizleşirdi.
+The fence does not increment on renewal, only on claiming. If it incremented on
+renewal, the worker's own renewal would invalidate the value it holds.
 
-## Sonuçları
+## Consequences
 
-- Her sonuç bildirimi bir fence doğrulaması yapıyor, yani ek bir okuma.
-  `SELECT ... FOR UPDATE` ile yapılıyor, böylece kontrol ile yazma arasında
-  devralma olamıyor.
-- Uzun süren işler lease yenilemek zorunda. Yenilemezse, henüz çalışırken
-  işi elinden alınır. Yenileme aralığı lease süresinin üçte birinden küçük
-  tutuluyor ki bir yenileme kaçırılsa bile ikinci deneme yapılabilsin.
+- Every result report performs a fence check, which is an extra read. It is done
+  with `SELECT ... FOR UPDATE`, so no takeover can slip between the check and the
+  write.
+- Long-running jobs have to renew the lease. Without renewal, the job is taken
+  away while it is still running. The renewal interval is kept below a third of
+  the lease duration, so that a missed renewal still leaves room for a second
+  attempt.
 
-## Bu kararın garanti ETMEDİĞİ şey
+## What this decision does NOT guarantee
 
-Fencing, yönetim tablosundaki metadata güncellemesini korur. Eski worker'ın
-harici bir sistemde yan etki üretmesini engellemez.
+Fencing protects the metadata update in the management table. It does not prevent
+the old worker from producing a side effect in an external system.
 
-Somut örnek: eski worker lease'ini kaybetti ama hâlâ çalışıyor ve tenant
-şemasında `CREATE SCHEMA` çalıştırıyor. Fencing bunu durdurmaz. Fencing
-yalnızca "tamamlandı" yazmasını engeller.
+A concrete example: the old worker lost its lease but is still running and
+executing `CREATE SCHEMA` in the tenant schema. Fencing does not stop that.
+Fencing only stops it from writing "completed".
 
-Bunun için ayrıca şunlar gerekir ve henüz yok:
+For that, the following are also needed, and do not exist yet:
 
-- Kurulum adımlarının güvenle tekrarlanabilir olması (`IF NOT EXISTS` gibi).
-- Tenant bazlı bir kilit, ya da hedef sistemin kendi fencing desteği.
+- Provisioning steps that are safe to repeat (`IF NOT EXISTS` and the like).
+- A per-tenant lock, or fencing support in the target system itself.
 
-Bu yüzden sistem "en fazla bir kez çalışır" garantisi vermiyor. İş yeniden
-çalışabilir ve handler'ların bunu kaldırması gerekiyor.
+This is why the system does not offer an "runs at most once" guarantee. A job can
+run again, and the handlers have to tolerate it.
 
-## Bu karar ne zaman yanlış hale gelir
+## When this decision becomes wrong
 
-- İş süresi lease süresinden düzenli olarak uzun sürerse. Yenileme bunu
-  kapatır ama yenileme de başarısız olabilir; o noktada lease süresini
-  uzatmak veya işi parçalara bölmek gerekir.
-- Saat kayması ciddi boyuta ulaşırsa. Lease bitişi veritabanı saatiyle
-  yazılıyor, bu yüzden şu an worker saatlerine bağımlı değil. Lease kontrolü
-  uygulama tarafına taşınırsa bu bağımlılık geri gelir.
+- If job duration regularly exceeds the lease duration. Renewal covers that, but
+  renewal can fail too; at that point the lease duration has to grow or the job
+  has to be split into pieces.
+- If clock skew becomes serious. The lease expiry is written using the database
+  clock, so right now it does not depend on worker clocks. Moving the lease check
+  into the application would bring that dependency back.

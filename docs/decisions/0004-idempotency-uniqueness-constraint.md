@@ -1,75 +1,76 @@
-# 0004. Idempotency benzersizlik kısıtıyla zorlanır
+# 0004. Idempotency is enforced by a uniqueness constraint
 
-**Durum:** Kabul edildi, 2026-09-07
+**Status:** Accepted, 2026-09-07
 
-## Bağlam
+## Context
 
-İstemci `POST /v1/tenants` gönderir, transaction tamamlanır, ama HTTP yanıtı
-istemciye ulaşmaz. İstemci aynı isteği tekrar gönderir. İkinci bir tenant
-oluşmamalıdır.
+The client sends `POST /v1/tenants`, the transaction commits, but the HTTP
+response never reaches the client. The client sends the same request again. A
+second tenant must not be created.
 
-## Korunması gereken kurallar
+## Rules that must hold
 
-- Aynı kapsamda aynı anahtar, aynı gövdeyle tekrar gelirse aynı operasyonu
-  döndürür.
-- Aynı anahtar farklı gövdeyle gelirse açık bir çakışma hatası döner.
-- Aynı anda gelen iki yinelenen istek iki operasyon yaratamaz.
+- The same key in the same scope, arriving again with the same body, returns the
+  same operation.
+- The same key arriving with a different body returns an explicit conflict error.
+- Two duplicate requests arriving at once cannot create two operations.
 
-## Değerlendirilen yaklaşımlar
+## Options considered
 
-### A. Önce oku, yoksa yaz
+### A. Read first, write if absent
 
-Anahtar var mı diye bakılır, yoksa kayıt eklenir.
+Check whether the key exists, insert the record if it does not.
 
-Zayıf tarafı: iki istek kontrolü aynı anda geçebilir ve ikisi de yazar.
-Tek başına yarış koşulunu engellemez.
+Weakness: two requests can pass the check at the same time and both write. On its
+own it does not prevent the race.
 
-### B. Serializable izolasyon
+### B. Serializable isolation
 
-Transaction seviyesi yükseltilir.
+Raise the transaction isolation level.
 
-Zayıf tarafı: çakışmada yeniden deneme gerektirir. Tam da yükün arttığı anda
-maliyeti artar. Ayrıca çağıranın yeniden deneme mantığını taşıması gerekir.
+Weakness: it requires retries on conflict. The cost rises exactly when load
+rises. It also pushes retry logic onto the caller.
 
-### C. Benzersizlik kısıtı artı ihlali yakalama
+### C. A uniqueness constraint plus catching the violation
 
-`(scope, idempotency_key)` üzerinde unique index. Yazma denenir, kısıt
-ihlali yakalanırsa mevcut kayıt okunur.
+A unique index on `(scope, idempotency_key)`. The write is attempted, and if the
+constraint is violated the existing record is read.
 
-## Karar
+## Decision
 
-C, önünde ucuz bir okuma ile.
+C, with a cheap read in front of it.
 
-Önce okuma yapılır çünkü sık görülen tekrar durumunu tek sorguyla karşılar.
-Aynı anda gelen iki istek bu kontrolü birlikte geçerse, ikincisi INSERT
-sırasında kısıtı ihlal eder ve aynı yola düşer.
+The read comes first because it handles the common repeat case in a single query.
+If two simultaneous requests pass that check together, the second violates the
+constraint during INSERT and lands on the same path.
 
-## Gerekçe
+## Rationale
 
-Benzersizliği veritabanı zorluyor. Okuma bir hızlandırma, garanti değil.
-Garantinin nerede durduğunu ayırmak önemli: okumayı kaldırsak sistem hâlâ
-doğru çalışır, yalnızca yavaşlar.
+Uniqueness is enforced by the database. The read is an optimisation, not the
+guarantee. Separating where the guarantee lives matters: remove the read and the
+system is still correct, just slower.
 
-Farklı gövde için sessizce eski sonucu döndürmek reddedildi. İstemci
-göndermediği isteğin işlendiğini sanardı.
+Silently returning the old result for a different body was rejected. The client
+would believe a request it never sent had been processed.
 
-## Sonuçları
+## Consequences
 
-- İstek gövdesinin normalize edilmiş bir özeti saklanıyor. Normalizasyon
-  şu an ham gövdenin SHA-256'sı; alan sırası değişirse farklı özet çıkar.
-  Bu bir sınır ve API dokümantasyonunda belirtilmeli.
-- Kapsam (`scope`) alanı zorunlu. Bir müşterinin anahtarı diğerinin isteğini
-  eşleştirmemeli.
+- A normalised digest of the request body is stored. Normalisation is currently
+  the SHA-256 of the raw body; a change in field order produces a different
+  digest. That is a limit and must be stated in the API documentation.
+- The `scope` field is mandatory. One customer's key must not match another
+  customer's request.
 
-## Bu kararın garanti ETMEDİĞİ şey
+## What this decision does NOT guarantee
 
-Idempotency süresizdir değildir. Anahtarın saklama süresi (varsayılan 24 saat)
-dolduktan sonra aynı anahtar yeni bir işlem yaratır. Garanti bu noktada
-sessizce değişir ve bu, API dokümantasyonunda yazılmak zorundadır.
+Idempotency is not indefinite. Once the key's retention window (24 hours by
+default) expires, the same key creates a new operation. The guarantee changes
+silently at that point, and that has to be written into the API documentation.
 
-## Bu karar ne zaman yanlış hale gelir
+## When this decision becomes wrong
 
-- İstemciler saatlerce sonra aynı anahtarla tekrar deniyorsa. Saklama süresi
-  uzatılmalı, ama tablo büyümesi ve temizlik işi devreye girer.
-- Gövde normalizasyonu yetersiz kalırsa. JSON alan sırası değişen istemciler
-  yanlışlıkla çakışma hatası alır. O noktada kanonik JSON serileştirme gerekir.
+- If clients retry with the same key hours later. The retention window has to
+  grow, but table growth and a cleanup job then come into play.
+- If body normalisation turns out to be insufficient. Clients whose JSON field
+  order varies would receive spurious conflict errors. At that point canonical
+  JSON serialisation is needed.

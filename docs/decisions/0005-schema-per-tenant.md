@@ -1,76 +1,77 @@
-# 0005. Schema-per-tenant, RLS ile birlikte
+# 0005. Schema-per-tenant, together with RLS
 
-**Durum:** Kabul edildi, 2026-09-07
+**Status:** Accepted, 2026-09-07
 
-## Bağlam
+## Context
 
-Her müşterinin verisi diğerlerinden ayrı tutulmalı. Üç yaygın yaklaşım var ve
-üçü de farklı şeyleri garanti ediyor.
+Every customer's data has to be kept apart from the others'. There are three
+common approaches, and all three guarantee different things.
 
-## Korunması gereken kurallar
+## Rules that must hold
 
-- Bir tenant başka bir tenant'ın verisini okuyamaz.
-- Tenant bağlamı eksikse erişim reddedilir, açılmaz.
-- Migration bütün tenant'lara uygulanabilir olmalıdır.
+- One tenant cannot read another tenant's data.
+- If the tenant context is missing, access is denied rather than opened.
+- Migrations must be applicable to every tenant.
 
-## Değerlendirilen yaklaşımlar
+## Options considered
 
-| Yaklaşım | Güçlü tarafı | Operasyon bedeli |
+| Approach | Strength | Operational cost |
 |---|---|---|
-| Ortak tablo + `tenant_id` + RLS | Tek şemaya migration, ortak sorgulama kolay | Policy, rol ve sorgu doğruluğu kritik |
-| Tenant başına şema | Mantıksal ayrım net | Şema sayısı ve migration yönetimi büyür |
-| Tenant başına veritabanı | Ayrı yedekleme ve kaynak yönetimi | Bağlantı ve altyapı maliyeti artar |
+| Shared table + `tenant_id` + RLS | One schema to migrate, cross-tenant querying is easy | Policy, role and query correctness are critical |
+| Schema per tenant | Logical separation is clear | Schema count and migration management grow |
+| Database per tenant | Separate backup and resource management | Connection and infrastructure cost rises |
 
-## Karar
+## Decision
 
-Tenant başına şema, artı paylaşılan tablolarda RLS.
+Schema per tenant, plus RLS on the shared tables.
 
-Yönetim verisi (tenants, operations, provisioning_jobs) `public` şemasında
-kalır ve RLS ile korunur. Tenant iş verisi kendi şemasına gider.
+Management data (tenants, operations, provisioning_jobs) stays in the `public`
+schema and is protected by RLS. Tenant business data goes into its own schema.
 
-## Gerekçe
+## Rationale
 
-İkisi farklı problemleri çözüyor ve birbirinin yerine geçmiyor.
+The two solve different problems and do not substitute for each other.
 
-Şema ayrımı, tenant iş verisinin migration ve yedekleme birimini ayırıyor.
-RLS ise paylaşılan yönetim tablolarında satır seviyesinde sınır çiziyor;
-o tablolar şemaya bölünemez çünkü control plane hepsini birden sorgular.
+Schema separation splits the migration and backup unit for tenant business data.
+RLS draws a row-level boundary on the shared management tables; those tables
+cannot be split by schema because the control plane queries all of them at once.
 
-## Bu kararın garanti ETMEDİĞİ şeyler
+## What this decision does NOT guarantee
 
-Bunlar önemli çünkü "izole" kelimesinin sınırını çiziyorlar.
+These matter because they draw the boundary of the word "isolated".
 
-**Kaynak izolasyonu yok.** Aynı PostgreSQL instance'ındaki ayrı şemalar CPU
-ve I/O izolasyonu sağlamaz. Bir tenant'ın ağır sorgusu diğerlerini yavaşlatır.
+**There is no resource isolation.** Separate schemas in the same PostgreSQL
+instance provide no CPU or I/O isolation. One tenant's heavy query slows the
+others down.
 
-**Şema ayrımı tek başına güvenlik sınırı değil.** Aynı uygulama rolü bütün
-şemalara erişebiliyorsa, ayrım yalnızca bir isim alanı ayrımıdır. Güvenlik,
-uygulamanın doğru şemaya yönelmesine bağlı kalır.
+**Schema separation alone is not a security boundary.** If the same application
+role can reach every schema, the separation is only a namespace separation.
+Security then rests on the application pointing at the right schema.
 
-**RLS süper kullanıcıyı durdurmaz.** Uygulama süper kullanıcı olmayan bir
-rolle bağlanmak zorunda. `FORCE ROW LEVEL SECURITY` tablo sahibini kapsar,
-süper kullanıcıyı kapsamaz.
+**RLS does not stop a superuser.** The application must connect with a
+non-superuser role. `FORCE ROW LEVEL SECURITY` covers the table owner, not the
+superuser.
 
-## Doğrulanması gereken noktalar
+## Points that still need verifying
 
-Bu yaklaşımın kanıtı, sırayla yapılan iki başarılı API çağrısı değil.
+The proof of this approach is not two successful API calls made in sequence.
 
-| Soru | Durum |
+| Question | Status |
 |---|---|
-| İstemcinin verdiği tenant kimliği üyelik doğrulamasından geçiyor mu | Kısmi, membership tablosu yok |
-| Tenant sorguları aynı bağlantı bağlamında mı çalışıyor | Evet, `ExecuteInTenantContext` bağlantıyı callback'e veriyor |
-| `search_path` havuzda başka isteğe taşınabiliyor mu | Hayır, test ediliyor |
-| Eksik tablo yüzünden `public` şemasına fallback oluyor mu | Test edilmedi |
-| Şema adı güvenli üretiliyor mu | Evet, `pq.QuoteIdentifier` ve ad doğrulaması |
-| Runtime rolü ile şema oluşturan rol ayrı mı | Hayır, henüz ayrılmadı |
-| Migration bütün tenant'lara nasıl yayılıyor | Çözülmedi |
+| Is the tenant id supplied by the client checked against membership | Partial, no membership table |
+| Do tenant queries run in the same connection context | Yes, `ExecuteInTenantContext` hands the connection to the callback |
+| Can `search_path` leak to another request through the pool | No, this is tested |
+| Does a missing table cause a fallback to the `public` schema | Not tested |
+| Is the schema name generated safely | Yes, `pq.QuoteIdentifier` plus name validation |
+| Are the runtime role and the schema-creating role separate | No, not yet separated |
+| How does a migration propagate to every tenant | Unsolved |
 
-## Bu karar ne zaman yanlış hale gelir
+## When this decision becomes wrong
 
-- Tenant sayısı binleri geçerse. Şema başına migration maliyeti T×M adıma
-  çıkar; eşzamanlılık artırmak toplam işi azaltmaz, yalnızca tamamlanma
-  süresi ile veritabanı yükü arasında takas yapar.
-- Bir müşteri kaynak izolasyonu talep ederse. O noktada tenant başına
-  veritabanı veya ayrı instance gerekir.
-- Tenant'lar arası raporlama gerekirse. Şemalar arası sorgu yazmak, ortak
-  tablo yaklaşımına göre belirgin şekilde zahmetli.
+- If the tenant count passes the thousands. Per-schema migration cost becomes
+  T×M steps; raising concurrency does not reduce the total work, it only trades
+  completion time against database load.
+- If a customer demands resource isolation. At that point a database per tenant,
+  or a separate instance, is required.
+- If cross-tenant reporting becomes necessary. Writing queries across schemas is
+  markedly more awkward than with the shared-table approach.

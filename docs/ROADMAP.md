@@ -1,238 +1,227 @@
-# Keystone Yol Haritası
+# Keystone Roadmap
 
-Amaç: repoya on dakika ayıran bir Go mühendisinin "bu kişi kıdemli" demesini
-sağlamak. Bu belge o hedefi ölçülebilir fazlara böler.
+Goal: make a Go engineer who spends ten minutes with this repository conclude
+that the author is senior. This document splits that goal into measurable phases.
 
 ---
 
-## Başarı ölçütü
+## Success criterion
 
-Bir işe alım mühendisi repoya girdiğinde şu sırayı izler: README, sonra bir test
-çalıştırma denemesi, sonra en ilginç görünen pakete bakma. Her fazın çıktısı bu
-üç adımdan birini iyileştirmeli.
+A hiring engineer landing on the repository follows this sequence: the README,
+then an attempt to run the tests, then a look at whichever package seems most
+interesting. Every phase must improve one of those three steps.
 
-Bitiş hedefi, aşağıdakilerin hepsinin tek komutla doğrulanabilir olması.
+The end state is that all of the following can be verified with a single command.
 
-| İddia | Kanıt |
+| Claim | Evidence |
 |---|---|
-| Tenant izolasyonu çalışıyor | `go test ./test/security/` |
-| İzolasyon HTTP'den veritabanına kadar bütün | `go test ./test/e2e/` |
-| Eşzamanlılık doğru yazılmış | `go test -race ./internal/worker/` |
-| Performans iddiası ölçülmüş | README'de P50/P95/P99 tablosu |
-| Servis sözleşmesi tanımlı | `buf lint` + `grpcurl` örneği |
+| Tenant isolation works | `go test ./test/security/` |
+| Isolation holds from HTTP down to the database | `go test ./test/e2e/` |
+| Concurrency is written correctly | `go test -race ./internal/worker/` |
+| The performance claim is measured | A P50/P95/P99 table in the README |
+| The service contract is defined | `buf lint` plus a `grpcurl` example |
 
 ---
 
-## Mevcut durum
+## Where things stand
 
-2026-09-04 ölçümü.
+Measured 2026-09-09.
 
-| Ölçüm | Değer | Yorum |
+| Measure | Value | Comment |
 |---|---|---|
-| Kaynak dosya | 137 | Hacim yeterli |
-| Test dosyası | 9 | Kapsam dar |
-| HTTP katmanı testi | 0 | En büyük boşluklardan biri |
-| `go func` | 3 | Eşzamanlılık sinyali yok denecek kadar az |
-| Kanal | 1 | Aynı |
-| JSONB dışı `interface{}` | 71 | Çoğu DTO'da, somut tip olmalı |
-| Türkçe yorum satırı | 268 / 3077 | Karışık dil |
-| Dikey modül | 12 | Çekirdek 3 tanesi, gerisi dikkat dağıtıyor |
+| Source files | 170 | Volume is sufficient |
+| Test files | 17 | Coverage is narrow but the core is covered |
+| Packages with tests | 15 | Worker, cache, ratelimit, RLS, operations |
+| HTTP-layer end-to-end tests | 0 | Still the largest gap |
+| Decision records | 7 | |
+| Verticals under `internal/domain` | 13 | Core is 4 of them, the rest are noise |
 
-Güçlü yan: bugün kapatılan altı izolasyon hatası. Bu iş kıdemli seviyede ama
-şu an SECURITY.md'nin içinde gömülü duruyor.
+Phases 1 through 4 of the original plan have shifted since it was written. What
+actually got built is recorded below.
 
 ---
 
-## Faz 1: Uçtan uca izolasyon kanıtı
+## Done
 
-**Süre:** 2-3 gün
-**Neden önce bu:** En ucuz faz ve zaten yapılmış işi tamamlıyor. Şu an
-izolasyon veritabanı katmanında kanıtlı, ama HTTP'den veritabanına kadar olan
-zincir sınanmamış. Tenant middleware'i request'ten şemayı çözüyor ve bütün
-izolasyon buna dayanıyor, tek bir testi yok.
+**Isolation hardening.** Five bugs surfaced by writing tests that actually
+measure isolation, all fixed and documented in [SECURITY.md](../SECURITY.md). RLS
+is now `FORCE`d and fail-closed, verified against real PostgreSQL with a
+non-superuser role.
 
-**Yapılacaklar**
+**Cache and rate limiting.** Two-tier cache with singleflight, negative caching
+and TTL jitter. Redis token bucket in a single Lua script, keyed by tenant and
+sized by plan.
 
-1. `test/e2e/` paketi aç. Fiber'ın `app.Test()` metodu ile gerçek uygulamayı
-   ayağa kaldır, gerçek PostgreSQL'e bağla.
-2. Tenant middleware testleri:
-   - tenant header'ı yoksa 401
-   - bilinmeyen tenant için 404
-   - geçersiz schema adı denemesinde 400, SQL injection denemesi reddedilmeli
-3. Çapraz tenant testi: tenant A'nın token'ı ile tenant B'nin kaynağını isteyen
-   HTTP çağrısı veri döndürmemeli.
-4. Middleware'in `search_path`'i istek sonunda sıfırladığını doğrula. Havuza
-   kirli bağlantı dönmemeli.
+**Durable provisioning.** This replaced the transactional outbox originally
+planned as Phase 2. The same engineering ground is covered — worker pool, context
+cancellation, graceful shutdown, `SKIP LOCKED` claiming — but on the pipeline the
+product actually needs rather than a synthetic one. Idempotency enforced by a
+uniqueness constraint, lease with a fencing token, per-tenant concurrency limits,
+and tenant activation in the same transaction that closes the operation. Runs as
+a separate process, `cmd/worker`.
 
-**Dokunulacak yerler:** `internal/middleware/tenant_context.go`,
-`internal/app/routes.go`, yeni `test/e2e/`
-
-**Bitti sayılır:** `go test ./test/e2e/` yeşil ve README'de tek komutla
-izolasyonu kanıtlayan bir bölüm var.
+**English documentation.** Originally the last phase. Moved to the front: the
+depth is worth nothing to a reader who cannot read the prose describing it.
 
 ---
 
-## Faz 2: Transactional outbox ve teslimat worker'ı
+## Phase 1: End-to-end isolation proof
 
-**Süre:** 1-2 hafta
-**Neden:** Repodaki en büyük boşluk eşzamanlılık. 137 dosyada üç `go func` var.
-Go ilanlarının hepsi distributed systems ve concurrency ölçüyor. Bu faz yapay
-bir demo değil, ürünün gerçekten ihtiyacı olan bir parça üzerinden worker pool,
-context iptali, graceful shutdown ve backoff'u tek seferde gösteriyor.
+**Effort:** 2-3 days
+**Why first:** It is the cheapest remaining phase and it finishes work already
+done. Isolation is proven at the database layer today, but the chain from HTTP
+down to the database is untested. The tenant middleware resolves the schema from
+the request and all isolation rests on it; it has not got a single test.
 
-**Başlangıç noktası hazır:** `internal/domain/webhook/entity.go` 278 satır ve
-`RetryCount`, `NeedsRetry`, `Processed` alanlarıyla modellenmiş. Ama
-repository'si ve usecase'i yok, yani şu an ölü kod. Önce bunu ödeme özelinden
-genel bir outbox modeline çıkar.
+**Work**
 
-**Yapılacaklar**
+1. Open a `test/e2e/` package. Bring the real application up with Fiber's
+   `app.Test()`, connected to real PostgreSQL.
+2. Tenant middleware tests:
+   - 401 when the tenant header is absent
+   - 404 for an unknown tenant
+   - 400 on an invalid schema name; a SQL injection attempt must be rejected
+3. Cross-tenant test: an HTTP call using tenant A's token against tenant B's
+   resource must return no data.
+4. Verify that the middleware resets `search_path` at the end of the request. A
+   dirty connection must not go back to the pool.
 
-1. Migration: `outbox_events` tablosu.
-   Kolonlar: `id`, `tenant_id`, `aggregate_type`, `aggregate_id`, `event_type`,
-   `payload JSONB`, `status`, `attempts`, `next_attempt_at`, `locked_by`,
-   `locked_at`, `created_at`, `delivered_at`.
-   Index: `(status, next_attempt_at)` partial, `WHERE status = 'pending'`.
-   RLS: `tenant_id` üzerinden, fail-closed, migration 030'daki forma uygun.
+**Touches:** `internal/middleware/tenant_context.go`, `internal/app/routes.go`,
+new `test/e2e/`
 
-2. Yazma tarafı: iş verisi ile olay aynı transaction'da yazılır. Bu outbox
-   deseninin bütün noktası. Olay kaybolmaz, iş verisi de yarım kalmaz.
-
-3. Okuma tarafı: `SELECT ... FOR UPDATE SKIP LOCKED LIMIT n`.
-   Bu tek satır, birden fazla worker'ın aynı olayı almasını veritabanı
-   seviyesinde engeller. Uygulama tarafında kilit yönetmeye gerek kalmaz.
-
-4. Worker pool: `internal/worker/outbox.go`
-   - N goroutine, yapılandırılabilir
-   - `context.Context` ile iptal, `errgroup` ile hata toplama
-   - SIGTERM'de graceful shutdown, uçuştaki teslimatlar tamamlanır
-   - full jitter'lı exponential backoff, thundering herd'ü engellemek için
-   - max attempt sonrası dead letter durumu
-
-5. Teslimat: HTTP webhook, `Idempotency-Key` header'ı ile at-least-once.
-   Alıcı tarafta tekrar teslimatı ayırt edebilsin.
-
-6. Testler (`-race` zorunlu):
-   - 8 worker, 1000 olay, hiçbir olay iki kez teslim edilmemeli
-   - backoff aralıkları beklenen eğriyi izlemeli
-   - shutdown sırasında uçuştaki teslimat yarıda kesilmemeli
-   - context iptali worker'ları sızdırmadan durdurmalı (goroutine sayımı)
-
-**Bitti sayılır:** `go test -race ./internal/worker/` yeşil ve README'de
-`SKIP LOCKED` seçiminin neden yapıldığını anlatan kısa bir bölüm var.
+**Done when:** `go test ./test/e2e/` is green and the README has a section
+proving isolation with a single command.
 
 ---
 
-## Faz 3: gRPC ve protobuf sözleşmeleri
+## Phase 2: Observability and measurement
 
-**Süre:** 1 hafta
-**Neden:** Paylaştığın ilanların hepsi REST ve gRPC'yi birlikte istiyor. Ayrıca
-tip güvenli sözleşme, mevcut 71 `interface{}` kullanımının bir kısmını doğal
-olarak ortadan kaldırır.
+**Effort:** 3-5 days
+**Why:** "P95 under 200ms" is currently an unmeasured claim. A concrete number
+beats an assertion. Without tracing it is also hard to show the worker's
+behaviour.
 
-**Yapılacaklar**
+**Work**
 
-1. `proto/keystone/v1/` altında tenant, identity ve entitlement servisleri.
-2. `buf` ile codegen ve lint. `buf.yaml`, `buf.gen.yaml`, CI'ya `buf lint` adımı.
-3. gRPC sunucusu Fiber ile yan yana, ayrı portta.
-4. Interceptor zinciri: tenant context, auth, logging, panic recovery.
-   Bunlar HTTP middleware ile aynı mantığı paylaşmalı, kopyalanmamalı.
-5. Server reflection aç, README'ye `grpcurl` örneği koy.
+1. OpenTelemetry: spans for the HTTP request, the usecase, the repository and
+   SQL. A provisioning step must join the trace of the request that created it.
+2. Prometheus metrics: RED per endpoint (rate, errors, duration), labelled with
+   `tenant_id`. Queue depth and claim latency for the worker.
+3. zerolog is already in place; add trace id correlation.
+4. A k6 scenario: a mix of tenant creation, login and listing.
+5. Put the results in the README as a table. The hardware and scenario conditions
+   must be written down, or the number means nothing.
 
-**Dokunulacak yerler:** yeni `proto/`, yeni `internal/grpc/`,
-`internal/app/app.go`
-
-**Bitti sayılır:** `buf lint` temiz, `grpcurl -plaintext localhost:9090 list`
-servisleri döküyor, aynı izolasyon testleri gRPC üzerinden de geçiyor.
-
----
-
-## Faz 4: Gözlemlenebilirlik ve ölçüm
-
-**Süre:** 3-5 gün
-**Neden:** CLAUDE.md "P95 <200ms" diyor ama bu şu an ölçülmemiş bir iddia.
-Somut sayı iddiadan güçlüdür. Ayrıca tracing olmadan outbox worker'ının
-davranışını göstermek zor.
-
-**Yapılacaklar**
-
-1. OpenTelemetry: HTTP isteği, usecase, repository ve SQL için span'lar.
-   Outbox teslimatı, olayı üreten isteğin trace'ine bağlanmalı.
-2. Prometheus metrikleri: endpoint başına RED (rate, errors, duration),
-   `tenant_id` etiketli. Outbox için kuyruk derinliği ve teslimat gecikmesi.
-3. zerolog zaten var, trace id korelasyonu ekle.
-4. k6 senaryosu: tenant oluşturma, login, listeleme karışımı.
-5. Sonuçları README'ye tablo olarak koy. Donanım ve senaryo koşulları yazılsın,
-   yoksa sayı anlamsız olur.
-
-**Bitti sayılır:** README'de P50/P95/P99 tablosu ve onu üreten k6 dosyası
-repoda.
+**Done when:** the README carries a P50/P95/P99 table and the k6 file that
+produced it is in the repository.
 
 ---
 
-## Faz 5: Odaklama, dikey modülleri ayır
+## Phase 3: gRPC and protobuf contracts
 
-**Süre:** 3-4 gün
-**Neden:** 137 kaynak dosyanın ilginç olanı yaklaşık 15 tanesi. Blog,
-rezervasyon, ders, ödeme ve site modülleri hacim katıyor ama derinlik katmıyor.
-Bir inceleyicinin dikkatini çekirdekten uzaklaştırıyor.
+**Effort:** 1 week
+**Why:** Job listings ask for REST and gRPC together. A type-safe contract also
+naturally removes a share of the current `interface{}` usage.
 
-**Neden sonda:** Bu bir refactor ve `internal/app/app.go` ile
-`internal/app/routes.go` içinde 111 referansa dokunuyor. Çekirdek güçlenmeden
-yapılırsa geriye az şey kalır.
+**Work**
 
-**Yapılacaklar**
+1. Tenant, identity and entitlement services under `proto/keystone/v1/`.
+2. Codegen and lint with `buf`. `buf.yaml`, `buf.gen.yaml`, a `buf lint` step in
+   CI.
+3. The gRPC server alongside Fiber, on a separate port.
+4. An interceptor chain: tenant context, auth, logging, panic recovery. These
+   must share logic with the HTTP middleware rather than copying it.
+5. Turn on server reflection and put a `grpcurl` example in the README.
 
-1. Dikey modülleri `examples/verticals/` altına taşı.
-2. Composition root'u ikiye ayır: çekirdek uygulama ve örnek uygulama.
-   Bugün tek bir `app.go` her şeyi kuruyor.
-3. README'de çekirdek ile örnek arasındaki sınırı net anlat.
+**Touches:** new `proto/`, new `internal/grpc/`, `internal/app/app.go`
 
-**Bitti sayılır:** `go build ./...` yeşil, çekirdek uygulama dikey modüller
-olmadan ayağa kalkıyor.
-
----
-
-## Faz 6: Dil ve cila
-
-**Süre:** 2-3 gün
-
-**Sürekli kural:** Faz 1'den itibaren yeni yazılan her kod yorumu, commit
-mesajı ve dokümantasyon İngilizce. Bu faz yalnızca mevcut 268 Türkçe yorum
-satırını ve dokümanları çevirir, birikmiş borcu kapatır.
-
-**Yapılacaklar**
-
-1. README, SECURITY.md, CONTRIBUTING.md İngilizce.
-2. Dışa açık her sembol için godoc yorumu.
-3. Mimari diyagramı.
-4. CHANGELOG ve SemVer etiketleme.
-5. `interface{}` temizliği: DTO'lardaki 71 kullanımı somut tiplere çevir.
+**Done when:** `buf lint` is clean, `grpcurl -plaintext localhost:9090 list`
+prints the services, and the same isolation tests pass over gRPC too.
 
 ---
 
-## Kapsam dışı
+## Phase 4: Focus, split out the vertical modules
 
-Bunlar bilinçli olarak yapılmayacak.
+**Effort:** 3-4 days
+**Why:** Of 170 source files, roughly 15 are the interesting ones. The blog,
+booking, lesson, payment and website modules add volume without adding depth.
+They pull a reviewer's attention away from the core.
 
-- **Kubernetes ve Helm.** İlanlarda geçiyor ama bir repoya Helm chart koymak
-  kolay ve kopyalanabilir. Doğru yazılmış bir `SKIP LOCKED` worker'ı değil.
-  Sinyal değeri düşük, önce Faz 2 bitsin.
-- **Çok bölgeli dağıtım.** Ölçek problemi yokken çözmek YAGNI.
-- **Admin arayüzü.** Bu bir backend portföyü. Frontend eklemek odağı böler.
-- **Yeni dikey modül.** Zaten 12 tane var ve bunlar sorunun kendisi.
+**Why late:** This is a refactor and it touches 111 references inside
+`internal/app/app.go` and `internal/app/routes.go`. Done before the core is
+strong, not much would be left.
+
+**Work**
+
+1. Move the vertical modules under `examples/verticals/`.
+2. Split the composition root in two: the core application and the example
+   application. Today a single `app.go` wires everything.
+3. Explain the boundary between core and example clearly in the README.
+
+**Done when:** `go build ./...` is green and the core application comes up
+without the vertical modules.
 
 ---
 
-## Sıralama gerekçesi
+## Phase 5: Remaining invariants
 
-Faz 1 önce çünkü en ucuz ve zaten yapılmış işi tamamlıyor. Bugün kapatılan altı
-izolasyon hatasının hikayesi HTTP testleri olmadan yarım kalıyor.
+**Effort:** 1 week
+**Why:** Rules 7 and 8 in [INVARIANTS.md](INVARIANTS.md) are still marked "not
+yet". A document that names its own gaps is good; leaving them open forever is
+not.
 
-Faz 2 ikinci çünkü en büyük boşluk orada ve en çok zaman alan iş o. Erken
-başlamak gerekiyor.
+**Work**
 
-Faz 5 sonlarda çünkü geri dönüşü zor bir refactor. Çekirdek güçlendikten sonra
-yapılmalı.
+1. Audit table, written in the same transaction as the job status (rule 7).
+2. Transactional outbox and webhook delivery (rule 8). The event is written in
+   the same transaction as the business data; delivery is a separate, retryable
+   step with exponential backoff and full jitter, and a dead-letter state after
+   the maximum number of attempts.
+3. A membership table, so that "is this subject a member of this tenant" becomes
+   a real check (the gap in rule 1).
+4. A separate, narrowly privileged database role for the worker — the closing
+   condition of ADR-0001.
 
-Faz 6 en sonda çünkü çeviri her an yapılabilir ve teknik derinliği geciktirmesi
-anlamsız. Ama yeni kodun İngilizce yazılması Faz 1'de başlar, yoksa borç büyür.
+---
+
+## Phase 6: Polish
+
+**Effort:** 2-3 days
+
+**Standing rule:** every new code comment, commit message and document is written
+in English.
+
+**Work**
+
+1. A godoc comment on every exported symbol.
+2. An architecture diagram.
+3. A CHANGELOG and SemVer tagging.
+4. `interface{}` cleanup: turn the DTO usages into concrete types.
+
+---
+
+## Out of scope
+
+These are deliberately not being done.
+
+- **Kubernetes and Helm.** They appear in job listings, but dropping a Helm chart
+  into a repository is easy and copyable. A correctly written `SKIP LOCKED`
+  worker is not. Low signal value.
+- **Multi-region deployment.** Solving a scale problem that does not exist is
+  YAGNI.
+- **An admin interface.** This is a backend portfolio. Adding a frontend splits
+  the focus.
+- **New vertical modules.** There are already 13 and they are the problem itself.
+
+---
+
+## Why this order
+
+Phase 1 comes first because it is the cheapest and it completes work already
+done. The story of the five isolation bugs stays half-told without HTTP tests.
+
+Phase 2 comes second because it converts the repository's remaining claims into
+measurements, and because it is what makes the worker's behaviour visible.
+
+Phase 4 sits late because it is a hard-to-reverse refactor. It should happen after
+the core is strong.

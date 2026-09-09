@@ -1,237 +1,117 @@
-# Database Migrations
+# Migrations
 
-## Overview
-This directory contains PostgreSQL migration files for the Keystone multi-tenant SaaS platform.
+This directory is the single source of truth for the database schema. Nothing
+else holds a copy — the test helper runs these files directly, because this
+repository once drifted unnoticed when a copy existed.
 
-## Migration Naming Convention
+## Naming
+
 ```
-XXX_description.up.sql    # Forward migration
-XXX_description.down.sql  # Rollback migration
+XXX_description.up.sql    # forward
+XXX_description.down.sql  # rollback
 ```
 
-## Running Migrations
+Every forward migration needs a rollback, and the rollback should be tested
+before the pair is merged.
+
+## Running them
 
 ```bash
-# Apply all pending migrations
-make migrate-up
-
-# Rollback last migration
-make migrate-down
-
-# Check migration status
-make migrate-status
-
-# Force to specific version
-make migrate-force VERSION=XXX
+make migrate-up        # apply everything pending
+make migrate-down      # roll back the last one
+make migrate-status    # list the migration files
+make db-reset          # drop the dev database, recreate, migrate
 ```
 
-## Migration Categories
+The runner is stateful and tracks applied versions in `schema_migrations`.
 
-### Schema Migrations (001-016)
-Core database schema for multi-tenant platform:
-- **001-005:** Core entities (tenants, users, websites, projects, students)
-- **006-010:** Business entities (lessons, assignments, appointments, services)
-- **011-013:** Content management (blog, sites)
-- **014-016:** Payment processing (payments, refunds, events)
+## What is in here
 
-### Registry Migrations (017-022)
-Template marketplace and module system:
-- **017-018:** Module and tool definitions
-- **019-020:** Dependency management
-- **021-022:** Tenant activations (modules, tools)
+| Range | Contents |
+|---|---|
+| 001-005 | Core entities: tenants, users, websites, projects, students |
+| 006-010 | Business entities: lessons, assignments, appointments, services |
+| 011-013 | Content: blog, sites |
+| 014-016 | Payments: payments, refunds, events |
+| 017-022 | Registry: module and tool catalogue, dependencies, activations |
+| 023 | Registry seed data (modules and tools, all environments) |
+| 025-026 | Tenant schema support, CMS tables |
+| 027-030 | Tenant isolation hardening — see below |
+| 031-032 | Durable operation model, extended tenant lifecycle states |
 
-### Seed Data Migrations (023-024)
+### The isolation hardening range, 027-030
 
-#### 023_seed_registry_data
-- **Purpose:** Populate core modules and tools registry
-- **Environment:** All (development, staging, production)
-- **Content:**
-  - Default modules (LMS, CMS, CRM, etc.)
-  - Default tools (Payment, Webhook, etc.)
-  - Module/tool dependency mappings
+These four are worth reading before the others. They are the fixes for the bugs
+that surfaced once tests were written to actually verify isolation, and each file
+carries the reasoning in a comment at the top.
 
-#### Development Seed Script
-- **Dosya:** `scripts/seed/dev_seed.sql`
-- **Çalıştırma:** `make seed-dev`
-- **Environment:** Sadece local/dev; production pipeline'da kullanılmamalı
-- **İçerik:**
-  - Kurucu tenant + owner (`owner@dev.keystone.local / DevPass123!`)
-  - `canakyuz-dev` test tenantı ve sektör bazlı kullanıcılar (parola `DevPass123!`)
-  - LMS modül aktivasyonu ve örnek öğrenci kaydı
-- **Not:** Migration 024 kaldırıldı; migration zinciri artık seed veri içermiyor.
+- **027** adds `FORCE ROW LEVEL SECURITY` to 17 tables. Without it the table owner
+  role — which the application was connecting as — is exempt from every policy.
+- **028** scopes the `users` auth policy. It previously read `USING (TRUE)`, and
+  because PostgreSQL combines permissive policies with OR, that removed read
+  isolation from the `users` table entirely.
+- **030** makes the remaining policies fail-closed. `sites` was fail-open through a
+  `COALESCE`, and three payment policies called `current_setting` without the
+  missing-ok argument, so a session with no context raised a hard error instead of
+  returning nothing.
 
-**Required Setup:**
+Full write-up: [SECURITY.md](../SECURITY.md).
+
+## Rules for a new migration
+
+**Backward compatible.** Stop writing to a column before you drop it, and drop it
+in a separate release. A migration and the code that depends on it do not deploy
+atomically.
+
+**Tenant-scoped tables need all of this:**
+
+- `tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE`
+- an index with `tenant_id` first in any composite index
+- an RLS policy, and `ENABLE` *plus* `FORCE`
+- the policy must be fail-closed:
+
 ```sql
--- Set environment before running (in development)
-SET app.environment = 'development';
+-- correct: empty set when there is no context
+USING (tenant_id = NULLIF(current_setting('app.current_tenant', TRUE), '')::UUID)
 
--- Replace placeholder credentials in tenant_tools configuration:
--- 1. Stripe API key: REPLACE_WITH_STRIPE_TEST_KEY
--- 2. Webhook secret: REPLACE_WITH_WEBHOOK_SECRET
+-- wrong: falls back to TRUE when there is no context
+USING (tenant_id = COALESCE(NULLIF(current_setting('app.current_tenant', TRUE), '')::UUID, tenant_id))
 ```
 
-### Schema Enhancement Migrations (025+)
-- **025_add_tenant_schema_support:** Multi-tenant schema isolation support
+Adding a single `USING (TRUE)` policy to a table neutralises every other isolation
+policy on it.
 
-## Development Workflow
+**No credentials.** Use `REPLACE_WITH_*` placeholders and document what the real
+value should be in a comment.
 
-### Creating a New Migration
+## Seed data
 
-```bash
-# 1. Create migration files
-touch migrations/026_your_migration_name.up.sql
-touch migrations/026_your_migration_name.down.sql
+Migration 023 seeds the registry catalogue and runs in every environment; it is
+reference data, not sample data.
 
-# 2. Write migration SQL (see templates below)
+Development sample data lives outside the migration chain, in
+`scripts/seed/dev_seed.sql`, and runs with `make seed-dev`. Migration 024 used to
+seed a test tenant and was removed — the production migration chain no longer
+inserts sample data.
 
-# 3. Test migration
-make migrate-up
-make migrate-down  # Test rollback
+Any seed that must stay out of production carries a guard:
 
-# 4. Commit both files
-git add migrations/026_*
-git commit -m "feat(db): add your_migration_name"
-```
-
-### Migration Templates
-
-#### Standard Table Migration
 ```sql
--- migrations/XXX_create_table.up.sql
-CREATE TABLE IF NOT EXISTS table_name (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-    name VARCHAR(255) NOT NULL,
-    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMP NOT NULL DEFAULT NOW()
-);
-
-CREATE INDEX idx_table_name_tenant ON table_name(tenant_id);
-
--- migrations/XXX_create_table.down.sql
-DROP TABLE IF EXISTS table_name CASCADE;
+IF COALESCE(current_setting('app.environment', TRUE), 'production') = 'production' THEN
+    RAISE EXCEPTION 'BLOCKED: seed data cannot run in production';
+END IF;
 ```
-
-#### Seed Data Migration (Development Only)
-```sql
--- migrations/XXX_seed_data.up.sql
-DO $$
-DECLARE
-    current_env TEXT;
-BEGIN
-    -- Production guard
-    current_env := COALESCE(current_setting('app.environment', true), 'production');
-
-    IF current_env = 'production' THEN
-        RAISE EXCEPTION 'BLOCKED: Seed data cannot run in production. Environment: %', current_env
-            USING HINT = 'Set "app.environment" to "development" or "staging"';
-    END IF;
-
-    -- Idempotency check
-    IF EXISTS (SELECT 1 FROM table WHERE condition) THEN
-        RAISE NOTICE 'Seed data already exists. Skipping.';
-        RETURN;
-    END IF;
-
-    -- Insert seed data
-    INSERT INTO table (...) VALUES (...) ON CONFLICT DO NOTHING;
-
-    RAISE NOTICE 'Seed data inserted successfully';
-END $$;
-
--- migrations/XXX_seed_data.down.sql
-DELETE FROM table WHERE condition;
-```
-
-## Multi-Tenant Checklist ⚠️
-
-**Every migration MUST ensure tenant isolation:**
-
-- [ ] All tenant-scoped tables include `tenant_id UUID NOT NULL`
-- [ ] Foreign key to tenants table: `REFERENCES tenants(id) ON DELETE CASCADE`
-- [ ] Index on `tenant_id` (preferably as first column in composite indexes)
-- [ ] Row Level Security (RLS) policies defined where applicable
-- [ ] Cross-tenant access prevented at database level
-- [ ] Seed data includes proper `tenant_id` values
-
-## Security Best Practices
-
-1. **Never commit sensitive data:**
-   - Use placeholders: `REPLACE_WITH_*`
-   - Store actual credentials in vault/secrets manager
-   - Document required credentials in migration comments
-
-2. **Production guards for seed data:**
-   - Check `app.environment` setting
-   - Raise exception in production
-   - Use idempotent operations (`ON CONFLICT DO NOTHING`)
-
-3. **Rollback strategy:**
-   - Always provide `.down.sql` migration
-   - Test rollback before merging
-   - Use `CASCADE` carefully (document side effects)
-
-4. **Testing:**
-   - Test on local database first
-   - Verify tenant isolation
-   - Check performance on large datasets
-   - Review execution plan for complex queries
 
 ## Troubleshooting
 
-### Migration Already Applied
-```bash
-# Check current version
-make migrate-status
+A migration that failed part-way leaves `schema_migrations` behind the files.
+Inspect it directly:
 
-# Force re-run (dangerous!)
-make migrate-force VERSION=XXX
-```
-
-### Migration Failed Mid-Way
 ```bash
-# Check schema_migrations table
 make db-shell
 SELECT * FROM schema_migrations ORDER BY version DESC LIMIT 10;
-
-# Manually fix and re-run
-make migrate-up
 ```
 
-### Production Guard Triggered
-```sql
--- Error: "BLOCKED: Test tenant seed cannot run in production"
--- Solution: This is working as intended. Seed migrations are development-only.
--- If you need similar data in production, create a separate deployment script.
-```
-
-## CI/CD Integration
-
-Migrations run automatically in CI/CD pipeline:
-
-```yaml
-# .github/workflows/deploy.yml
-- name: Run Database Migrations
-  run: make migrate-up
-  env:
-    DATABASE_URL: ${{ secrets.DATABASE_URL }}
-    APP_ENVIRONMENT: ${{ env.ENVIRONMENT }}
-```
-
-**Environment-specific behavior:**
-- **Development:** All migrations including seeds
-- **Staging:** All migrations including seeds
-- **Production:** Schema migrations only (seeds blocked by guard)
-
-## Support
-
-For migration issues:
-1. Check this README
-2. Review migration file comments
-3. Check `schema_migrations` table
-4. Contact DevOps team
-
----
-
-**Last Updated:** 2024-10-06
-**Maintainer:** Keystone DevOps Team
+`make migrate-bootstrap` reconciles an existing database with the
+`schema_migrations` table, for the case where the schema was created before the
+runner existed.

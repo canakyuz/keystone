@@ -1,74 +1,72 @@
-# 0006. Önbellek iki katmanlı ve singleflight korumalı
+# 0006. The cache is two-tier and singleflight-protected
 
-**Durum:** Kabul edildi, 2026-09-07
+**Status:** Accepted, 2026-09-07
 
-## Bağlam
+## Context
 
-Tenant kimliğinden şema adına çözümleme her istekte çalışıyor. Sistemin en
-sıcak yolu bu.
+Resolving a tenant id to a schema name runs on every request. It is the hottest
+path in the system.
 
-## Korunması gereken kurallar
+## Rules that must hold
 
-- Redis erişilemediğinde servis çalışmaya devam etmeli.
-- Var olmayan tenant kimlikleri veritabanını yormamalı.
-- Aynı anahtara gelen eşzamanlı ıskalar tek yüklemeye inmeli.
+- The service must keep working when Redis is unreachable.
+- Non-existent tenant ids must not put load on the database.
+- Concurrent misses on the same key must collapse into a single load.
 
-## Değerlendirilen yaklaşımlar
+## Options considered
 
-### A. Yalnızca Redis (önceki hali)
+### A. Redis only (the previous state)
 
-Zayıf tarafları, ölçüldüğünde dördü birden çıktı:
+Measuring it surfaced four weaknesses at once:
 
-- Soğuk bir anahtara aynı anda gelen N istek N veritabanı sorgusu yapıyordu.
-  Önbellek, en çok işe yaraması gereken anda korumuyordu.
-- Var olmayan kimlikler önbelleklenmiyordu. Rastgele kimliklerle yapılan
-  istek seli her seferinde veritabanına iniyordu.
-- Önbellek doldurma her istekte yeni bir goroutine açıyordu, panic recovery
-  yoktu.
-- Redis tek hata noktasıydı.
+- N concurrent requests for a cold key produced N database queries. The cache
+  failed to protect at exactly the moment it was most needed.
+- Non-existent ids were not cached. A flood of requests with random ids reached
+  the database every time.
+- Cache fill spawned a new goroutine per request, with no panic recovery.
+- Redis was a single point of failure.
 
-### B. Yalnızca süreç içi önbellek
+### B. In-process cache only
 
-Basit ama replikalar arası paylaşım yok. Her replika ayrı ısınır, veritabanı
-yükü replika sayısıyla çarpılır.
+Simple, but nothing is shared across replicas. Each replica warms up separately
+and database load is multiplied by the replica count.
 
-### C. İki katman: süreç içi artı Redis
+### C. Two tiers: in-process plus Redis
 
-## Karar
+## Decision
 
-C, singleflight ve negatif önbellekleme ile.
+C, with singleflight and negative caching.
 
-## Gerekçe
+## Rationale
 
-L1 katmanı Redis'i tek hata noktası olmaktan çıkarıyor. Redis düştüğünde
-servis L1 ve veritabanı ile çalışmaya devam ediyor.
+The L1 tier removes Redis as a single point of failure. When Redis is down the
+service keeps working with L1 and the database.
 
-`singleflight` yığılmayı çözüyor. Aynı anahtar için aynı anda gelen istekler
-tek yüklemeye indirgeniyor; test yüz eşzamanlı isteğin tek sorgu yaptığını
-doğruluyor.
+`singleflight` solves the stampede. Requests arriving at once for the same key
+collapse into a single load; a test verifies that a hundred concurrent requests
+produce one query.
 
-Negatif önbellekleme ucuz bir yük yükseltme vektörünü kapatıyor.
+Negative caching closes a cheap load-amplification vector.
 
-TTL'e jitter ekleniyor. Aynı anda oluşturulan anahtarlar aynı anda düşerse
-sona erme anında toplu bir ıska dalgası oluşur.
+TTLs carry jitter. Keys created at the same moment would otherwise expire at the
+same moment and produce a synchronized wave of misses.
 
-## Sonuçları
+## Consequences
 
-- Süreçler arası tutarsızlık penceresi var. Bir kaydı geçersiz kılmak yalnızca
-  o süreçte anlık etki eder; diğer replikalar L1 TTL'i (30 saniye) dolana
-  kadar eski değeri görebilir.
-- Bu, tenant şeması için kabul edilebilir çünkü şema yalnızca onboarding
-  sırasında değişir. Sık değişen veriler için kabul edilemez.
+- There is a cross-process inconsistency window. Invalidating an entry takes
+  immediate effect only in that process; other replicas may see the stale value
+  until the L1 TTL (30 seconds) expires.
+- This is acceptable for the tenant schema because the schema only changes during
+  onboarding. It would not be acceptable for frequently changing data.
 
-## Bu karar ne zaman yanlış hale gelir
+## When this decision becomes wrong
 
-- Önbelleklenen veri sık değişirse. 30 saniyelik tutarsızlık penceresi
-  kabul edilemez hale gelir; o noktada pub/sub ile geçersiz kılma yayını
-  gerekir.
-- Bellek baskısı oluşursa. L1 üst sınırı 10.000 kayıt; tenant sayısı bunu
-  aşarsa tahliye sıklaşır ve L1 faydası azalır.
+- If the cached data starts changing often. The 30-second inconsistency window
+  becomes unacceptable, and invalidation broadcast over pub/sub is needed.
+- If memory pressure appears. The L1 ceiling is 10,000 entries; once the tenant
+  count exceeds that, eviction becomes frequent and the L1 benefit shrinks.
 
-## Ölçüm notu
+## Measurement note
 
-Önceki uygulamanın yorumunda "%98-99 isabet oranı" yazıyordu, ölçülmemişti.
-`Stats()` eklendi ama henüz metriklere bağlanmadı.
+A comment in the previous implementation claimed a "98-99% hit rate"; it had
+never been measured. `Stats()` was added but is not wired to metrics yet.

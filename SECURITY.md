@@ -1,70 +1,73 @@
-# Güvenlik
+# Security
 
-## Açık bildirimi
+## Reporting a vulnerability
 
-Bir güvenlik açığı bulursanız lütfen public issue açmayın.
-İletişim: canakyuz@wesan.co
+If you find a security issue, please do not open a public issue.
+Contact: canakyuz@wesan.co
 
-## Tenant izolasyonu nasıl uygulanıyor
+## How tenant isolation is enforced
 
-Keystone iki katmanlı izolasyon kullanır.
+Keystone uses two layers of isolation.
 
-1. **Schema-per-tenant.** Her tenant'ın kendi PostgreSQL şeması vardır.
-   `TenantConnectionManager` havuzdan tek bir bağlantı ayırır, o bağlantıda
-   `search_path`'i tenant şemasına alır ve callback'e **aynı bağlantıyı** verir.
-2. **Row Level Security.** Paylaşılan `public` şemasındaki tenant'a ait tablolar
-   RLS policy'leri ile korunur. Policy'ler `app.current_tenant` oturum
-   değişkenini okur.
+1. **Schema-per-tenant.** Every tenant has its own PostgreSQL schema.
+   `TenantConnectionManager` checks out a single connection from the pool, sets
+   `search_path` to the tenant schema on that connection, and hands **that same
+   connection** to the callback.
+2. **Row Level Security.** Tenant-owned tables in the shared `public` schema are
+   protected by RLS policies. The policies read the `app.current_tenant` session
+   variable.
 
-## İşletim koşulları
+## Operating requirements
 
-Bu koşullar sağlanmazsa izolasyon garanti edilmez.
+Isolation is not guaranteed unless these hold.
 
-**Uygulama bağlantısı süper kullanıcı olmamalıdır.** PostgreSQL'de süper
-kullanıcılar RLS policy'lerini her koşulda atlar. `FORCE ROW LEVEL SECURITY`
-bunu değiştirmez. Uygulama için ayrı, süper kullanıcı olmayan bir rol açın.
+**The application connection must not be a superuser.** In PostgreSQL,
+superusers bypass RLS policies under all circumstances. `FORCE ROW LEVEL
+SECURITY` does not change that. Create a separate, non-superuser role for the
+application.
 
-**`ENVIRONMENT` production olmalıdır.** `development` iken `X-Tenant-ID`
-header'ı ve `tenant_id` query parametresi ile tenant seçilebilir. Bu yalnızca
-yerel geliştirme kolaylığıdır. Üretimde açık kalırsa kimlik doğrulamasından
-geçmiş herhangi bir kullanıcı başka tenant'ın verisine erişir.
+**`ENVIRONMENT` must be production.** While it is `development`, the tenant can
+be selected with the `X-Tenant-ID` header or the `tenant_id` query parameter.
+That is a local development convenience only. Left on in production, any
+authenticated user can reach another tenant's data.
 
-**Tenant context'e giren her sorgu callback'in verdiği bağlantıyı kullanmalıdır.**
-`ExecuteInTenantContext` içinde havuz (`*sql.DB`) üzerinden sorgu çalıştırmak
-sessizce başka bir bağlantıya düşer ve o bağlantının `search_path`'i bu tenant'a
-ayarlı değildir.
+**Every query inside a tenant context must use the connection the callback
+provides.** Running a query through the pool (`*sql.DB`) inside
+`ExecuteInTenantContext` silently falls onto a different connection, and that
+connection's `search_path` is not set to this tenant.
 
-## Bilinen ve bilinçli tasarım kararları
+## Known and deliberate design decisions
 
-Aşağıdakiler açık değil, kasıtlı davranıştır.
+The following are intentional behaviour, not holes.
 
-- `websites.public_websites_policy` yayınlanmış siteleri tenant sınırından
-  bağımsız okunabilir kılar. Public CMS içeriği için amaçlanan davranıştır.
-- `projects.public_projects_policy` aynı şekilde tamamlanmış ve öne çıkarılmış
-  projeleri açar.
-- `users.auth_lookup_policy`, tenant bilinmeden yapılan login aramasına izin
-  verir. Yalnızca `app.auth_lookup` oturum bayrağı açıkken uygulanır ve
-  repository bu bayrağı `SET LOCAL` ile tek bir transaction'a hapseder.
+- `websites.public_websites_policy` makes published sites readable across the
+  tenant boundary. This is the intended behaviour for public CMS content.
+- `projects.public_projects_policy` opens completed and featured projects the
+  same way.
+- `users.auth_lookup_policy` allows the login lookup that happens before the
+  tenant is known. It applies only while the `app.auth_lookup` session flag is
+  set, and the repository confines that flag to a single transaction with
+  `SET LOCAL`.
 
-## Geçmişte kapatılan açıklar
+## Vulnerabilities closed
 
-Bu repo, izolasyon iddiasını doğrulayan testler yazıldığında ortaya çıkan
-hataların kaydını tutar. Ayrıntılar ilgili migration dosyalarının başındaki
-yorumlardadır.
+This repository keeps a record of the bugs that surfaced once tests were written
+to verify the isolation claim. The details live in the comments at the top of the
+relevant migration files.
 
-| Sorun | Etki | Düzeltme |
+| Problem | Impact | Fix |
 |---|---|---|
-| `users` üzerinde `USING (TRUE)` policy'si | Okuma izolasyonu tamamen yoktu; her tenant tüm kullanıcıları, parola özetleri dahil okuyabiliyordu | `028` |
-| 17 tabloda `ENABLE`, `FORCE` yok | Tablo sahibi rolüyle bağlanan uygulama policy'lerden muaftı | `027` |
-| `sites` policy'si `COALESCE` ile fail-open | Context ayarlanmadığında tüm satırlar görünüyordu | `030` |
-| `payments`, `refunds`, `payment_events` policy'lerinde argümansız `current_setting` | Ayarsız oturumda sert hata | `030` |
-| `ExecuteInTenantContext` callback'e bağlantıyı vermiyordu | `search_path` sorguların koştuğu bağlantıya uygulanmıyordu | `pkg/database` |
-| `extractTenantID` yanlış context anahtarını okuyordu | JWT tenant claim'i hiç kullanılmıyordu; geçerli token taşıyan herkes `X-Tenant-ID` header'ı ile başka tenant'a geçebiliyordu | `internal/middleware` |
+| `USING (TRUE)` policy on `users` | Read isolation was entirely absent; every tenant could read all users, password hashes included | `028` |
+| `ENABLE` without `FORCE` on 17 tables | The application, connecting as the table owner role, was exempt from the policies | `027` |
+| `sites` policy made fail-open by `COALESCE` | All rows were visible when the context was not set | `030` |
+| `current_setting` without the missing-ok argument in `payments`, `refunds`, `payment_events` policies | Hard error on a session with no context set | `030` |
+| `ExecuteInTenantContext` did not pass the connection to the callback | `search_path` was not applied to the connection the queries actually ran on | `pkg/database` |
+| `extractTenantID` read the wrong context key | The JWT tenant claim was never used; anyone holding a valid token could switch tenants with the `X-Tenant-ID` header | `internal/middleware` |
 
-## Test etme
+## Testing it
 
-İzolasyon iddiaları `test/security/` altında, süper kullanıcı olmayan bir rolle
-ve gerçek PostgreSQL üzerinde doğrulanır.
+The isolation claims are verified under `test/security/`, against real PostgreSQL
+using a non-superuser role.
 
 ```
 go test ./test/security/ -v

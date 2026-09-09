@@ -1,77 +1,80 @@
-# 0007. İstek limiti paylaşımlı ve Redis düştüğünde açık kalır
+# 0007. The rate limit is shared and stays open when Redis is down
 
-**Durum:** Kabul edildi, 2026-09-07
+**Status:** Accepted, 2026-09-07
 
-## Bağlam
+## Context
 
-Fiber'ın yerleşik limiter'ı varsayılan olarak süreç içi sayıyordu. Üç
-replikada, replika başına yüz istek ayarı gerçekte üç yüz istek demekti.
-Ayarlanan değer ile uygulanan değer arasında replika sayısı kadar fark vardı.
+Fiber's built-in limiter counted in-process by default. Across three replicas, a
+setting of a hundred requests per replica actually meant three hundred. The gap
+between the configured value and the enforced one scaled with the replica count.
 
-Ayrıca anahtar IP'ydi, dolayısıyla limit kiracıya göre değil bağlantıya göre
-uygulanıyordu.
+The key was also the IP, so the limit applied per connection rather than per
+tenant.
 
-## Korunması gereken kurallar
+## Rules that must hold
 
-- Ayarlanan limit, replika sayısından bağımsız olarak uygulanmalı.
-- Bir kiracının trafiği diğerinin limitini tüketmemeli.
-- Sayaç güncellemesi atomik olmalı.
+- The configured limit must be enforced regardless of replica count.
+- One tenant's traffic must not consume another's limit.
+- The counter update must be atomic.
 
-## Değerlendirilen yaklaşımlar
+## Options considered
 
-### A. Sabit pencere sayacı
+### A. Fixed window counter
 
-Basit. Zayıf tarafı: pencere sınırında iki kat geçişe izin verir. Bir pencerenin
-sonunda ve bir sonrakinin başında limit kadar istek geçebilir.
+Simple. Weakness: it allows twice the limit across a window boundary. A full
+limit's worth of requests can pass at the end of one window and the start of the
+next.
 
-### B. Kayan pencere kaydı
+### B. Sliding window log
 
-Doğru ama her istek için zaman damgası saklar. Bellek maliyeti istek hızıyla
-büyür.
+Correct, but it stores a timestamp per request. Memory cost grows with request
+rate.
 
-### C. Token bucket, Redis'te Lua ile
+### C. Token bucket, in Redis with Lua
 
-Kapasite kadar patlamaya bilinçli izin verir, sonrasında sabit hıza düşer.
-Oku, hesapla, yaz dizisi tek betikte çalışır.
+Deliberately allows bursting up to capacity, then settles to a steady rate. The
+read, compute and write sequence runs in a single script.
 
-## Karar
+## Decision
 
 C.
 
-## Gerekçe
+## Rationale
 
-Lua betiği atomikliği sağlıyor. Üç ayrı Redis komutuyla yapılsaydı iki replika
-aynı tokeni harcayabilirdi. `WATCH`/`MULTI` ile optimistic locking de mümkündü,
-ama çakışmada yeniden deneme gerektirir ve tam da limitin devreye girdiği anda
-maliyeti artar.
+The Lua script provides the atomicity. Done with three separate Redis commands,
+two replicas could spend the same token. Optimistic locking with `WATCH`/`MULTI`
+was also possible, but it requires retries on conflict and the cost rises exactly
+when the limit starts biting.
 
-Test iki yüz eşzamanlı istekten tam olarak kapasite kadarının geçtiğini
-doğruluyor.
+A test verifies that out of two hundred concurrent requests exactly the capacity
+passes.
 
-Limit kiracı planından türetiliyor. Şemada zaten `plan` kolonu vardı.
+The limit is derived from the tenant's plan. The schema already had a `plan`
+column.
 
-## Redis düştüğünde: açık kalır
+## When Redis is down: it stays open
 
-Bu bilinçli bir karar ve tartışmalı olduğu için ayrıca yazılıyor.
+This is a deliberate decision, and it is written out separately because it is
+debatable.
 
-Varsayılan davranış isteği geçirmek. Gerekçe: limitleyici bir kullanılabilirlik
-aracı değil, kötüye kullanım freni. Redis düştüğünde tüm trafiği reddetmek,
-önlemeye çalıştığı kesintiyi kendi eliyle yaratır.
+The default behaviour is to let the request through. The reasoning: the limiter is
+an abuse brake, not an availability tool. Rejecting all traffic when Redis goes
+down manufactures the very outage it is meant to prevent.
 
-Karşı argüman geçerli: kötüye kullanımın pahalı olduğu uçlarda, örneğin kimlik
-doğrulamada, açık kalmak brute-force'a kapı açar. Bu yüzden davranış
-yapılandırılabilir (`FailOpen`), uç bazında kapatılabilir. Henüz hiçbir uçta
-kapatılmadı.
+The counter-argument is valid: on endpoints where abuse is expensive,
+authentication for example, staying open opens the door to brute force. That is
+why the behaviour is configurable (`FailOpen`) and can be turned off per
+endpoint. It has not been turned off anywhere yet.
 
-## Sonuçları
+## Consequences
 
-- Her istek bir Redis gidiş dönüşü ekliyor. Sağlık uçları muaf tutuldu.
-- Plan çözümlemesi ayrıca önbellekleniyor, yoksa limitleyicinin kendisi bir
-  yük kaynağına dönüşürdü.
+- Every request adds one Redis round trip. Health endpoints are exempt.
+- Plan resolution is cached separately; otherwise the limiter itself would become
+  a source of load.
 
-## Bu karar ne zaman yanlış hale gelir
+## When this decision becomes wrong
 
-- Redis gecikmesi istek gecikmesinde belirgin paya sahip olursa. O noktada
-  yerel bir ön filtre artı periyodik senkronizasyon gerekir.
-- Kötüye kullanım maliyeti kullanılabilirlik maliyetini geçerse. Fail-open
-  varsayılanı tersine çevrilmeli.
+- If Redis latency takes a noticeable share of request latency. At that point a
+  local pre-filter plus periodic synchronisation is needed.
+- If the cost of abuse exceeds the cost of unavailability. The fail-open default
+  should then be inverted.

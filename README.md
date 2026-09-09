@@ -1,28 +1,30 @@
 # Keystone
 
-Go ile yazılmış multi-tenant SaaS control plane. Tenant sağlama,
-schema-per-tenant izolasyonu ve Row Level Security'yi tek bir yerde toplar.
+A multi-tenant SaaS control plane written in Go. It brings tenant provisioning,
+schema-per-tenant isolation and Row Level Security together in one place.
 
 [![CI](https://github.com/canakyuz/keystone/actions/workflows/ci.yml/badge.svg)](https://github.com/canakyuz/keystone/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-## Ne yapar
+## What it does
 
-Bir SaaS ürününde her müşteri için ayrı veri alanı açmak, o alanı yalıtmak ve
-yalıtımın gerçekten çalıştığını kanıtlamak gerekir. Keystone bu üç işi yapar.
+A SaaS product has to open a separate data space for every customer, isolate
+that space, and prove the isolation actually holds. Keystone does those three
+things.
 
-- **Tenant sağlama.** Yeni tenant için PostgreSQL şeması oluşturur, migration'ları
-  uygular, kayıt defterine yazar.
-- **İki katmanlı izolasyon.** Tenant'a özel şema artı paylaşılan tablolarda RLS.
-- **Doğrulanmış izolasyon.** İddialar `test/security/` altında, süper kullanıcı
-  olmayan bir rolle ve gerçek PostgreSQL üzerinde sınanır.
+- **Tenant provisioning.** Creates a PostgreSQL schema for a new tenant, applies
+  the migrations, and writes it into the registry.
+- **Two layers of isolation.** A per-tenant schema, plus RLS on the shared tables.
+- **Verified isolation.** The claims live under `test/security/` and are exercised
+  against real PostgreSQL using a non-superuser role.
 
-## Neden ilginç
+## Why it is interesting
 
-Bu repo tenant izolasyonunu yalnızca iddia etmiyor, sınıyor. İzolasyonu gerçekten
-ölçen testler yazıldığında beş ayrı hata ortaya çıktı ve hepsi kayıt altında.
+This repository does not merely claim tenant isolation, it tests it. Writing the
+tests that actually measure isolation surfaced five separate bugs, all of them on
+the record.
 
-En çarpıcısı şuydu: `users` tablosunda iki permissive policy vardı.
+The most striking one: the `users` table carried two permissive policies.
 
 ```sql
 CREATE POLICY tenant_isolation_policy ON users FOR ALL
@@ -32,109 +34,151 @@ CREATE POLICY auth_policy ON users FOR SELECT
   USING (TRUE);
 ```
 
-PostgreSQL permissive policy'leri OR ile birleştirir. İkincisi sabit `TRUE`
-olduğu için birleşik koşul her `SELECT`'te doğruya düşüyordu. `users` tablosunda
-okuma yönünde hiçbir tenant izolasyonu yoktu.
+PostgreSQL combines permissive policies with OR. Because the second one was a
+constant `TRUE`, the combined condition collapsed to true on every `SELECT`.
+There was no tenant isolation at all on reads from the `users` table.
 
-Tam liste ve düzeltmeler: [SECURITY.md](SECURITY.md).
+Full list and fixes: [SECURITY.md](SECURITY.md).
 
-## Önbellek
+## Provisioning is durable, not a request handler
 
-Tenant çözümlemesi her istekte çalışır, dolayısıyla en sıcak yoldur.
-`pkg/cache` iki katmanlı bir önbellek sunar: L1 süreç içi, L2 Redis, en altta
-veritabanı.
+Creating a tenant means creating a schema and running migrations. That work does
+not belong inside an HTTP request: it takes too long, and a process that dies
+halfway through leaves a half-built tenant behind. So the API accepts the intent
+and a separate worker process carries it out.
 
-Kapatılan sorunlar:
+```
+POST /api/v1/tenants          202 Accepted + Location: /api/v1/operations/{id}
+  Idempotency-Key: <key>
+        |
+        |  one transaction: tenant (pending) + operation + job + idempotency key
+        v
+   operations table
+        |
+        |  SELECT ... FOR UPDATE SKIP LOCKED    <- two workers never take one job
+        v
+  cmd/worker  (N goroutines, per-tenant limit, graceful drain)
+        |
+        |  create schema -> run migrations -> report result with current fence
+        v
+  one transaction: mark job done + flip tenant to active
 
-- **Önbellek yığılması.** Soğuk bir anahtara aynı anda gelen N istek N adet
-  veritabanı sorgusuna dönüşüyordu. `singleflight` ile tek sorguya iniyor.
-  Test yüz eşzamanlı isteğin tek yükleme yaptığını doğruluyor.
-- **Negatif önbellekleme yoktu.** Var olmayan rastgele tenant kimlikleriyle
-  yapılan istek seli her seferinde veritabanına iniyordu. Ucuz bir yük
-  yükseltme vektörü.
-- **Sınırsız goroutine.** Önbellek doldurma her istekte yeni bir goroutine
-  açıyordu, panic recovery de yoktu.
-- **Redis tek hata noktasıydı.** L1 katmanı sayesinde Redis düştüğünde servis
-  çalışmaya devam ediyor.
-- **İsabet oranı ölçülmüyordu.** `Stats()` ile ölçülebiliyor.
+GET /api/v1/operations/{id}   caller polls for the outcome
+```
 
-TTL'e jitter eklenir. Aynı anda oluşturulan anahtarlar aynı anda düşerse
-sona erme anında toplu bir ıska dalgası oluşur.
+Three properties are worth naming.
 
-## İstek limiti
+**The same idempotency key cannot be reused with a different body.** Same body
+replays the existing operation; a different body is a conflict. Uniqueness is
+enforced by the database, because read-then-write does not survive two requests
+arriving at once.
 
-`pkg/ratelimit`, Redis üzerinde paylaşılan bir token bucket uygular. Oku,
-hesapla, yaz dizisi tek bir Lua betiğinde çalışır, dolayısıyla iki replika
-aynı tokeni harcayamaz.
+**A worker that lost its lease cannot report a result.** Every claim increments a
+fence counter, and a completion must carry the current fence. Checking the lease
+owner alone would not work — a stale worker knows its own name and would pass
+that check.
 
-Fiber'ın yerleşik limiter'ı kullanılmaz. O, varsayılan olarak süreç içi
-sayar: üç replikada, replika başına yüz istek ayarı gerçekte üç yüz istek
-demektir. Ayarlanan değer ile uygulanan değer arasında replika sayısı kadar
-fark oluşur.
+**A tenant becomes `active` in the same transaction that closes the operation.**
+Written separately, a crash in between would leave a tenant the user sees as
+"done" but cannot actually use.
 
-Limit kiracı planına göre belirlenir ve anahtar IP yerine tenant'tır.
+The guarantees and their limits are written down in
+[docs/INVARIANTS.md](docs/INVARIANTS.md), including the ones not implemented yet.
 
-| Plan | Dakikalık istek |
+## Cache
+
+Tenant resolution runs on every request, which makes it the hottest path.
+`pkg/cache` offers a two-tier cache: L1 in-process, L2 Redis, the database
+underneath.
+
+Problems closed:
+
+- **Cache stampede.** N concurrent requests for a cold key turned into N database
+  queries. `singleflight` collapses them into one. A test verifies that a hundred
+  concurrent requests produce a single load.
+- **No negative caching.** A flood of requests carrying random non-existent tenant
+  IDs reached the database every time. A cheap load-amplification vector.
+- **Unbounded goroutines.** Cache fill spawned a new goroutine per request, with no
+  panic recovery.
+- **Redis was a single point of failure.** Thanks to the L1 tier the service keeps
+  serving when Redis is down.
+- **Hit rate was not measured.** `Stats()` exposes it.
+
+TTLs carry jitter. Keys created at the same moment would otherwise expire at the
+same moment and produce a synchronized wave of misses.
+
+## Rate limiting
+
+`pkg/ratelimit` implements a token bucket shared over Redis. The read, compute
+and write sequence runs inside a single Lua script, so two replicas cannot spend
+the same token.
+
+Fiber's built-in limiter is not used. It counts in-process by default: across
+three replicas, a setting of a hundred requests per replica actually means three
+hundred. The gap between the configured value and the enforced one scales with
+the replica count.
+
+The limit follows the tenant's plan, and the key is the tenant rather than the IP.
+
+| Plan | Requests per minute |
 |---|---|
 | free | 60 |
 | starter | 300 |
-| pro | 1.200 |
-| enterprise | 6.000 |
-| kimlik doğrulanmamış | 30 |
+| pro | 1,200 |
+| enterprise | 6,000 |
+| unauthenticated | 30 |
 
-Redis erişilemediğinde varsayılan davranış isteği geçirmektir. Limitleyici bir
-kullanılabilirlik aracı değil, kötüye kullanım frenidir. Redis düştüğünde tüm
-trafiği reddetmek, önlemeye çalıştığı kesintiyi kendi eliyle yaratır.
+When Redis is unreachable the default behaviour is to let the request through.
+The limiter is an abuse brake, not an availability tool. Rejecting all traffic
+when Redis goes down would manufacture the very outage it is meant to prevent.
 
-Eşzamanlılık testi iki yüz eşzamanlı istekten tam olarak kapasite kadarının
-geçtiğini doğrular.
+A concurrency test verifies that out of two hundred simultaneous requests exactly
+the capacity passes.
 
-## Sağlık uçları
+## Health endpoints
 
-İki ayrı uç, iki ayrı soru.
+Two endpoints, two different questions.
 
-| Uç | Soru | Başarısız olursa | Bağımlılıklara bakar |
+| Endpoint | Question | On failure | Checks dependencies |
 |---|---|---|---|
-| `/health` | Süreç ayakta mı | Container yeniden başlar | Hayır |
-| `/ready` | İstek karşılayabilir mi | Load balancer trafiği keser | Evet |
+| `/health` | Is the process alive | Container restarts | No |
+| `/ready` | Can it serve requests | Load balancer drains traffic | Yes |
 
-`/health` bilinçli olarak veritabanına bakmaz. Veritabanı geçici olarak
-düştüğünde sağlıklı süreçleri yeniden başlatmak, kurtarma sırasında bağlantı
-fırtınası yaratır.
+`/health` deliberately does not touch the database. Restarting healthy processes
+because the database blipped creates a connection storm during recovery.
 
-`/ready` için Redis zorunlu değildir. Önbellek ve limitleyici Redis olmadan
-süreç içi yollarına düşerek çalışır.
+Redis is not required for `/ready`. The cache and the limiter fall back to their
+in-process paths without it.
 
-## Tasarım kararları
+## Design decisions
 
-Sistemin neden böyle kurulduğu, alternatiflerinin neler olduğu ve her kararın
-hangi koşulda yanlış hale geleceği [docs/decisions/](docs/decisions/) altında
-yazılı. Yedi karar kaydı var.
+Why the system is built this way, what the alternatives were, and the condition
+under which each decision becomes wrong is written under
+[docs/decisions/](docs/decisions/). There are seven decision records.
 
-Sistemin verdiği sözlerin kod ve test karşılıkları için
-[docs/INVARIANTS.md](docs/INVARIANTS.md) dosyasına bakın. Karşılığı olmayan
-kural orada "henüz yok" olarak işaretli.
+For the promises the system makes, along with the code and tests backing them,
+see [docs/INVARIANTS.md](docs/INVARIANTS.md). A rule with nothing behind it is
+marked "not yet" there rather than being listed as a slogan.
 
-
-## Mimari
+## Architecture
 
 ```
-HTTP (Fiber)
-    |
-    v
+HTTP (Fiber)                     cmd/worker
+    |                                 |
+    v                                 |
 Handler  --->  Usecase  --->  Repository  --->  PostgreSQL
                                   |
                                   +-- TenantConnectionManager
-                                      havuzdan bir baglanti ayirir,
-                                      search_path'i tenant semasina alir,
-                                      AYNI baglantiyi callback'e verir
+                                      checks out one connection from the pool,
+                                      sets search_path to the tenant schema,
+                                      hands THAT SAME connection to the callback
 ```
 
-Bağımlılık yönü daima içeri doğrudur. `internal/domain` hiçbir dış katmanı
-bilmez. Tenant context anahtarları `pkg/tenantctx` içinde, yaprak bir pakette
-durur; böylece repository katmanı HTTP middleware'ini import etmek zorunda kalmaz.
+Dependencies always point inward. `internal/domain` knows nothing about any outer
+layer. Tenant context keys live in `pkg/tenantctx`, a leaf package, so the
+repository layer never has to import HTTP middleware.
 
-## Hızlı başlangıç
+## Quick start
 
 ```bash
 git clone https://github.com/canakyuz/keystone.git
@@ -142,45 +186,47 @@ cd keystone
 cp .env.example .env
 
 docker compose up -d postgres
-go run ./cmd/server
+go run ./cmd/server      # API
+go run ./cmd/worker      # provisioning worker, separate process
 ```
 
-Sağlık kontrolü:
+Health check:
 
 ```bash
 curl localhost:8080/health
 ```
 
-## Test
+## Tests
 
 ```bash
-go test ./...              # tamami
-go test ./test/security/   # yalnizca izolasyon iddialari
+go test ./...                 # everything
+go test ./test/security/      # isolation claims only
+go test -race ./internal/worker/   # concurrency, shutdown, per-tenant limits
 ```
 
-Testler gerçek PostgreSQL kullanır. Her test kendi izole veritabanını açar ve
-sonunda düşürür, dolayısıyla paralel koşu güvenlidir. Postgres erişilemiyorsa
-ilgili testler atlanır.
+Tests use real PostgreSQL. Each test opens its own isolated database and drops it
+afterwards, so running them in parallel is safe. When Postgres is unreachable the
+tests that need it are skipped.
 
-Şemanın tek kaynağı `migrations/` dizinidir. Test helper'ı bu dosyaları
-doğrudan çalıştırır, kopya tutmaz.
+The single source of truth for the schema is the `migrations/` directory. The test
+helper runs those files directly and keeps no copy.
 
-## İşletim koşulu
+## Operating requirement
 
-Uygulama veritabanına **süper kullanıcı olmayan** bir rolle bağlanmalıdır.
-PostgreSQL'de süper kullanıcılar RLS'i her koşulda atlar. Ayrıntı:
+The application must connect to the database with a **non-superuser** role. In
+PostgreSQL, superusers bypass RLS under all circumstances. Details:
 [SECURITY.md](SECURITY.md).
 
-## Durum
+## Status
 
-Çekirdek çalışır durumda: tenant sağlama, kullanıcı yönetimi, RLS zorlaması,
-migration runner. Dikey modüller (blog, rezervasyon, ders, ödeme) referans
-uygulama olarak repoda durur ve control plane'in üzerine nasıl özellik
-inşa edildiğini gösterir.
+The core works: tenant provisioning, durable operations with lease and fencing,
+user management, RLS enforcement, migration runner. The vertical modules (blog,
+booking, lesson, payment) sit in the repository as a reference application,
+showing how features are built on top of the control plane.
 
-Yol haritası: gRPC sözleşmeleri, transactional outbox, webhook teslimatı,
-ölçülmüş yük testi sonuçları.
+Roadmap: gRPC contracts, transactional outbox, webhook delivery, measured load
+test results. See [docs/ROADMAP.md](docs/ROADMAP.md).
 
-## Lisans
+## License
 
-MIT. Bkz. [LICENSE](LICENSE).
+MIT. See [LICENSE](LICENSE).

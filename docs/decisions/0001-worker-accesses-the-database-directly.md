@@ -1,86 +1,91 @@
-# 0001. Worker veritabanına doğrudan erişir
+# 0001. The worker accesses the database directly
 
-**Durum:** Kabul edildi, 2026-09-07
-**Not:** Bu karar, hedef mimariden bilinçli bir sapmadır.
+**Status:** Accepted, 2026-09-07
+**Note:** This decision is a deliberate deviation from the target architecture.
 
-## Bağlam
+## Context
 
-Kurulum işleri uzun sürer, farklı veritabanı yetkileri gerektirir ve kullanıcı
-isteklerinden bağımsız bir eşzamanlılık sınırına ihtiyaç duyar. Bu üç sebeple
-worker'ın Control API'den ayrı bir süreç olması gerekiyor.
+Provisioning jobs take a long time, need different database privileges, and
+require a concurrency limit independent of user requests. For those three reasons
+the worker has to be a separate process from the Control API.
 
-Ayrı süreç olması, worker'ın iş kuyruğuna nasıl eriştiği sorusunu açıyor.
+Being a separate process raises the question of how the worker reaches the job
+queue.
 
-Hedef mimari, worker'ın yönetim tablolarına doğrudan erişmemesini, işi
-sahiplenmek ve sonuç bildirmek için Control API ile gRPC üzerinden
-konuşmasını öneriyor.
+The target architecture suggests the worker should not touch the management
+tables directly, and should instead talk to the Control API over gRPC to claim
+work and report results.
 
-## Korunması gereken kurallar
+## Rules that must hold
 
-- Bir iş için yalnızca güncel lease sahibi sonuç kaydedebilir.
-- Aynı işi iki worker aynı anda yürütemez.
-- Süreç iş ortasında kapanırsa iş yeniden devralınabilir olmalıdır.
+- Only the current lease holder can record a result for a job.
+- Two workers cannot run the same job at the same time.
+- If a process dies mid-job, the job must be reclaimable.
 
-## Değerlendirilen yaklaşımlar
+## Options considered
 
-### A. Worker veritabanına doğrudan erişir
+### A. The worker accesses the database directly
 
-İş sahiplenme, lease yenileme ve sonuç bildirme tek bir SQL ifadesiyle yapılır.
+Claiming a job, renewing the lease and reporting a result are each a single SQL
+statement.
 
-Güçlü tarafı: sahiplenme atomikliği PostgreSQL'in kendi kilit mekanizmasına
-düşer. `FOR UPDATE SKIP LOCKED` bunu tek adımda çözer. Control API düşse bile
-kuyruk işlemeye devam eder.
+Strength: claim atomicity falls to PostgreSQL's own locking. `FOR UPDATE SKIP
+LOCKED` solves it in one step. The queue keeps draining even if the Control API
+is down.
 
-Zayıf tarafı: worker yönetim şemasının biçimine bağımlı olur. Şema değişikliği
-iki bileşeni birden etkiler. Worker'ın veritabanı yetkisi API'ninkiyle aynı
-seviyeye yaklaşır, dolayısıyla ayrı yetki sınırı avantajı zayıflar.
+Weakness: the worker becomes coupled to the shape of the management schema. A
+schema change affects two components at once. The worker's database privileges
+approach the API's, so the benefit of a separate privilege boundary weakens.
 
-### B. Worker gRPC üzerinden Control API ile konuşur
+### B. The worker talks to the Control API over gRPC
 
-Sahiplenme, yenileme ve bildirme birer RPC olur.
+Claiming, renewing and reporting each become an RPC.
 
-Güçlü tarafı: yönetim tablolarına erişim tek bir yerde toplanır. Worker'ın
-veritabanı yetkisi yalnızca tenant şemalarıyla sınırlanabilir. Sözleşme
-açık ve sürümlenebilir olur.
+Strength: access to the management tables is concentrated in one place. The
+worker's database privileges can be limited to tenant schemas only. The contract
+becomes explicit and versionable.
 
-Zayıf tarafı: worker artık API'nin erişilebilirliğine bağımlıdır. API düşerse
-kuyruk durur. Ayrıca sahiplenme atomikliği bir ağ çağrısının arkasına geçer;
-RPC yanıtı kaybolduğunda worker işi aldı mı almadı mı bilemez ve bu belirsizlik
-ayrıca çözülmelidir.
+Weakness: the worker now depends on the API's availability. If the API is down,
+the queue stops. Claim atomicity also moves behind a network call; when an RPC
+response is lost, the worker cannot tell whether it took the job, and that
+ambiguity has to be solved separately.
 
-## Karar
+## Decision
 
-Şimdilik A. Worker veritabanına doğrudan erişiyor.
+A, for now. The worker accesses the database directly.
 
-## Gerekçe
+## Rationale
 
-Sahiplenme, bu sistemdeki en kritik atomiklik noktası. Bir ağ çağrısının
-arkasına koymak, çözülmüş bir problemi yeniden açıyor: RPC yanıtı kaybolursa
-worker işi sahiplendi mi bilemez, ve bunu çözmek için gRPC katmanında ikinci
-bir idempotency mekanizması gerekir.
+Claiming is the most critical atomicity point in this system. Putting it behind a
+network call reopens a solved problem: if the RPC response is lost the worker
+cannot tell whether it claimed the job, and solving that requires a second
+idempotency mechanism at the gRPC layer.
 
-B'nin asıl kazancı yetki ayrımı. Ama o kazanç, worker için ayrı bir veritabanı
-rolü tanımlanarak da elde edilebilir ve bu daha ucuz. Henüz yapılmadı.
+B's real gain is privilege separation. But that gain can also be had by defining
+a separate database role for the worker, which is cheaper. That has not been done
+yet.
 
-## Sonuçları
+## Consequences
 
-- Worker ve Control API aynı yönetim şemasına bağlı. Şema değişikliği ikisini
-  birden ilgilendirir.
-- Polyrepo'ya ayrılırsa bu iki depo bir şema sürümünü paylaşmak zorunda kalır.
-  İş mantığını ortak paketten paylaşmamak yeterli değil, şema sürümü de bir
-  bağımlılıktır.
-- Yetki ayrımı henüz yok. Worker ve API şu an aynı rolle bağlanıyor.
+- The worker and the Control API are bound to the same management schema. A
+  schema change concerns both.
+- If they are split into separate repositories, those two repositories have to
+  share a schema version. Not sharing business logic through a common package is
+  not enough; the schema version is a dependency too.
+- Privilege separation does not exist yet. The worker and the API currently
+  connect with the same role.
 
-## Bu karar ne zaman yanlış hale gelir
+## When this decision becomes wrong
 
-- Worker üçüncü taraflarca çalıştırılacaksa. O zaman veritabanı erişimi
-  verilemez ve B zorunlu olur.
-- Yönetim şeması sık değişmeye başlarsa. İki bileşeni birden kırma maliyeti,
-  RPC sözleşmesini sürdürme maliyetini geçer.
-- Worker sayısı, veritabanı bağlantı bütçesini zorlarsa. API üzerinden
-  havuzlamak tek çıkış yolu olur.
+- If the worker is to be run by third parties. Database access cannot be handed
+  out, and B becomes mandatory.
+- If the management schema starts changing often. The cost of breaking two
+  components at once overtakes the cost of maintaining an RPC contract.
+- If the number of workers strains the database connection budget. Pooling
+  through the API becomes the only way out.
 
-## Kapanış koşulu
+## Closing condition
 
-Worker için ayrı ve dar yetkili bir veritabanı rolü tanımlanana kadar bu karar
-eksik uygulanmış sayılır. Yetki ayrımı bu kararın ön koşuluydu.
+Until a separate, narrowly privileged database role is defined for the worker,
+this decision counts as only partly implemented. Privilege separation was the
+precondition for it.

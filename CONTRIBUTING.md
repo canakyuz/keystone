@@ -1,8 +1,8 @@
-# Katkı rehberi
+# Contributing
 
-## Geliştirme ortamı
+## Development environment
 
-Gerekenler: Go 1.24+, PostgreSQL 16+, Docker (opsiyonel).
+Requirements: Go 1.24+, PostgreSQL 16+, Docker (optional).
 
 ```
 git clone https://github.com/canakyuz/keystone.git
@@ -11,57 +11,58 @@ cp .env.example .env
 go build ./...
 ```
 
-## Test
+## Tests
 
-Testler gerçek bir PostgreSQL'e karşı koşar. Mock veritabanı kullanılmaz;
-bu repodaki hataların çoğu yalnızca gerçek bir veritabanında görünür.
+Tests run against a real PostgreSQL. No mock database is used; most of the bugs
+in this repository only show up against a real one.
 
 ```
 go test ./...
 ```
 
-Postgres erişilemiyorsa veritabanı gerektiren testler atlanır, hata vermez.
-Bağlantı ayarları ortam değişkenleriyle ezilebilir: `TEST_DB_HOST`,
-`TEST_DB_PORT`, `TEST_DB_USER`, `TEST_DB_PASSWORD`, `TEST_DB_NAME`.
+If Postgres is unreachable the tests that need a database are skipped rather than
+failing. Connection settings can be overridden with environment variables:
+`TEST_DB_HOST`, `TEST_DB_PORT`, `TEST_DB_USER`, `TEST_DB_PASSWORD`,
+`TEST_DB_NAME`.
 
-Her test kendi izole veritabanını oluşturur ve sonunda düşürür, dolayısıyla
-paralel koşu güvenlidir.
+Each test creates its own isolated database and drops it afterwards, so running
+them in parallel is safe.
 
-## Şema değişiklikleri
+## Schema changes
 
-Şemanın tek doğruluk kaynağı `migrations/` dizinidir. Test helper'ı bu
-dosyaları doğrudan çalıştırır. Şemayı başka bir yere kopyalamayın; bu repo
-daha önce tam olarak bu yüzden fark edilmeyen bir kaymaya düştü.
+The single source of truth for the schema is the `migrations/` directory. The
+test helper runs those files directly. Do not copy the schema anywhere else; this
+repository once drifted unnoticed for exactly that reason.
 
-Migration'lar geriye dönük uyumlu olmalıdır. Bir kolonu kaldırmadan önce
-yazımını durdurun, sonra ayrı bir sürümde düşürün.
+Migrations must be backward compatible. Stop writing to a column before you drop
+it, and drop it in a separate release.
 
-## RLS policy yazarken
+## Writing RLS policies
 
-Policy'ler fail-closed olmalıdır. Tenant context ayarlanmamışsa sonuç boş küme
-olmalı, ne hata ne de tüm satırlar.
+Policies must be fail-closed. With no tenant context set, the result must be the
+empty set — neither an error nor every row.
 
 ```sql
--- dogru
+-- correct
 USING (tenant_id = NULLIF(current_setting('app.current_tenant', TRUE), '')::UUID)
 
--- yanlis: context yoksa TRUE'ya duser
+-- wrong: falls back to TRUE when there is no context
 USING (tenant_id = COALESCE(NULLIF(current_setting('app.current_tenant', TRUE), '')::UUID, tenant_id))
 ```
 
-Permissive policy'ler OR ile birleşir. Bir tabloya `USING (TRUE)` eklemek, o
-tablodaki diğer tüm izolasyon policy'lerini etkisiz kılar.
+Permissive policies combine with OR. Adding `USING (TRUE)` to a table neutralises
+every other isolation policy on that table.
 
-## Commit formatı
+## Commit format
 
-Conventional commits, tek satır.
+Conventional commits, single line.
 
 ```
 feat(tenant): add schema provisioning
 fix(rls): force row level security on tenant tables
 ```
 
-## Gönderim öncesi
+## Before submitting
 
 ```
 gofmt -l .

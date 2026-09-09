@@ -1,43 +1,45 @@
-# Mimari Karar Kayıtları
+# Architecture Decision Records
 
-Her kayıt bir soruyu yanıtlar: bu tasarım neden böyle, alternatifi neydi, ve
-hangi koşulda yanlış hale gelir.
+Every record answers one question: why is this design the way it is, what was the
+alternative, and under which condition does it become wrong.
 
-Son soru kasıtlı. Bir kararın ne zaman geçersizleşeceğini yazmak, o kararı
-gerçekten anladığının kanıtı. Sonsuza kadar doğru olduğunu iddia eden karar
-kaydı, karar kaydı değil savunma yazısıdır.
+That last question is deliberate. Writing down when a decision will stop holding
+is the proof that you actually understood it. A decision record claiming to be
+right forever is not a decision record, it is a defence brief.
 
-| No | Karar | Not |
+| No | Decision | Note |
 |---|---|---|
-| [0001](0001-worker-veritabanina-dogrudan-erisir.md) | Worker veritabanına doğrudan erişir | Hedef mimariden bilinçli sapma |
-| [0002](0002-is-sahiplenme-skip-locked.md) | İş sahiplenme `FOR UPDATE SKIP LOCKED` ile | |
-| [0003](0003-lease-ve-fencing.md) | Sahiplenme lease ve fencing token ile korunur | |
-| [0004](0004-idempotency-benzersizlik-kisiti.md) | Idempotency benzersizlik kısıtıyla zorlanır | |
-| [0005](0005-schema-per-tenant.md) | Schema-per-tenant, RLS ile birlikte | |
-| [0006](0006-onbellek-iki-katmanli.md) | Önbellek iki katmanlı ve singleflight korumalı | |
-| [0007](0007-rate-limit-fail-open.md) | İstek limiti paylaşımlı, Redis düşünce açık kalır | Tartışmalı, gerekçesi yazılı |
+| [0001](0001-worker-accesses-the-database-directly.md) | The worker accesses the database directly | A deliberate deviation from the target architecture |
+| [0002](0002-job-claiming-with-skip-locked.md) | Job claiming via `FOR UPDATE SKIP LOCKED` | |
+| [0003](0003-lease-and-fencing.md) | Claims are protected by a lease and a fencing token | |
+| [0004](0004-idempotency-uniqueness-constraint.md) | Idempotency is enforced by a uniqueness constraint | |
+| [0005](0005-schema-per-tenant.md) | Schema-per-tenant, together with RLS | |
+| [0006](0006-two-tier-cache.md) | The cache is two-tier and singleflight-protected | |
+| [0007](0007-rate-limit-fail-open.md) | The rate limit is shared and stays open when Redis is down | Debatable; the reasoning is written out |
 
-## Bu kayıtların okunma sırası
+## The order to read these in
 
-Sistemi ilk kez inceleyen biri için: 0005, 0003, 0002, sonra kalanlar.
+For someone looking at the system for the first time: 0005, 0003, 0002, then the
+rest.
 
-0005 tenant izolasyonunun ne anlama geldiğini ve neyi kapsamadığını çiziyor.
-0003 arızadan toparlanmanın temelini kuruyor. 0002 onun altındaki eşzamanlılık
-mekanizmasını anlatıyor.
+0005 draws what tenant isolation means here and what it does not cover. 0003 sets
+up the basis for recovering from failure. 0002 explains the concurrency mechanism
+underneath it.
 
-## Kayıtlarda tekrar eden bir tema
+## A theme that repeats across the records
 
-Her kaydın bir "garanti ETMEDİĞİ şey" bölümü var. Bunlar dolgu değil.
+Every record has a section on what it does **not** guarantee. Those are not
+filler.
 
-- Fencing metadata'yı korur, harici yan etkiyi engellemez.
-- Şema ayrımı mantıksal ayrım sağlar, kaynak izolasyonu sağlamaz.
-- Idempotency garantisi süresiz değildir.
-- İki katmanlı önbellekte süreçler arası tutarlılık anlık değildir.
+- Fencing protects metadata, it does not prevent external side effects.
+- Schema separation gives logical separation, not resource isolation.
+- The idempotency guarantee is not indefinite.
+- In a two-tier cache, cross-process consistency is not immediate.
 
-Bir sistemin neyi garanti etmediğini bilmek, ne yaptığını bilmekten daha zor
-ve daha ayırt edici.
+Knowing what a system does not guarantee is harder, and more telling, than
+knowing what it does.
 
-## Ayrıca
+## See also
 
-Sistemin verdiği sözlerin kod ve test karşılıkları için
-[../INVARIANTS.md](../INVARIANTS.md) dosyasına bakın.
+For the promises the system makes, along with the code and tests behind them, see
+[../INVARIANTS.md](../INVARIANTS.md).

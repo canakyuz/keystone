@@ -1,74 +1,74 @@
-# 0002. İş sahiplenme FOR UPDATE SKIP LOCKED ile yapılır
+# 0002. Job claiming is done with FOR UPDATE SKIP LOCKED
 
-**Durum:** Kabul edildi, 2026-09-07
+**Status:** Accepted, 2026-09-07
 
-## Bağlam
+## Context
 
-Birden fazla worker aynı kuyruktan iş alıyor. Aynı işin iki worker tarafından
-yürütülmesi, şema oluşturma gibi adımların iki kez çalışması demek.
+Several workers take jobs from the same queue. Two workers running the same job
+means steps like schema creation run twice.
 
-## Korunması gereken kurallar
+## Rules that must hold
 
-- Aynı işi iki worker aynı anda sahiplenemez.
-- Bir worker'ın meşgul olması diğerini bekletmemelidir.
-- Sahiplenme, kontrol ile yazma arasında yarışa açık olmamalıdır.
+- Two workers cannot claim the same job at the same time.
+- One worker being busy must not block another.
+- Claiming must not be open to a race between the check and the write.
 
-## Değerlendirilen yaklaşımlar
+## Options considered
 
-### A. Uygulama tarafında kilit
+### A. An application-side lock
 
-Redis veya bellek içi bir kilit alınır, sonra iş güncellenir.
+A lock is taken in Redis or in memory, then the job is updated.
 
-Zayıf tarafı: kilit ile veritabanı yazımı iki ayrı sistemde. Kilit alındıktan
-sonra yazma başarısız olursa kilit yetim kalır. Ayrıca kilidin kendisi bir
-kullanılabilirlik bağımlılığı ekler.
+Weakness: the lock and the database write live in two different systems. If the
+write fails after the lock is taken, the lock is orphaned. The lock itself also
+adds an availability dependency.
 
-### B. SELECT sonra UPDATE
+### B. SELECT then UPDATE
 
-Bekleyen iş okunur, sonra sahiplenme yazılır.
+Read a pending job, then write the claim.
 
-Zayıf tarafı: iki adım arasında başka bir worker aynı işi okuyabilir. Klasik
-kontrol-sonra-yaz yarışı. Serializable izolasyon seviyesi bunu çözer ama
-çakışmada yeniden deneme gerektirir ve tam da yük arttığında maliyeti artar.
+Weakness: another worker can read the same job between the two steps. The classic
+check-then-write race. Serializable isolation solves it but requires retries on
+conflict, and the cost rises exactly when load rises.
 
 ### C. FOR UPDATE SKIP LOCKED
 
-Tek ifadede satır kilitlenir, kilitli satırlar atlanır, sahiplenme yazılır.
+The row is locked, locked rows are skipped, and the claim is written, all in one
+statement.
 
-## Karar
+## Decision
 
 C.
 
-## Gerekçe
+## Rationale
 
-Sahiplenme atomikliği veritabanının kendi kilit mekanizmasına düşüyor. İkinci
-bir kilit katmanı, ikinci bir hata kaynağı demek.
+Claim atomicity falls to the database's own locking. A second locking layer means
+a second source of failure.
 
-`SKIP LOCKED` kısmı önemli. Onsuz, ikinci worker birincinin işlemini
-bitirmesini bekler ve kuyruk fiilen tek işlemciye düşer. Atlayarak ilerlemek,
-N worker'ın N farklı işi paralel almasını sağlar.
+The `SKIP LOCKED` part matters. Without it, the second worker waits for the
+first's transaction to finish and the queue effectively collapses to a single
+processor. Skipping ahead lets N workers take N different jobs in parallel.
 
-Kısmi indeks (`WHERE status IN ('pending','running')`) sayesinde tamamlanmış
-işler taranmıyor, dolayısıyla tablo büyüdükçe sahiplenme maliyeti sabit kalıyor.
+Thanks to the partial index (`WHERE status IN ('pending','running')`), completed
+jobs are not scanned, so claim cost stays flat as the table grows.
 
-## Sonuçları
+## Consequences
 
-- Kuyruk PostgreSQL'e bağımlı. Ayrı bir kuyruk sistemine geçmek bu sorguyu
-  baştan yazmayı gerektirir.
-- Sıralama `next_attempt_at` üzerinden. Öncelik veya adil zamanlama eklemek
-  sorguyu ve indeksi değiştirmeyi gerektirir.
+- The queue is tied to PostgreSQL. Moving to a separate queue system would mean
+  rewriting this query from scratch.
+- Ordering is by `next_attempt_at`. Adding priority or fair scheduling would
+  require changing both the query and the index.
 
-## Bu karar ne zaman yanlış hale gelir
+## When this decision becomes wrong
 
-- İş hacmi veritabanının taşıyabileceğinin üstüne çıkarsa. Sahiplenme sorgusu
-  her worker döngüsünde çalışır; yüksek worker sayısında kilit çekişmesi
-  darboğaza dönüşebilir.
-- İşler saniyeler değil milisaniyeler sürüyorsa. O ölçekte veritabanı gidiş
-  dönüşü işin kendisinden pahalı olur.
-- Adil zamanlama gerekirse. Tek bir tenant'ın kuyruğu doldurması küçük
-  tenant'ları geciktiriyorsa, basit sıralama yetmez.
+- If job volume exceeds what the database can carry. The claim query runs on every
+  worker loop; at a high worker count, lock contention can become the bottleneck.
+- If jobs take milliseconds rather than seconds. At that scale the database round
+  trip costs more than the work itself.
+- If fair scheduling becomes necessary. If one tenant filling the queue delays
+  small tenants, simple ordering is not enough.
 
-## Ölçüm notu
+## Measurement note
 
-Bu sorgunun maliyeti varsayılmadı, ölçülmeli. Sorgu planı, indeks kullanımı ve
-kilit çekişmesi ayrı ayrı bakılmalı. Henüz yapılmadı.
+The cost of this query was assumed, not measured. The query plan, index usage and
+lock contention each need to be looked at. Not done yet.

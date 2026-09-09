@@ -57,61 +57,62 @@ import (
 	"github.com/canakyuz/keystone/pkg/validator"
 )
 
-// Application struct'ı, uygulamanın temel bağımlılıklarını (konfigürasyon, veritabanı bağlantısı, web framework) bir arada tutar.
-// Bu, bağımlılıkların uygulama genelinde düzenli bir şekilde yönetilmesini sağlar.
+// Application holds the core dependencies: configuration, the database connection
+// and the web framework.
 type Application struct {
 	config *config.Config
 	db     *sql.DB
 	app    *fiber.App
 }
 
-// NewApplication, yeni bir uygulama örneği oluşturur ve başlatır.
-// Bu "yapıcı" (constructor) fonksiyon, uygulamanın çalışması için gereken tüm bileşenleri (veritabanı, loglama, rotalar vb.) birbirine bağlar.
+// NewApplication builds and wires an application instance: database, logging,
+// middleware, repositories, services, handlers and routes. This is the composition
+// root.
 func NewApplication(cfg *config.Config) (*Application, error) {
-	// Veritabanını başlat.
+	// Start the database.
 	db, err := database.NewPostgresDB(cfg.Database)
 	if err != nil {
-		return nil, fmt.Errorf("veritabanına bağlanırken hata oluştu: %w", err)
+		return nil, fmt.Errorf("could not connect to the database: %w", err)
 	}
 
-	// 🎓 REDIS CLIENT: In-memory cache için
+	// Redis client, backing the L2 cache tier.
 	// Connection pooling: Default 10 connections
-	// Health check: Ping komutu ile bağlantı kontrolü
+	// Check the connection with a ping.
 	redisClient := redis.NewClient(&redis.Options{
 		Addr:     fmt.Sprintf("%s:%s", cfg.Redis.Host, cfg.Redis.Port),
 		Password: cfg.Redis.Password,
 		DB:       cfg.Redis.DB,
 	})
 
-	// Redis bağlantısını test et
+	// Test the Redis connection.
 	// 🎓 GO KONSEPT: context.Background() - root context, no timeout
 	ctx := context.Background()
 	if err := redisClient.Ping(ctx).Err(); err != nil {
-		log.Printf("⚠️  Redis bağlantısı başarısız: %v (Cache devre dışı, DB fallback aktif)", err)
-		// Redis hatası fatal değil, DB fallback var
+		log.Printf("redis connection failed: %v (cache disabled, falling back to the database)", err)
+		// A Redis failure is not fatal; the database fallback covers it.
 	} else {
-		log.Println("✅ Redis bağlantısı başarılı")
+		log.Println("redis connected")
 	}
 
-	// Fiber (web framework) uygulamasını oluştur.
+	// Create the Fiber application.
 	app := fiber.New(fiber.Config{
 		ReadTimeout:  cfg.Server.ReadTimeout,
 		WriteTimeout: cfg.Server.WriteTimeout,
 		IdleTimeout:  cfg.Server.IdleTimeout,
-		ErrorHandler: customErrorHandler, // Hata yönetimi için özel bir fonksiyon belirle.
+		ErrorHandler: customErrorHandler,
 	})
 
-	appLogger := pkgLogger.New(pkgLogger.Config{ // Uygulama genelinde kullanılacak loglama servisi.
+	appLogger := pkgLogger.New(pkgLogger.Config{
 		Level:       cfg.Server.Environment,
 		Environment: cfg.Server.Environment,
 	})
 
-	// Limitleyici ve plan önbelleği, rate limit middleware'inden önce kurulur.
+	// The limiter and the plan cache are built before the rate limit middleware.
 	tenantPlanCache := middleware.NewTenantPlanCache(redisClient, db)
 
-	// Redis erişilemiyorsa süreç içi limitleyiciye düşülür. Bu, tek replikada
-	// doğru çalışır; çok replikalı kurulumda uygulanan limit replika sayısıyla
-	// çarpılır, dolayısıyla bu bir yedek yoldur, hedef yapılandırma değildir.
+	// If Redis is unreachable we fall back to the in-process limiter. That is correct
+	// on a single replica; across several replicas the enforced limit is multiplied by
+	// the replica count. It is a fallback, not the intended configuration.
 	var rateLimiter ratelimit.Limiter = ratelimit.NewMemory()
 	if redisClient != nil {
 		rateLimiter = ratelimit.NewRedis(redisClient, "ratelimit:")
@@ -119,28 +120,26 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 
 	registerProbes(app, cfg, db, redisClient)
 
-	// Tenant kurulumu ve operasyon sorgulama uçları.
-	// Bunlar tenant context middleware'i kullanmaz: yeni tenant henüz yok.
+	// Tenant provisioning and operation lookup endpoints. These do not use the tenant
+	// context middleware, because the new tenant does not exist yet.
 	operationRepository := operationRepo.New(db)
 	registerOperationRoutes(app, cfg.Auth.JWTSecret,
 		operationHandler.New(operationRepository, appLogger))
 
-	// Global Middleware (Ara Katman) tanımlamaları.
-	// Bu middleware'ler gelen her istek için çalıştırılır.
-	app.Use(recover.New())            // Panik durumlarında sunucunun çökmesini engeller ve 500 hatası döner.
-	app.Use(helmet.New())             // Güvenlikle ilgili temel HTTP başlıklarını (header) ekler.
+	// Global middleware, run for every incoming request.
+	app.Use(recover.New())            // Turns a panic into a 500 instead of a crash.
+	app.Use(helmet.New())             // Baseline security headers.
 	app.Use(logger.New(logger.Config{ // Gelen istekleri konsola loglar.
 		Format: "[${time}] ${status} - ${latency} ${method} ${path}\n",
 	}))
-	app.Use(cors.New(cors.Config{ // Cross-Origin Resource Sharing ayarları. Farklı domain'lerden gelen isteklere izin verir.
+	app.Use(cors.New(cors.Config{
 		AllowOrigins:     cfg.Security.AllowedOrigins,
 		AllowCredentials: cfg.Security.AllowCredentials,
 	}))
-	// İstek limiti. Fiber'ın yerleşik limiter'ı yerine paylaşımlı bir
-	// token bucket kullanılır: yerleşik olan varsayılan olarak süreç içi
-	// sayar, dolayısıyla üç replikada ayarlanan limitin üç katı uygulanır.
-	// Ayrıca burada limit kiracı planına göre belirlenir ve anahtar
-	// IP yerine tenant'tır.
+	// Rate limiting. A shared token bucket is used instead of Fiber's built-in limiter:
+	// the built-in one counts in-process by default, so across three replicas it
+	// enforces three times the configured limit. Here the limit also follows the
+	// tenant's plan, and the key is the tenant rather than the IP.
 	app.Use(middleware.RateLimit(middleware.RateLimitConfig{
 		Limiter: rateLimiter,
 		Plans:   tenantPlanCache,
@@ -151,62 +150,59 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 		Logger: appLogger,
 	}))
 
-	// OpenAPI (Swagger) tanımına göre istekleri doğrulayan middleware'i ayarla.
+	// Middleware validating requests against the OpenAPI definition.
 	openAPIMiddleware, err := newOpenAPIMiddleware("api/openapi.yaml")
 	if err != nil {
-		return nil, fmt.Errorf("OpenAPI middleware oluşturulamadı: %w", err)
+		return nil, fmt.Errorf("could not create the OpenAPI middleware: %w", err)
 	}
 	app.Use(openAPIMiddleware)
 
-	// NOT: tenantContextMiddleware'i authentication sonrasında ekleyeceğiz
-	// çünkü JWT'den tenant_id çıkarmak için önce auth middleware çalışmalı
+	// Note: tenantContextMiddleware is added after authentication, because extracting
+	// tenant_id from the JWT requires the auth middleware to have run first.
 
-	// Paylaşılan bağımlılıkları başlat.
-	appValidator := validator.New() // Veri doğrulama (validation) servisi.
+	// Build the shared dependencies.
+	appValidator := validator.New()
 
-	// Repository (Veri Erişim Katmanı) katmanını başlat.
-	// Repository'ler veritabanı ile doğrudan iletişim kuran yapılardır.
+	// The repository layer, which talks to the database directly.
 	tenantRepository := tenantRepo.NewPostgresRepository(db)
 	tenantConnectionManager := database.NewTenantConnectionManager(db, appLogger)
 
 	// 🎓 TENANT SCHEMA CACHE: Redis + DB fallback cache layer
-	// Performance: ~10-20ms latency kazancı (cache hit)
-	// TTL: 10 dakika (tenant schema nadiren değişir)
+	// TTL is 10 minutes: a tenant's schema rarely changes.
 	tenantSchemaCache := middleware.NewTenantSchemaCache(redisClient, db, appLogger)
 
 	userRepository := userRepo.NewPostgresRepository(db, tenantConnectionManager)
 	websiteRepository := websiteRepo.NewPostgresRepository(db)
 
-	// Dersler modülü için repository'ler.
+	// Repositories for the lessons module.
 	studentRepository := lessonRepo.NewStudentPostgresRepository(db)
 	lessonRepository := lessonRepo.NewLessonPostgresRepository(db)
 	assignmentRepository := lessonRepo.NewAssignmentPostgresRepository(db)
 
-	// Rezervasyon modülü için repository'ler.
+	// Repositories for the booking module.
 	availabilityRepository := bookingRepo.NewAvailabilityPostgresRepository(db)
 	appointmentRepository := bookingRepo.NewAppointmentPostgresRepository(db)
 
-	// Hizmet modülü için repository'ler.
+	// Repositories for the services module.
 	serviceRepository := serviceRepo.NewServicePostgresRepository(db)
 
-	// Blog modülü için repository'ler.
+	// Repositories for the blog module.
 	postRepository := blogRepo.NewPostRepository(db)
 	categoryRepository := blogRepo.NewCategoryRepository(db)
 
-	// Ödeme modülü için repository.
+	// Repository for the payment module.
 	paymentRepository := paymentRepo.NewPostgresRepository(db)
 
-	// Kayıt Merkezi (Registry) modülü için repository'ler.
+	// Repositories for the registry module.
 	moduleRepository := registryRepo.NewModuleRepository(db)
 	toolRepository := registryRepo.NewToolRepository(db)
 	tenantModuleRepository := registryRepo.NewTenantModuleRepository(db)
 	tenantToolRepository := registryRepo.NewTenantToolRepository(db)
 
-	// Ödeme Orkestratörünü (Payment Orchestrator) başlat.
-	// Bu yapı, birden fazla ödeme sağlayıcısını (Iyzico, Checkout.com vb.) yönetir.
+	// The payment orchestrator, which fronts several providers (Iyzico, Checkout.com).
 	paymentOrchestrator := providerPayment.NewOrchestrator(&cfg.Payment)
 
-	// Yapılandırmada aktif olan ödeme sağlayıcılarını kaydet.
+	// Register the payment providers enabled in the configuration.
 	if cfg.Payment.Iyzico.Enabled {
 		iyzicoProvider := providerPayment.NewIyzicoProvider(&cfg.Payment.Iyzico)
 		paymentOrchestrator.RegisterProvider("iyzico", iyzicoProvider)
@@ -216,49 +212,48 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 		paymentOrchestrator.RegisterProvider("checkout", checkoutProvider)
 	}
 
-	// Service/Usecase (İş Mantığı Katmanı) katmanını başlat.
-	// Usecase'ler, uygulamanın iş kurallarını ve mantığını içerir.
+	// The usecase layer, holding the business rules.
 	schemaTemplateRepository := templateRepo.NewFileSystemRepository("templates/tenants")
 	tenantProvisioningService := tenantUsecase.NewProvisioningService(db, schemaTemplateRepository, appLogger)
 	tenantService := tenantUsecase.NewService(tenantRepository, appValidator, appLogger, tenantProvisioningService)
 	userService := userUsecase.NewService(userRepository, appValidator, appLogger, cfg.Auth.JWTSecret)
 	websiteService := websiteUsecase.NewService(websiteRepository)
 
-	// Dersler modülü için servisler.
+	// Services for the lessons module.
 	studentService := lessonUsecase.NewStudentService(studentRepository, *appLogger)
 	lessonService := lessonUsecase.NewLessonService(lessonRepository, *appLogger)
 	assignmentService := lessonUsecase.NewAssignmentService(assignmentRepository, *appLogger)
 
-	// Rezervasyon modülü için servisler.
+	// Services for the booking module.
 	availabilityService := bookingUsecase.NewAvailabilityService(availabilityRepository, *appLogger)
 	appointmentService := bookingUsecase.NewAppointmentService(appointmentRepository, *appLogger)
 
-	// Hizmet modülü için servisler.
+	// Services for the services module.
 	serviceService := serviceUsecase.NewServiceService(serviceRepository, *appLogger)
 
-	// Blog modülü için servisler.
+	// Services for the blog module.
 	postService := blogUsecase.NewPostService(postRepository, *appLogger)
 	categoryService := blogUsecase.NewCategoryService(categoryRepository, *appLogger)
 
-	// Ödeme servisi.
+	// Payment service.
 	paymentService := paymentUsecase.NewService(paymentRepository, paymentOrchestrator)
 
-	// Kayıt Merkezi (Registry) servisleri.
+	// Registry services.
 	moduleCatalogService := registryService.NewModuleCatalogService(moduleRepository)
 	toolCatalogService := registryService.NewToolCatalogService(toolRepository)
 	dependencyCheckerService := registryService.NewDependencyCheckerService(db, moduleRepository, toolRepository, tenantModuleRepository, tenantToolRepository)
 	tenantActivationService := registryService.NewTenantActivationService(moduleRepository, toolRepository, tenantModuleRepository, tenantToolRepository, dependencyCheckerService)
 
-	// Tenant context middleware (her request için tenant isolation)
+	// Tenant context middleware: tenant isolation on every request.
 	// 🎓 CACHE-AWARE: Redis cache kullanarak schema lookup performance optimize edildi
 	//
-	// GÜVENLİK: X-Tenant-ID header'ı ile tenant seçimi yalnızca development'ta
-	// açılır. Üretimde tek geçerli kaynak doğrulanmış JWT claim'idir; aksi halde
-	// geçerli token taşıyan herhangi bir kullanıcı başka tenant'a geçebilir.
+	// SECURITY: selecting the tenant through the X-Tenant-ID header is only enabled in
+	// development. In production the verified JWT claim is the only valid source;
+	// otherwise any user holding a valid token could switch to another tenant.
 	isDevelopment := cfg.Server.Environment == "development"
 	middleware.AllowUntrustedTenantSource(isDevelopment)
 	if !isDevelopment {
-		appLogger.Info("Tenant kaynağı JWT claim'i ile sınırlandırıldı")
+		appLogger.Info("tenant source restricted to the JWT claim")
 	}
 
 	tenantContextMiddleware := middleware.TenantContextMiddleware(tenantSchemaCache)
@@ -267,42 +262,42 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 	tenantManager := database.NewTenantManager(db)
 	tenantScopeMiddleware := middleware.TenantScope(tenantRepository, tenantManager)
 
-	// Handler (Sunum Katmanı) katmanını başlat.
-	// Handler'lar, HTTP isteklerini alır, ilgili servisleri çağırır ve HTTP cevapları döner.
+	// The handler layer: it takes HTTP requests, calls the services and writes
+	// responses.
 	authHTTPHandler := authHandler.NewHandler(userService)
 	tenantHTTPHandler := tenantHandler.NewHandler(tenantService)
 	userHTTPHandler := userHandler.NewHandler(userService)
 	websiteHTTPHandler := websiteHandler.NewHandler(websiteService)
 
-	// Dersler modülü için handler'lar.
+	// Handlers for the lessons module.
 	studentHTTPHandler := lessonHandler.NewStudentHandler(studentService)
 	lessonHTTPHandler := lessonHandler.NewLessonHandler(lessonService)
 	assignmentHTTPHandler := lessonHandler.NewAssignmentHandler(assignmentService)
 
-	// Rezervasyon modülü için handler'lar.
+	// Handlers for the booking module.
 	availabilityHTTPHandler := bookingHandler.NewAvailabilityHandler(availabilityService)
 	appointmentHTTPHandler := bookingHandler.NewAppointmentHandler(appointmentService)
 
-	// Hizmet modülü için handler'lar.
+	// Handlers for the services module.
 	serviceHTTPHandler := serviceHandler.NewServiceHandler(serviceService)
 
-	// Blog modülü için handler'lar.
+	// Handlers for the blog module.
 	postHTTPHandler := blogHandler.NewPostHandler(postService, *appLogger)
 	categoryHTTPHandler := blogHandler.NewCategoryHandler(categoryService, *appLogger)
 
-	// Dosya yükleme handler'ı.
+	// Upload handler.
 	uploadHTTPHandler := uploadHandler.NewHandler(appLogger)
 
-	// Ödeme handler'ları.
+	// Payment handlers.
 	paymentHTTPHandler := paymentHandler.NewHandler(paymentService)
 	webhookHTTPHandler := paymentHandler.NewWebhookHandler(paymentService)
 
-	// Kayıt Merkezi (Registry) handler'ları.
+	// Registry handlers.
 	moduleCatalogHTTPHandler := registryHandler.NewModuleCatalogHandler(moduleCatalogService)
 	toolCatalogHTTPHandler := registryHandler.NewToolCatalogHandler(toolCatalogService)
 	activationHTTPHandler := registryHandler.NewActivationHandler(tenantActivationService, dependencyCheckerService)
 
-	// Rotaları ayarla. Bu fonksiyon, hangi endpoint'in hangi handler'a gideceğini belirler.
+	// Wire the routes.
 	setupRoutes(app, cfg, authHTTPHandler, tenantHTTPHandler, userHTTPHandler, uploadHTTPHandler, websiteHTTPHandler,
 		studentHTTPHandler, lessonHTTPHandler, assignmentHTTPHandler,
 		availabilityHTTPHandler, appointmentHTTPHandler,
@@ -312,7 +307,7 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 		moduleCatalogHTTPHandler, toolCatalogHTTPHandler, activationHTTPHandler,
 		tenantContextMiddleware, tenantScopeMiddleware)
 
-	// Hazırlanan uygulama örneğini geri döndür.
+	// Return the assembled application.
 	return &Application{
 		config: cfg,
 		db:     db,
@@ -320,52 +315,51 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 	}, nil
 }
 
-// Start, uygulama sunucusunu başlatır.
+// Start runs the application server.
 func (a *Application) Start() error {
-	// Graceful Shutdown (Zarif Kapatma) mekanizmasını ayarla.
-	// Bu, sunucu kapanırken mevcut işlemleri bitirmesi için zaman tanır.
+	// Graceful shutdown: give in-flight requests time to finish when the server stops.
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, os.Interrupt, syscall.SIGTERM) // Kesme (Ctrl+C) veya Terminate sinyallerini dinle.
 
-	// Sunucuyu ayrı bir goroutine içinde başlat. Bu, ana thread'i bloklamaz.
+	// Start the server in its own goroutine so the main one is not blocked.
 	go func() {
 		addr := fmt.Sprintf("%s:%s", a.config.Server.Host, a.config.Server.Port)
-		log.Printf("🚀 Sunucu %s üzerinde başlatılıyor (ortam: %s)", addr, a.config.Server.Environment)
+		log.Printf("starting server on %s (environment: %s)", addr, a.config.Server.Environment)
 		if err := a.app.Listen(addr); err != nil {
-			log.Printf("❌ Sunucu hatası: %v", err)
+			log.Printf("server error: %v", err)
 		}
 	}()
 
 	// Kapatma sinyali gelene kadar bekle.
 	<-quit
-	log.Println("🛑 Sunucu kapatılıyor...")
+	log.Println("shutting down server")
 
-	// Fiber sunucusunu zarif bir şekilde kapat.
+	// Shut the Fiber server down gracefully.
 	if err := a.app.Shutdown(); err != nil {
-		return fmt.Errorf("sunucu kapatma hatası: %w", err)
+		return fmt.Errorf("server shutdown failed: %w", err)
 	}
 
-	// Veritabanı bağlantısını kapat.
+	// Close the database connection.
 	if err := database.Close(a.db); err != nil {
-		return fmt.Errorf("veritabanı kapatma hatası: %w", err)
+		return fmt.Errorf("database shutdown failed: %w", err)
 	}
 
-	log.Println("✅ Sunucu zarif bir şekilde durduruldu")
+	log.Println("server stopped gracefully")
 	return nil
 }
 
-// customErrorHandler, uygulama genelinde oluşan hataları yakalayan ve standart bir formatta JSON cevabı dönen fonksiyondur.
+// customErrorHandler catches errors from anywhere in the application and writes a
+// JSON response in a consistent shape.
 func customErrorHandler(c *fiber.Ctx, err error) error {
-	// Varsayılan hata kodu 500 (Internal Server Error).
+	// The default status is 500.
 	code := fiber.StatusInternalServerError
 
-	// Gelen hatanın bir Fiber hatası olup olmadığını kontrol et.
-	// Eğer öyleyse, o hatanın kendi kodunu kullan (örn: 404 Not Found).
+	// If this is a Fiber error, use the status it carries (404, for instance).
 	if e, ok := err.(*fiber.Error); ok {
 		code = e.Code
 	}
 
-	// Hata detaylarını içeren JSON cevabını oluştur ve gönder.
+	// Write the JSON error response.
 	return c.Status(code).JSON(fiber.Map{
 		"error":  err.Error(),
 		"code":   code,

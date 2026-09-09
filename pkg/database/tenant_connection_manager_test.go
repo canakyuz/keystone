@@ -13,12 +13,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestValidateSchemaName, schema adı validasyonunu test eder.
-//
-// ÖĞRENİLECEKLER:
-// - Table-driven test pattern
-// - Pozitif ve negatif test senaryoları
-// - Security validation testing
+// TestValidateSchemaName exercises schema name validation. The name is interpolated
+// into a SET search_path statement, which cannot be parameterised, so this validation
+// is the only thing standing between a caller and SQL injection.
 func TestValidateSchemaName(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -27,17 +24,17 @@ func TestValidateSchemaName(t *testing.T) {
 		errorMsg    string
 	}{
 		{
-			name:        "geçerli schema adı",
+			name:        "valid schema name",
 			schemaName:  "tenant_acme",
 			expectError: false,
 		},
 		{
-			name:        "rakam içeren geçerli schema",
+			name:        "valid schema containing digits",
 			schemaName:  "tenant_acme_123",
 			expectError: false,
 		},
 		{
-			name:        "boş schema adı",
+			name:        "empty schema name",
 			schemaName:  "",
 			expectError: true,
 			errorMsg:    "1-63 karakter",
@@ -52,22 +49,22 @@ func TestValidateSchemaName(t *testing.T) {
 			name:        "SQL injection denemesi",
 			schemaName:  "tenant_acme; DROP TABLE users;",
 			expectError: true,
-			errorMsg:    "geçersiz karakter",
+			errorMsg:    "invalid character",
 		},
 		{
-			name:        "system schema erişimi",
+			name:        "system schema access",
 			schemaName:  "pg_catalog",
 			expectError: true,
 			errorMsg:    "tenant_",
 		},
 		{
-			name:        "büyük harf içeren",
+			name:        "containing uppercase",
 			schemaName:  "tenant_Acme",
 			expectError: true,
-			errorMsg:    "geçersiz karakter",
+			errorMsg:    "invalid character",
 		},
 		{
-			name:        "çok uzun schema adı",
+			name:        "schema name too long",
 			schemaName:  "tenant_" + string(make([]byte, 100)),
 			expectError: true,
 			errorMsg:    "1-63 karakter",
@@ -79,7 +76,7 @@ func TestValidateSchemaName(t *testing.T) {
 			err := validateSchemaName(tt.schemaName)
 
 			if tt.expectError {
-				assert.Error(t, err, "Hata beklendi ama nil döndü")
+				assert.Error(t, err, "expected an error but got nil")
 				if tt.errorMsg != "" {
 					assert.Contains(t, err.Error(), tt.errorMsg)
 				}
@@ -90,28 +87,23 @@ func TestValidateSchemaName(t *testing.T) {
 	}
 }
 
-// TestSetSearchPath, search_path set işlemini test eder.
-//
-// ÖĞRENİLECEKLER:
-// - sqlmock kullanarak database'i mock'lama
-// - SQL query beklentilerini tanımlama
-// - Error handling test etme
+// TestSetSearchPath exercises setting search_path.
 func TestSetSearchPath(t *testing.T) {
-	// sqlmock ile fake database oluştur
+	// Build a fake database with sqlmock.
 	db, mock, err := sqlmock.New()
-	require.NoError(t, err, "sqlmock oluşturulamadı")
+	require.NoError(t, err, "could not create sqlmock")
 	defer db.Close()
 
-	// Logger nil olabilir (test ortamında)
+	// The logger may be nil in tests.
 	manager := NewTenantConnectionManager(db, nil)
 
-	t.Run("başarılı search_path set", func(t *testing.T) {
+	t.Run("search_path set successfully", func(t *testing.T) {
 		schemaName := "tenant_acme"
 
 		// Beklenen SQL komutu
 		expectedSQL := `SET search_path TO "tenant_acme", public`
 
-		// Mock: Bu SQL'in çalışacağını söyle
+		// Tell the mock this SQL is expected to run.
 		mock.ExpectExec(expectedSQL).WillReturnResult(sqlmock.NewResult(0, 0))
 
 		// Test et
@@ -119,37 +111,37 @@ func TestSetSearchPath(t *testing.T) {
 
 		// Assertions
 		assert.NoError(t, err)
-		assert.NoError(t, mock.ExpectationsWereMet(), "SQL beklentileri karşılanmadı")
+		assert.NoError(t, mock.ExpectationsWereMet(), "SQL expectations were not met")
 	})
 
-	t.Run("geçersiz schema adı", func(t *testing.T) {
+	t.Run("invalid schema name", func(t *testing.T) {
 		// SQL injection denemesi
 		schemaName := "tenant_acme; DROP TABLE users;"
 
-		// Mock beklentisi YOK (SQL çalışmamalı çünkü validation fail olacak)
+		// No mock expectation: validation fails, so no SQL should run at all.
 
 		err := manager.SetSearchPath(context.Background(), schemaName)
 
 		// Validation error bekliyoruz
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "geçersiz")
+		assert.Contains(t, err.Error(), "invalid")
 	})
 
-	t.Run("database hatası", func(t *testing.T) {
+	t.Run("database error", func(t *testing.T) {
 		schemaName := "tenant_test"
 		expectedSQL := `SET search_path TO "tenant_test", public`
 
-		// Mock: SQL çalışacak ama hata dönecek
+		// The SQL runs but returns an error.
 		mock.ExpectExec(expectedSQL).WillReturnError(sql.ErrConnDone)
 
 		err := manager.SetSearchPath(context.Background(), schemaName)
 
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "search_path ayarlanamadı")
+		assert.Contains(t, err.Error(), "could not set search_path")
 	})
 }
 
-// TestResetSearchPath, search_path reset işlemini test eder.
+// TestResetSearchPath exercises resetting search_path.
 func TestResetSearchPath(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
@@ -157,7 +149,7 @@ func TestResetSearchPath(t *testing.T) {
 
 	manager := NewTenantConnectionManager(db, nil)
 
-	t.Run("başarılı reset", func(t *testing.T) {
+	t.Run("reset succeeds", func(t *testing.T) {
 		expectedSQL := `SET search_path TO public`
 		mock.ExpectExec(expectedSQL).WillReturnResult(sqlmock.NewResult(0, 0))
 
@@ -168,28 +160,22 @@ func TestResetSearchPath(t *testing.T) {
 	})
 }
 
-// TestExecuteInTenantContext, tenant context içinde fonksiyon çalıştırmayı test eder.
+// TestExecuteInTenantContext runs against real PostgreSQL.
 //
-// ÖĞRENİLECEKLER:
-// - Connection pool mock'lama
-// - defer ile cleanup test etme
-// - Error propagation test etme
-// TestExecuteInTenantContext, gerçek PostgreSQL üzerinde çalışır.
-//
-// NEDEN mock değil: bu testin doğrulamak istediği şey, callback'in aldığı
-// bağlantıda tenant schema'sının GERÇEKTEN aktif olması. sqlmock sorguyu
-// yorumlamaz, yalnızca metin eşleştirir; search_path'in etkili olup olmadığını
-// gösteremez. Nitekim bu testin mock'lu hali, uygulama havuz üzerinden sorgu
-// çalıştırdığı halde geçiyordu.
+// WHY not a mock: what this test needs to establish is that the tenant schema is
+// REALLY active on the connection the callback receives. sqlmock does not interpret
+// the query, it only matches text, so it cannot show whether search_path took effect.
+// Indeed, the mocked version of this test passed while the implementation was running
+// its queries through the pool.
 func TestExecuteInTenantContext(t *testing.T) {
 	db := openTestDB(t)
 	if db == nil {
-		t.Skip("postgres erişilemiyor")
+		t.Skip("postgres unreachable")
 	}
 	ctx := context.Background()
 	manager := NewTenantConnectionManager(db, nil)
 
-	// İki şemada aynı isimli tablo: hangi şemanın aktif olduğunu ayırt etmek için.
+	// The same table name in two schemas, so the active schema can be told apart.
 	for schema, value := range map[string]int{"tenant_alpha": 1, "tenant_beta": 2} {
 		mustExec(t, db, fmt.Sprintf("CREATE SCHEMA IF NOT EXISTS %s", pq.QuoteIdentifier(schema)))
 		mustExec(t, db, fmt.Sprintf("CREATE TABLE IF NOT EXISTS %s.marker (id int)", pq.QuoteIdentifier(schema)))
@@ -253,18 +239,18 @@ func TestGetConnection(t *testing.T) {
 
 	manager := NewTenantConnectionManager(db, nil)
 
-	t.Run("başarılı connection alma", func(t *testing.T) {
+	t.Run("connection acquired", func(t *testing.T) {
 		conn, err := manager.GetConnection(context.Background())
 
 		assert.NoError(t, err)
 		assert.NotNil(t, conn)
 
-		// Connection'ı kapat (pool'a geri dön)
+		// Close the connection, returning it to the pool.
 		conn.Close()
 	})
 
-	t.Run("iptal edilmiş context", func(t *testing.T) {
-		// Önceden iptal edilmiş context
+	t.Run("cancelled context", func(t *testing.T) {
+		// A context that was already cancelled.
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel() // Hemen iptal et
 
@@ -275,19 +261,13 @@ func TestGetConnection(t *testing.T) {
 	})
 }
 
-// BenchmarkExecuteInTenantContext, performans testi.
-//
-// ÖĞRENİLECEKLER:
-// - Benchmark yazma
-// - Performance profiling
-// - Memory allocation ölçme
-// BenchmarkExecuteInTenantContext, tenant context'e girip çıkmanın maliyetini
-// gerçek bir bağlantı havuzu üzerinde ölçer. Ölçülen şey bağlantı ayırma +
-// iki SET search_path komutudur.
+// BenchmarkExecuteInTenantContext measures the cost of entering and leaving a tenant
+// context over a real connection pool. What is measured is the connection checkout
+// plus the two SET search_path statements.
 func BenchmarkExecuteInTenantContext(b *testing.B) {
 	db := openBenchDB(b)
 	if db == nil {
-		b.Skip("postgres erişilemiyor")
+		b.Skip("postgres unreachable")
 	}
 	ctx := context.Background()
 	manager := NewTenantConnectionManager(db, nil)

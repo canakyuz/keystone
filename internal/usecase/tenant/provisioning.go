@@ -30,7 +30,7 @@ func NewProvisioningService(db *sql.DB, templates templateRepo.Repository, log *
 	}
 }
 
-// getIsolationStrategy, subscription plan'e göre isolation stratejisini döndürür.
+// getIsolationStrategy returns the isolation strategy for a subscription plan.
 //
 // 🎓 BACKEND KONSEPT: Plan-Based Multi-Tenancy Strategy
 //
@@ -44,8 +44,7 @@ func NewProvisioningService(db *sql.DB, templates templateRepo.Repository, log *
 // └─────────────────────┴──────────────┴──────────┴────────────┘
 //
 // 🎓 GO KONSEPT: Constant Returns (No Complex Logic)
-// Bu fonksiyon şu anda basit bir mapping yapar.
-// İleride database'den config okuyabilir (dynamic strategy)
+// It is a plain mapping today. It could read configuration from the database later.
 func (s *ProvisioningService) getIsolationStrategy(plan tenant.SubscriptionPlan) string {
 	switch plan {
 	case tenant.PlanFree, tenant.PlanStarter, tenant.PlanPro:
@@ -53,7 +52,7 @@ func (s *ProvisioningService) getIsolationStrategy(plan tenant.SubscriptionPlan)
 
 	case tenant.PlanEnterprise:
 		// 🎓 FUTURE: Dedicated database for enterprise
-		// Şu an schema-per-tenant kullan, sonra migrate edilecek
+		// Uses schema-per-tenant for now; to be migrated later.
 		return "schema-per-tenant"
 
 	default:
@@ -114,16 +113,16 @@ func (s *ProvisioningService) ProvisionTenantSchema(ctx context.Context, t *tena
 	// 🎓 PLAN-TO-ISOLATION MAPPING
 	//
 	// Multi-Tenant Isolation Strategies:
-	// 1. Schema-per-tenant (Current): Her tenant ayrı PostgreSQL schema
-	//    - Free, Starter, Pro plans için varsayılan
+	// 1. Schema-per-tenant (current): a separate PostgreSQL schema per tenant.
+	//    The default for the free, starter and pro plans.
 	//    - Strong isolation, medium cost
 	//
-	// 2. Database-per-tenant: Her tenant ayrı database
-	//    - Enterprise plan için (future)
+	// 2. Database-per-tenant: a separate database per tenant.
+	//    Intended for the enterprise plan; not implemented.
 	//    - Strongest isolation, high cost
 	//
-	// 3. Shared schema + RLS: Tüm tenant'lar aynı tablolarda
-	//    - Development/Demo için (future)
+	// 3. Shared schema plus RLS: every tenant in the same tables.
+	//    Intended for development and demo; not implemented.
 	//    - Weak isolation, lowest cost
 	//
 	// Current Implementation: Schema-per-tenant for all plans
@@ -131,8 +130,7 @@ func (s *ProvisioningService) ProvisionTenantSchema(ctx context.Context, t *tena
 
 	switch isolationStrategy {
 	case "schema-per-tenant":
-		// Schema zaten oluşturuldu (line 67-70)
-		// Şimdi plan-specific template uygula
+		// The schema already exists at this point; apply the plan-specific template.
 		templateSQL, tplErr := s.templates.GetTemplateByPlan(ctx, string(t.Plan))
 		switch {
 		case tplErr == nil && strings.TrimSpace(templateSQL) != "":
@@ -150,7 +148,7 @@ func (s *ProvisioningService) ProvisionTenantSchema(ctx context.Context, t *tena
 			}
 
 		case errors.Is(tplErr, templateRepo.ErrTemplateNotFound):
-			// Template yok, boş schema ile devam (acceptable)
+			// No template: continuing with an empty schema is acceptable.
 			if s.logger != nil {
 				s.logger.WithFields(logger.Fields{
 					"tenant_id": t.ID,
@@ -164,13 +162,13 @@ func (s *ProvisioningService) ProvisionTenantSchema(ctx context.Context, t *tena
 		}
 
 	case "database-per-tenant":
-		// 🎓 FUTURE: Enterprise plan için dedicated database
-		// Bu durumda yeni bir database oluştur ve connection string döndür
+		// Not implemented: a dedicated database for the enterprise plan would be created
+		// here, returning its connection string.
 		return fmt.Errorf("database-per-tenant isolation not yet implemented (enterprise plan)")
 
 	case "shared-rls":
-		// 🎓 FUTURE: Demo/Development için shared schema + Row Level Security
-		// Bu durumda schema oluşturma, sadece RLS policy ekle
+		// Not implemented: for a shared schema with Row Level Security no schema would be
+		// created here, only the RLS policies added.
 		return fmt.Errorf("shared-rls isolation not yet implemented (demo/dev plan)")
 
 	default:

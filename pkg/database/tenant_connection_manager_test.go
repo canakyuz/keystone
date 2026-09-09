@@ -37,7 +37,7 @@ func TestValidateSchemaName(t *testing.T) {
 			name:        "empty schema name",
 			schemaName:  "",
 			expectError: true,
-			errorMsg:    "1-63 karakter",
+			errorMsg:    "between 1 and 63 characters",
 		},
 		{
 			name:        "tenant_ prefix olmayan",
@@ -67,7 +67,7 @@ func TestValidateSchemaName(t *testing.T) {
 			name:        "schema name too long",
 			schemaName:  "tenant_" + string(make([]byte, 100)),
 			expectError: true,
-			errorMsg:    "1-63 karakter",
+			errorMsg:    "between 1 and 63 characters",
 		},
 	}
 

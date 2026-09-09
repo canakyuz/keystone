@@ -35,13 +35,13 @@ BEGIN
         INSERT INTO tenants (id, name, slug, email, status, plan, settings, metadata)
         VALUES (
             v_tenant_id,
-            'Can Akyüz Tech Academy',
+            'Dev Academy',
             'canakyuz',
             'owner@dev.keystone.local',
             'active',
             'enterprise',
             '{"timezone":"Europe/Istanbul","language":"tr","currency":"TRY"}'::jsonb,
-            '{"owner":"Can Akyüz","industry":"Education"}'::jsonb
+            '{"owner":"Dev Owner","industry":"Education"}'::jsonb
         ) ON CONFLICT (id) DO NOTHING;
     END IF;
 
@@ -60,8 +60,8 @@ INSERT INTO users (
     '550e8400-e29b-41d4-a716-446655440000',
     'owner@dev.keystone.local',
     crypt('DevPass123!', gen_salt('bf')),
-    'Can',
-    'Akyüz',
+    'Dev',
+    'Owner',
     'owner',
     'active',
     TRUE,
@@ -167,7 +167,7 @@ INSERT INTO students (
     'active',
     'high_school',
     '10',
-    'Can Akyüz Tech Academy',
+    'Dev Academy',
     'Mehmet Yılmaz',
     'mehmet.yilmaz@example.com',
     '+90 555 999 7777',

@@ -1,183 +1,72 @@
-# 🌱 Database Seeding Guide
+# Seed data
 
-## 🎓 Seed Nedir ve Ne İçin Kullanılır?
+Sample data for development and staging. It is not reference data and it never
+runs in production.
 
-**Seed (Tohum) Verisi:** Development ve test ortamları için örnek veri oluşturma scripti.
+Registry reference data — the module and tool catalogue — is a migration (023),
+not a seed, because the application needs it in every environment.
 
-### Kullanım Alanları:
-- 🧪 **Testing:** Automated testler için fixture data
-- 💻 **Development:** Local development için örnek data
-- 🎯 **Demo:** Product demo için sample data
-- 🏗️ **Staging:** Pre-production testing environment
+## Running it
 
-### ⚠️ Production'da Kullanılmaz!
-Seed scripti production database'de **ASLA** çalıştırılmamalıdır.
+```bash
+make seed-dev
+```
 
----
+Or directly:
 
-## 🛡️ Production Guard Mekanizması
+```bash
+psql -d keystone_dev -c "ALTER DATABASE keystone_dev SET app.environment = 'development';"
+psql -d keystone_dev -f scripts/seed/dev_seed.sql
+```
 
-### Nasıl Çalışır?
+The accounts it creates use the password `DevPass123!` and live on
+`dev.keystone.local` / `dev.keystone.dev` addresses. They exist only to have
+something to log in as; do not reuse them anywhere real.
+
+## The production guard
+
+Every seed script refuses to run against production. Two independent checks,
+because either one alone can be wrong:
 
 ```sql
--- 1. Environment variable check
-v_environment := current_setting('app.environment', true);
-
+-- 1. the environment setting
+v_environment := current_setting('app.environment', TRUE);
 IF v_environment = 'production' THEN
-    RAISE EXCEPTION 'Cannot seed production'
+    RAISE EXCEPTION 'SEED GUARD: cannot seed production';
 END IF;
 
--- 2. Database name check
+-- 2. the database name
 IF current_database() LIKE '%prod%' THEN
-    RAISE EXCEPTION 'Production database detected'
+    RAISE EXCEPTION 'SEED GUARD: production database detected';
 END IF;
 ```
 
-### Guard Layers:
-1. **PostgreSQL Config:** `app.environment` variable
-2. **Database Name:** `*prod*` pattern check
-3. **Manual Confirmation:** Makefile prompt (future)
+The setting can be forgotten on a freshly restored database; the name check
+catches that case. The name check can be defeated by a database that is not named
+`*prod*`; the setting catches that one.
 
----
+## Writing a seed script
 
-## 🚀 Kullanım
+**Idempotent.** Running it twice must be safe.
 
-### Development Environment
-
-```bash
-# PostgreSQL'de environment set et
-psql -d keystone_dev -c "ALTER DATABASE keystone_dev SET app.environment = 'development';"
-
-# Seed script'i çalıştır
-psql -d keystone_dev -f scripts/seed/dev_seed.sql
-
-# Çıktı:
-# NOTICE:  SEED GUARD: Environment check passed (environment: development, database: keystone_dev)
-# ... seed işlemleri ...
+```sql
+ON CONFLICT (email, tenant_id) DO NOTHING
 ```
 
-### Staging Environment
+**Fixed UUIDs.** Tests and manual checks need to be able to refer to a known row.
 
-```bash
-psql -d keystone_staging -c "ALTER DATABASE keystone_staging SET app.environment = 'staging';"
-psql -d keystone_staging -f scripts/seed/dev_seed.sql
+```sql
+v_tenant_id UUID := '550e8400-e29b-41d4-a716-446655440000'::UUID;
 ```
 
-### ❌ Production'da (Engellenecek)
+**No real credentials.** No personal email addresses, and no password you use
+anywhere else. This is a public repository.
 
-```bash
-psql -d keystone_production -f scripts/seed/dev_seed.sql
+## Seed versus migration
 
-# Çıktı:
-# ERROR:  SEED GUARD: Development seed script cannot run in production environment.
-```
-
----
-
-## 📁 Seed Script Yapısı
-
-```
-scripts/seed/
-├── README.md              # Bu dosya
-├── dev_seed.sql           # Development seed data
-├── test_seed.sql          # Test fixture data (future)
-└── demo_seed.sql          # Demo/showcase data (future)
-```
-
----
-
-## 🎓 Backend Best Practices
-
-### Seed vs Migration
-
-| Aspect | Migration | Seed |
-|--------|-----------|------|
-| Purpose | Schema changes | Sample data |
-| Environment | ALL (dev, staging, prod) | ONLY dev/staging |
-| Idempotency | Required | Optional |
-| Rollback | Must have down script | Not needed |
-| Production | ✅ Safe | ❌ Dangerous |
-
-### Seed Data Principles
-
-1. **Idempotent:** Multiple runs should be safe
-   ```sql
-   ON CONFLICT (email, tenant_id) DO NOTHING
-   ```
-
-2. **Deterministic IDs:** Use fixed UUIDs for testing
-   ```sql
-   v_tenant_id UUID := '550e8400-e29b-41d4-a716-446655440000'::UUID
-   ```
-
-3. **Clear Documentation:** Comment what each section does
-
-4. **Environment-Aware:** Check environment before executing
-
----
-
-## 🔧 CI/CD Integration
-
-### GitHub Actions Example
-
-```yaml
-name: Run Tests with Seed Data
-
-jobs:
-  test:
-    runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgres:15
-        env:
-          POSTGRES_DB: keystone_test
-          POSTGRES_PASSWORD: password
-
-    steps:
-      - name: Set test environment
-        run: |
-          psql -c "ALTER DATABASE keystone_test SET app.environment = 'test';"
-
-      - name: Run migrations
-        run: make migrate-up
-
-      - name: Seed test data
-        run: psql -f scripts/seed/dev_seed.sql
-
-      - name: Run integration tests
-        run: go test -v ./tests/integration/...
-```
-
-### Docker Compose Example
-
-```yaml
-version: '3.8'
-services:
-  db:
-    image: postgres:15
-    environment:
-      POSTGRES_DB: keystone_dev
-      POSTGRES_PASSWORD: password
-    command: postgres -c app.environment=development
-    volumes:
-      - ./scripts/seed:/docker-entrypoint-initdb.d/seed
-```
-
----
-
-## 🎯 Future Improvements
-
-- [ ] **Makefile target:** `make seed-dev`, `make seed-test`
-- [ ] **Go seed runner:** Programmatic seeding from Go code
-- [ ] **Seed versioning:** Track which seed version is applied
-- [ ] **Seed templates:** Parametrize seed data (tenant count, user count)
-- [ ] **Reset script:** Clean database and re-seed
-- [ ] **Faker integration:** Generate realistic random data
-
----
-
-## 📚 References
-
-- [PostgreSQL Custom Variables](https://www.postgresql.org/docs/current/sql-set.html)
-- [Database Seeding Best Practices](https://12factor.net/dev-prod-parity)
-- [Test Fixtures vs Seeds](https://en.wikipedia.org/wiki/Test_fixture)
+| | Migration | Seed |
+|---|---|---|
+| Purpose | Schema change | Sample data |
+| Environments | All | Development and staging only |
+| Idempotent | Required | Required |
+| Rollback | A `.down.sql` is mandatory | Not needed |

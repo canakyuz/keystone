@@ -24,7 +24,7 @@ func setup(t *testing.T) (*Repository, *sql.DB, string) {
 
 	db := helpers.SetupTestDB(t)
 	if db == nil {
-		t.Skip("postgres erişilemiyor")
+		t.Skip("postgres unreachable")
 	}
 
 	tenant := helpers.CreateTestTenant(t, db, "op-test")
@@ -70,7 +70,7 @@ func TestCreate_WritesOperationAndJobAtomically(t *testing.T) {
 // TestCreate_SameKeySameBodyReplays, yinelenen istegin yeni bir islem
 // yaratmadigini dogrular.
 //
-// Arıza senaryosu: transaction tamamlandi ama HTTP cevabi istemciye
+// Failure scenario: the transaction committed but the HTTP response never reached
 // ulasmadi. Istemci ayni istegi tekrar gonderir.
 func TestCreate_SameKeySameBodyReplays(t *testing.T) {
 	repo, db, tenantID := setup(t)
@@ -191,7 +191,7 @@ func TestClaim_OnlyOneWorkerGetsTheJob(t *testing.T) {
 // TestClaim_ExpiredLeaseIsReclaimable, cokmus worker'in isinin devralinabildigini
 // dogrular.
 //
-// Arıza senaryosu: worker isi aldi ve baslamadan kapandi. Kalici bir
+// Failure scenario: the worker claimed the job and died before starting. A persistent
 // "isleniyor" bayragi kullanilsaydi is sonsuza kadar o bayrakla kalirdi.
 func TestClaim_ExpiredLeaseIsReclaimable(t *testing.T) {
 	repo, db, tenantID := setup(t)
@@ -224,7 +224,7 @@ func TestClaim_ExpiredLeaseIsReclaimable(t *testing.T) {
 // TestComplete_StaleWorkerIsRejected, gecikmis worker bildiriminin
 // reddedildigini dogrular.
 //
-// Arıza senaryosu: eski worker lease'ini kaybettikten sonra geri dondu ve
+// Failure scenario: the old worker lost its lease, then came back and
 // "tamamlandi" bildirdi. Yalnizca lease_owner'a bakmak yetmezdi; eski worker
 // kendi adini bilir ve o kontrolu gecerdi.
 func TestComplete_StaleWorkerIsRejected(t *testing.T) {
@@ -299,7 +299,7 @@ func TestCompleteFailure_RetriesUntilExhausted(t *testing.T) {
 
 		// retryAfter sifir: sonraki deneme hemen alinabilsin.
 		require.NoError(t, repo.CompleteFailure(
-			ctx, job.ID, "worker-1", job.Fence, "schema_error", "şema oluşturulamadı", 0))
+			ctx, job.ID, "worker-1", job.Fence, "schema_error", "could not create schema", 0))
 	}
 
 	var jobStatus string

@@ -39,7 +39,7 @@ func dialRedis(t *testing.T) *redis.Client {
 	client := redis.NewClient(&redis.Options{Addr: addr})
 	if err := client.Ping(context.Background()).Err(); err != nil {
 		client.Close()
-		t.Logf("Redis erişilemiyor (%v), yalnızca süreç içi uygulama sınanıyor", err)
+		t.Logf("redis unreachable (%v), exercising the in-process implementation only", err)
 		return nil
 	}
 

@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// countingLoader, kaç kez çağrıldığını sayan bir loader üretir.
+// countingLoader builds a loader that counts how many times it was called.
 func countingLoader(calls *atomic.Int64, value string, err error) Loader {
 	return func(ctx context.Context, key string) (string, error) {
 		calls.Add(1)
@@ -20,16 +20,15 @@ func countingLoader(calls *atomic.Int64, value string, err error) Loader {
 	}
 }
 
-// TestGet_CollapsesConcurrentMisses, önbellek yığılmasının (cache stampede)
-// engellendiğini doğrular.
+// TestGet_CollapsesConcurrentMisses verifies that the cache stampede is prevented.
 //
-// singleflight olmadan, soğuk bir anahtara aynı anda gelen N istek N adet
-// kaynak sorgusuna dönüşür. Bu, önbelleğin en çok işe yaraması gereken anda,
-// yani ani yük altında, koruma sağlamaması demektir.
+// Without singleflight, N requests arriving at once for a cold key turn into N
+// source queries. That means the cache fails to protect at exactly the moment it is
+// most needed, which is under a burst.
 func TestGet_CollapsesConcurrentMisses(t *testing.T) {
 	var calls atomic.Int64
 
-	// Loader kasıtlı olarak yavaş: eşzamanlı isteklerin üst üste binmesi için.
+	// The loader is deliberately slow, so the concurrent requests overlap.
 	slowLoader := func(ctx context.Context, key string) (string, error) {
 		calls.Add(1)
 		time.Sleep(50 * time.Millisecond)
@@ -60,11 +59,10 @@ func TestGet_CollapsesConcurrentMisses(t *testing.T) {
 	}
 }
 
-// TestGet_NegativeCaching, var olmayan anahtarların da önbelleklendiğini
-// doğrular.
+// TestGet_NegativeCaching verifies that non-existent keys are cached too.
 //
-// Bu olmadan, rastgele ve var olmayan anahtarlarla yapılan istek seli her
-// seferinde asıl kaynağa iner. Ucuz bir yük yükseltme vektörüdür.
+// Without it, a flood of requests carrying random non-existent keys reaches the
+// source every time. That is a cheap load-amplification vector.
 func TestGet_NegativeCaching(t *testing.T) {
 	var calls atomic.Int64
 	c := New(Config{
@@ -83,8 +81,8 @@ func TestGet_NegativeCaching(t *testing.T) {
 	assert.Equal(t, uint64(9), c.Stats().NegativeHits)
 }
 
-// TestGet_NegativeCachingDisabled, NegativeTTL sıfırken negatif önbelleğin
-// kapalı olduğunu doğrular. Varsayılanı sessizce değiştirmemek için.
+// TestGet_NegativeCachingDisabled verifies that negative caching is off when
+// NegativeTTL is zero, so the default cannot change silently.
 func TestGet_NegativeCachingDisabled(t *testing.T) {
 	var calls atomic.Int64
 	c := New(Config{
@@ -101,7 +99,7 @@ func TestGet_NegativeCachingDisabled(t *testing.T) {
 	assert.Equal(t, int64(3), calls.Load(), "negatif onbellek kapaliyken bile atlandi")
 }
 
-// TestGet_ServesFromL1, ikinci okumanın loader'a inmediğini doğrular.
+// TestGet_ServesFromL1 verifies that a second read does not reach the loader.
 func TestGet_ServesFromL1(t *testing.T) {
 	var calls atomic.Int64
 	c := New(Config{
@@ -122,8 +120,8 @@ func TestGet_ServesFromL1(t *testing.T) {
 	assert.Equal(t, uint64(1), c.Stats().Misses)
 }
 
-// TestGet_LoaderErrorIsNotCached, geçici hataların önbelleklenmediğini
-// doğrular. Bir bağlantı hatası kalıcı bir "bulunamadı"ya dönüşmemelidir.
+// TestGet_LoaderErrorIsNotCached verifies that transient errors are not cached. A
+// connection error must not turn into a permanent "not found".
 func TestGet_LoaderErrorIsNotCached(t *testing.T) {
 	var calls atomic.Int64
 	boom := errors.New("gecici baglanti hatasi")
@@ -143,7 +141,7 @@ func TestGet_LoaderErrorIsNotCached(t *testing.T) {
 	assert.Equal(t, uint64(3), c.Stats().LoaderErrors)
 }
 
-// TestGet_L1Expiry, L1 süresi dolduğunda kaynağa yeniden inildiğini doğrular.
+// TestGet_L1Expiry verifies that the source is consulted again once L1 expires.
 func TestGet_L1Expiry(t *testing.T) {
 	var calls atomic.Int64
 	c := New(Config{
@@ -164,7 +162,7 @@ func TestGet_L1Expiry(t *testing.T) {
 	assert.Equal(t, int64(2), calls.Load(), "TTL dolmasina ragmen eski deger servis edildi")
 }
 
-// TestInvalidate, geçersiz kılınan anahtarın yeniden yüklendiğini doğrular.
+// TestInvalidate verifies that an invalidated key is loaded again.
 func TestInvalidate(t *testing.T) {
 	var calls atomic.Int64
 	c := New(Config{
@@ -185,10 +183,10 @@ func TestInvalidate(t *testing.T) {
 	assert.Equal(t, int64(2), calls.Load(), "invalidate sonrasi eski deger servis edildi")
 }
 
-// TestWithJitter, jitter'ın TTL'i beklenen aralıkta tuttuğunu doğrular.
+// TestWithJitter verifies that jitter keeps the TTL inside the expected range.
 //
-// Jitter olmadan, aynı anda oluşturulan anahtarlar aynı anda düşer ve sona
-// erme anında toplu bir ıska dalgası oluşur.
+// Without jitter, keys created at the same moment expire at the same moment and
+// produce a synchronized wave of misses.
 func TestWithJitter(t *testing.T) {
 	base := time.Minute
 	c := New(Config{TTL: base, Jitter: 0.2})
@@ -204,7 +202,7 @@ func TestWithJitter(t *testing.T) {
 	assert.Greater(t, len(seen), 100, "jitter yeterince dagilmiyor")
 }
 
-// TestWithJitter_Disabled, jitter kapalıyken TTL'in sabit kaldığını doğrular.
+// TestWithJitter_Disabled verifies that the TTL is constant when jitter is off.
 func TestWithJitter_Disabled(t *testing.T) {
 	base := time.Minute
 	c := New(Config{TTL: base})
@@ -212,7 +210,7 @@ func TestWithJitter_Disabled(t *testing.T) {
 	assert.Equal(t, base, c.withJitter(base))
 }
 
-// TestL1_RespectsMaxEntries, süreç içi katmanın sınırsız büyümediğini doğrular.
+// TestL1_RespectsMaxEntries verifies that the in-process tier does not grow without bound.
 func TestL1_RespectsMaxEntries(t *testing.T) {
 	const maxEntries = 50
 	var calls atomic.Int64

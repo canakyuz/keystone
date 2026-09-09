@@ -387,11 +387,11 @@ func BenchmarkProvisionTenantSchema(b *testing.B) {
 	}
 }
 
-// 🎓 ÖĞRENME NOTU: Integration Test Best Practices
+// Integration test notes
 //
-// 1. **Isolation:** Her test bağımsız çalışmalı
+// 1. Isolation: every test must run independently.
 // 2. **Cleanup:** defer ile resource cleanup
-// 3. **Expectations:** sqlmock ile tüm DB calls verify et
+// 3. Expectations: verify every DB call through sqlmock.
 // 4. **Edge Cases:** Nil, empty, invalid inputs test et
-// 5. **Rollback:** Transaction rollback scenarios önemli
+// 5. Rollback: transaction rollback scenarios matter.
 // 6. **Performance:** Benchmark ile performance regression catch et

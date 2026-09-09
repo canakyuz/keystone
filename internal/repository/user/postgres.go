@@ -28,10 +28,10 @@ func NewPostgresRepository(db *sql.DB, tenantConnetionManager database.TenantCon
 
 // Create creates a new user
 func (r *PostgresRepository) Create(ctx context.Context, u *user.User) error {
-	// 1. Context'ten tenant schema'sını al
+	// 1. Take the tenant schema from the context.
 	schema := tenantctx.Schema(ctx)
 
-	// 2. Schema boşsa hata dön (middleware çalışmamış demektir)
+	// 2. An empty schema means the middleware did not run; fail rather than guess.
 	if schema == "" {
 		return fmt.Errorf("tenant schema not found in context")
 	}
@@ -54,7 +54,7 @@ func (r *PostgresRepository) Create(ctx context.Context, u *user.User) error {
           )
       `
 
-	// JSON marshalling (aynı)
+	// JSON marshalling, unchanged.
 	preferencesJSON, err := json.Marshal(u.Preferences)
 	if err != nil {
 		return fmt.Errorf("failed to marshal preferences: %w", err)
@@ -168,15 +168,15 @@ func (r *PostgresRepository) GetByEmailGlobal(ctx context.Context, email string)
 		LIMIT 1
 	`
 
-	// Bu sorgu bilinçli olarak tenant sınırının dışına çıkar: kullanıcı henüz
-	// hangi tenant'a ait olduğunu bildirmeden giriş yapmaya çalışıyor.
+	// This query deliberately steps outside the tenant boundary: the user is trying to
+	// log in before having told us which tenant they belong to.
 	//
-	// Görünürlük, migration 028'deki auth_lookup_policy tarafından bir oturum
-	// bayrağına bağlanmıştır. Bayrağı SET LOCAL ile açıyoruz, böylece yetki
-	// transaction sınırında kalır ve commit/rollback ile kendiliğinden kapanır.
-	// Bağlantı havuza döndüğünde açık bir yetkiyle dönmez.
+	// Visibility is gated on a session flag by auth_lookup_policy in migration 028. We
+	// open the flag with SET LOCAL, so the privilege is confined to the transaction and
+	// closes by itself on commit or rollback. The connection never returns to the pool
+	// carrying an open privilege.
 	//
-	// Karmaşıklık: O(log n) (users.email üzerindeki index), tek satır döner.
+	// Complexity: O(log n) via the index on users.email; returns a single row.
 	tx, err := r.db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
 	if err != nil {
 		return nil, fmt.Errorf("failed to begin auth lookup: %w", err)

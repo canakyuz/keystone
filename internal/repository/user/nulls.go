@@ -3,23 +3,23 @@ package user
 import "fmt"
 
 // Bu dosya, domain entity'sindeki opsiyonel alanlar ile Postgres'in nullable
-// kolonları arasındaki dönüşümü tek yerde toplar.
+// columns in one place.
 //
 // NEDEN gerekli: user.User, Avatar / Phone / Timezone / Locale / CreatedBy / UpdatedBy
-// alanlarını düz string olarak tutuyor. Postgres tarafında bu kolonlar nullable
-// ve ikisi UUID tipinde. Düz string'i doğrudan geçirmek iki hataya yol açıyordu:
+// fields as plain strings. On the Postgres side those columns are nullable, and two
+// of them are UUIDs. Passing a plain string straight through caused two bugs:
 //
-//   - Yazarken: boş string UUID kolonuna gidiyor ve
-//     `invalid input syntax for type uuid: ""` hatası veriyordu.
-//   - Okurken: NULL kolon *string hedefine taranıyor ve
-//     `converting NULL to string is unsupported` hatası veriyordu.
+//   - On write: an empty string reached a UUID column and produced
+//     `invalid input syntax for type uuid: ""`.
+//   - On read: a NULL column was scanned into a *string target and produced
+//     `converting NULL to string is unsupported`.
 //
-// Alternatif, entity alanlarını *string yapmaktı. Bunu tercih etmedik çünkü
-// domain katmanını veritabanı nullability'sine göre şekillendirmek katman
-// bağımlılığını ters çevirir. Dönüşüm repository sınırında kalmalı.
+// The alternative was making the entity fields *string. That was rejected: shaping
+// the domain layer around database nullability inverts the layer dependency. The
+// conversion belongs at the repository boundary.
 
-// nullable, boş string'i SQL NULL'a çevirir; dolu değeri olduğu gibi geçirir.
-// Karmaşıklık: O(1).
+// nullable turns an empty string into SQL NULL and passes a non-empty value through
+// unchanged. Complexity: O(1).
 func nullable(s string) any {
 	if s == "" {
 		return nil
@@ -27,14 +27,14 @@ func nullable(s string) any {
 	return s
 }
 
-// nullString, NULL okunabilen bir sql.Scanner hedefidir. NULL geldiğinde
-// hedefi boş string'e ayarlar, böylece entity'nin "değer yok" temsili korunur.
+// nullString is a NULL-tolerant sql.Scanner target. On NULL it sets the target to
+// the empty string, preserving the entity's representation of "no value".
 type nullString struct {
 	dst *string
 }
 
-// Scan, sql.Scanner arayüzünü karşılar.
-// Karmaşıklık: O(n), n = değerin bayt uzunluğu.
+// Scan implements sql.Scanner.
+// Complexity: O(n), where n is the byte length of the value.
 func (n nullString) Scan(src any) error {
 	if src == nil {
 		*n.dst = ""

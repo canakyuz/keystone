@@ -14,11 +14,11 @@ import (
 	"github.com/canakyuz/keystone/test/helpers"
 )
 
-// newTestRepository, testler için repository kurar.
-// Logger nil geçilir: connectionManager tüm log çağrılarını nil-guard ile sarar,
-// böylece testlerde log gürültüsü olmadan gerçek search_path davranışı korunur.
-// ctxFor, repository'lerin beklediği tenant schema'sını taşıyan context üretir.
-// Production'da bunu TenantContextMiddleware yerleştirir; testte HTTP katmanı yok.
+// newTestRepository builds a repository for tests.
+// The logger is nil: connectionManager nil-guards every log call, so the real
+// search_path behaviour is preserved without log noise in the tests.
+// ctxFor builds a context carrying the tenant schema the repositories expect. In
+// production TenantContextMiddleware puts it there; in a test there is no HTTP layer.
 func ctxFor(tn *helpers.TestTenant) context.Context {
 	return helpers.WithTenantSchema(context.Background(), tn.SchemaName)
 }

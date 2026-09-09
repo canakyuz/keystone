@@ -1,10 +1,10 @@
-// Package security, tenant izolasyonunun veritabanı katmanında gerçekten
-// uygulandığını doğrular.
+// Package security verifies that tenant isolation is actually enforced at the
+// database layer.
 //
-// Bu testler bilinçli olarak repository katmanını atlar ve doğrudan SQL koşar.
-// Amaç uygulama mantığını değil, PostgreSQL Row Level Security yapılandırmasını
-// sınamaktır: uygulama kodu hatalı bir sorgu gönderse bile veritabanının
-// çapraz tenant okumayı reddetmesi gerekir.
+// These tests deliberately bypass the repository layer and run SQL directly. The
+// point is to exercise the PostgreSQL Row Level Security configuration rather than
+// the application logic: even if the application sends a wrong query, the database
+// has to refuse a cross-tenant read.
 package security
 
 import (
@@ -18,7 +18,7 @@ import (
 	"github.com/canakyuz/keystone/test/helpers"
 )
 
-// seedUser, verilen tenant'a ait bir kullanıcı satırı ekler.
+// seedUser inserts a user row belonging to the given tenant.
 func seedUser(t *testing.T, exec func(string, ...any) error, tenantID, email string) string {
 	t.Helper()
 
@@ -34,7 +34,7 @@ func seedUser(t *testing.T, exec func(string, ...any) error, tenantID, email str
 func TestUsersTable_RejectsCrossTenantReads(t *testing.T) {
 	admin := helpers.SetupTestDB(t)
 	if admin == nil {
-		t.Skip("postgres erişilemiyor")
+		t.Skip("postgres unreachable")
 	}
 	ctx := context.Background()
 
@@ -48,8 +48,8 @@ func TestUsersTable_RejectsCrossTenantReads(t *testing.T) {
 	seedUser(t, adminExec, tenant1.ID, "one@example.com")
 	seedUser(t, adminExec, tenant2.ID, "two@example.com")
 
-	// RLS, süper kullanıcı bağlantısında hiçbir zaman uygulanmaz. İzolasyonu
-	// sınamak için süper kullanıcı olmayan, tabloların sahibi bir rol gerekiyor.
+	// RLS is never enforced on a superuser connection. Testing isolation requires a
+	// non-superuser role that owns the tables.
 	app := helpers.SetupAppRoleDB(t, admin)
 
 	_, err := app.ExecContext(ctx, `SET app.current_tenant = '`+tenant1.ID+`'`)
@@ -78,13 +78,13 @@ func TestUsersTable_RejectsCrossTenantReads(t *testing.T) {
 	})
 }
 
-// TestAuthLookup_IsTransactionScoped, migration 028'in getirdiği daraltmayı
-// doğrular: global login araması yalnızca bayrak açıkken görür ve bayrak
-// transaction dışına sızmaz.
+// TestAuthLookup_IsTransactionScoped verifies the narrowing introduced by migration
+// 028: the global login lookup only sees rows while the flag is set, and the flag
+// does not leak outside the transaction.
 func TestAuthLookup_IsTransactionScoped(t *testing.T) {
 	admin := helpers.SetupTestDB(t)
 	if admin == nil {
-		t.Skip("postgres erişilemiyor")
+		t.Skip("postgres unreachable")
 	}
 	ctx := context.Background()
 

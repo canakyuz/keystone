@@ -29,9 +29,9 @@ type TestDBConfig struct {
 	SSLMode  string
 }
 
-// DefaultTestDBConfig, test veritabanı ayarlarını döner.
-// Değerler ortam değişkenleriyle ezilebilir; CI'da Postgres servisi farklı
-// host/port/parola ile geldiği için bu şart.
+// DefaultTestDBConfig returns the test database settings. The values can be
+// overridden with environment variables, which is required because the Postgres
+// service in CI comes with a different host, port and password.
 func DefaultTestDBConfig() *TestDBConfig {
 	return &TestDBConfig{
 		Host:     envOr("TEST_DB_HOST", "localhost"),
@@ -50,17 +50,17 @@ func envOr(key, fallback string) string {
 	return fallback
 }
 
-// dbCounter, aynı süreç içindeki testlere çakışmayan veritabanı adı üretir.
+// dbCounter produces non-colliding database names for tests in the same process.
 var dbCounter atomic.Uint64
 
-// uniqueDBName, her test için ayrı bir veritabanı adı üretir.
+// uniqueDBName produces a distinct database name per test.
 //
-// NEDEN: önceden tüm testler tek bir sabit adı (keystone_test) DROP/CREATE
-// ediyordu. `go test ./...` paketleri paralel koştuğu için iki test aynı anda
-// aynı veritabanını silmeye çalışıyor ve "database is being accessed by other
-// users" hatası alıyordu. İzole ad, çakışmayı tasarımdan kaldırır.
+// WHY: every test used to DROP/CREATE one fixed name (keystone_test). Because
+// `go test ./...` runs packages in parallel, two tests would try to drop the same
+// database at the same time and hit "database is being accessed by other users".
+// An isolated name removes the collision by design.
 //
-// Ad 63 bayt Postgres sınırına kırpılır.
+// The name is trimmed to Postgres's 63-byte limit.
 func uniqueDBName(t *testing.T, base string) string {
 	t.Helper()
 
@@ -82,9 +82,9 @@ func uniqueDBName(t *testing.T, base string) string {
 	return name
 }
 
-// dropDatabase, veritabanını siler. Silmeden önce artakalan bağlantıları
-// sonlandırır: sql.DB havuzu Close() sonrası bağlantıyı hemen bırakmayabilir
-// ve DROP DATABASE tek bir açık bağlantıda bile başarısız olur.
+// dropDatabase drops the database, terminating leftover connections first: the
+// sql.DB pool may not release a connection immediately after Close(), and DROP
+// DATABASE fails on even a single open connection.
 func dropDatabase(db *sql.DB, name string) {
 	quoted := pq.QuoteIdentifier(name)
 
@@ -96,8 +96,9 @@ func dropDatabase(db *sql.DB, name string) {
 	_, _ = db.Exec("DROP DATABASE IF EXISTS " + quoted)
 }
 
-// SetupTestDB, teste özel izole bir veritabanı açar ve gerçek migration'ları koşar.
-// Test bitiminde veritabanı düşürülür. Postgres erişilemiyorsa test atlanır.
+// SetupTestDB opens an isolated per-test database and runs the real migrations. The
+// database is dropped when the test finishes. If Postgres is unreachable the test is
+// skipped.
 func SetupTestDB(t *testing.T) *sql.DB {
 	t.Helper()
 
@@ -120,7 +121,7 @@ func SetupTestDB(t *testing.T) *sql.DB {
 	if _, err := adminDB.Exec("CREATE DATABASE " + pq.QuoteIdentifier(dbName)); skipIfConnectionError(t, err) {
 		return nil
 	} else {
-		require.NoErrorf(t, err, "test veritabanı oluşturulamadı: %s", dbName)
+		require.NoErrorf(t, err, "could not create test database: %s", dbName)
 	}
 
 	testConnStr := fmt.Sprintf(
@@ -148,54 +149,55 @@ func SetupTestDB(t *testing.T) *sql.DB {
 	return testDB
 }
 
-// migrationsDir, bu dosyanın konumundan repo kökündeki migrations dizinini bulur.
-// runtime.Caller kullanılır çünkü `go test` her paketi kendi dizininde çalıştırır;
-// çalışma dizinine göreli bir yol paketten pakete değişirdi.
+// migrationsDir locates the repository's migrations directory relative to this
+// file. runtime.Caller is used because `go test` runs each package in its own
+// directory, so a path relative to the working directory would differ per package.
 func migrationsDir(t *testing.T) string {
 	t.Helper()
 
 	_, thisFile, _, ok := runtime.Caller(0)
-	require.True(t, ok, "çağıran dosya konumu alınamadı")
+	require.True(t, ok, "could not determine caller file location")
 
-	// test/helpers/database.go -> repo kökü
+	// test/helpers/database.go -> repository root
 	root := filepath.Dir(filepath.Dir(filepath.Dir(thisFile)))
 	dir := filepath.Join(root, "migrations")
 
 	info, err := os.Stat(dir)
-	require.NoErrorf(t, err, "migrations dizini bulunamadı: %s", dir)
-	require.Truef(t, info.IsDir(), "%s bir dizin değil", dir)
+	require.NoErrorf(t, err, "migrations directory not found: %s", dir)
+	require.Truef(t, info.IsDir(), "%s is not a directory", dir)
 
 	return dir
 }
 
-// runMigrations, gerçek migrations/*.up.sql dosyalarını sırayla çalıştırır.
+// runMigrations executes the real migrations/*.up.sql files in order.
 //
-// NEDEN dosyadan okunuyor: şema daha önce bu helper'ın içinde elle kopyalanıyordu ve
-// zamanla production migration'larından saptı. Örneğin tenants.phone kolonu
-// migration'da vardı ama kopyada yoktu; testler gerçekte var olmayan bir şemaya
-// karşı koştu ve repository sorguları "column does not exist" ile patladı.
-// Tek doğruluk kaynağı migrations/ dizinidir. İkinci bir kopya tutmak bu sapmayı
-// kaçınılmaz kılar, dosyadan okumak ise yapısal olarak imkansız hale getirir.
+// WHY read from the files: the schema used to be copied by hand into this helper and
+// drifted from the production migrations over time. The tenants.phone column, for
+// instance, existed in the migration but not in the copy; the tests ran against a
+// schema that did not really exist and the repository queries blew up with "column
+// does not exist". The single source of truth is the migrations/ directory. Keeping a
+// second copy makes that drift inevitable; reading the files makes it structurally
+// impossible.
 //
-// Karmaşıklık: O(m) dosya okuma + O(m) sıralı exec, m = migration sayısı.
+// Complexity: O(m) file reads plus O(m) sequential execs, m being the migration count.
 func runMigrations(t *testing.T, db *sql.DB) {
 	t.Helper()
 
 	files, err := filepath.Glob(filepath.Join(migrationsDir(t), "*.up.sql"))
 	require.NoError(t, err)
-	require.NotEmpty(t, files, "migrations/*.up.sql bulunamadı")
+	require.NotEmpty(t, files, "no migrations/*.up.sql found")
 
-	// Glob sırayı garanti etmez; 001..026 sırası şema bağımlılıkları için zorunlu.
+	// Glob does not guarantee order, and 001..032 order is required by schema dependencies.
 	sort.Strings(files)
 
 	for _, file := range files {
 		stmt, readErr := os.ReadFile(file)
-		require.NoErrorf(t, readErr, "migration okunamadı: %s", file)
+		require.NoErrorf(t, readErr, "could not read migration: %s", file)
 
 		if _, execErr := db.Exec(string(stmt)); skipIfConnectionError(t, execErr) {
 			return
 		} else {
-			require.NoErrorf(t, execErr, "migration başarısız: %s", filepath.Base(file))
+			require.NoErrorf(t, execErr, "migration failed: %s", filepath.Base(file))
 		}
 	}
 }
@@ -293,19 +295,20 @@ func fetchTenantSchemaName(ctx context.Context, db *sql.DB, tenantID string) (st
 	return schemaName, nil
 }
 
-// SetupAppRoleDB, RLS'in gerçekten sınanabildiği bir bağlantı döner.
+// SetupAppRoleDB returns a connection on which RLS can actually be exercised.
 //
-// NEDEN ayrı bir rol gerekiyor: PostgreSQL'de süper kullanıcılar Row Level
-// Security policy'lerini her koşulda atlar; FORCE ROW LEVEL SECURITY bile bunu
-// değiştirmez. Testler varsayılan olarak "postgres" süper kullanıcısıyla
-// bağlandığı için, o bağlantı üzerinden yapılan bir izolasyon testi hiçbir şey
-// kanıtlamaz: policy hiç devreye girmez ve test yanlış sebeple geçer ya da kalır.
+// WHY a separate role is needed: in PostgreSQL, superusers bypass Row Level Security
+// policies under all circumstances, and FORCE ROW LEVEL SECURITY does not change
+// that. Because the tests connect as the "postgres" superuser by default, an
+// isolation test run over that connection proves nothing: the policy never engages,
+// and the test passes or fails for the wrong reason.
 //
-// Tablolar bu role devredilir, çünkü production'da uygulama çoğunlukla şemayı
-// oluşturan rolle bağlanır. Sahiplik senaryosunu birebir yeniden üretmek,
-// migration 027'deki FORCE ayarının gerçekten iş görüp görmediğini sınar.
+// The tables are handed to this role because in production the application usually
+// connects as the role that created the schema. Reproducing that ownership scenario
+// exactly is what tests whether the FORCE setting from migration 027 actually does
+// its job.
 //
-// Karmaşıklık: O(k) ALTER, k = public şemasındaki tablo sayısı.
+// Complexity: O(k) ALTERs, k being the number of tables in the public schema.
 func SetupAppRoleDB(t *testing.T, admin *sql.DB) *sql.DB {
 	t.Helper()
 
@@ -319,7 +322,7 @@ func SetupAppRoleDB(t *testing.T, admin *sql.DB) *sql.DB {
 
 	mustExec := func(query string) {
 		_, err := admin.Exec(query)
-		require.NoErrorf(t, err, "hazırlık başarısız: %s", query)
+		require.NoErrorf(t, err, "setup failed: %s", query)
 	}
 
 	mustExec("DROP ROLE IF EXISTS " + quotedRole)
@@ -327,7 +330,7 @@ func SetupAppRoleDB(t *testing.T, admin *sql.DB) *sql.DB {
 	mustExec(fmt.Sprintf("GRANT CONNECT ON DATABASE %s TO %s", pq.QuoteIdentifier(dbName), quotedRole))
 	mustExec(fmt.Sprintf("GRANT USAGE, CREATE ON SCHEMA public TO %s", quotedRole))
 
-	// Tüm public tabloları ve sequence'ları role devret.
+	// Hand every public table and sequence to the role.
 	mustExec(fmt.Sprintf(`
 		DO $$
 		DECLARE r record;
@@ -346,8 +349,9 @@ func SetupAppRoleDB(t *testing.T, admin *sql.DB) *sql.DB {
 	))
 	require.NoError(t, err)
 
-	// SET oturum bazlıdır. Havuz birden fazla bağlantı açarsa tenant context'i
-	// taşımayan bir bağlantıya düşülebilir, bu da testi anlamsız kılar.
+	// SET is per-session. If the pool opens more than one connection, a query can land
+	// on a connection that is not carrying the tenant context, which would make the test
+	// meaningless.
 	appDB.SetMaxOpenConns(1)
 
 	require.NoError(t, appDB.Ping())
@@ -362,12 +366,12 @@ func SetupAppRoleDB(t *testing.T, admin *sql.DB) *sql.DB {
 	return appDB
 }
 
-// WithTenantSchema, repository'lerin beklediği tenant schema'sını context'e koyar.
+// WithTenantSchema puts the tenant schema the repositories expect into the context.
 //
-// NEDEN: TenantConnectionManager refactor'ından sonra repository metotları
-// schema adını context'ten okuyor ve yoksa hata döndürüyor. Production'da bunu
-// TenantContextMiddleware yerleştirir; testlerde HTTP katmanı olmadığı için
-// aynı anahtarı doğrudan koymak gerekiyor.
+// WHY: after the TenantConnectionManager refactor the repository methods read the
+// schema name from the context and error out when it is absent. In production
+// TenantContextMiddleware puts it there; in tests there is no HTTP layer, so the same
+// key has to be set directly.
 func WithTenantSchema(ctx context.Context, schemaName string) context.Context {
 	return tenantctx.WithSchema(ctx, schemaName)
 }

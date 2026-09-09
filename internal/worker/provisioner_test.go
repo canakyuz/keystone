@@ -186,7 +186,7 @@ func TestRun_HandlerFailureIsReported(t *testing.T) {
 	store := newFakeStore(job("a", "tenant-1"))
 
 	handler := func(ctx context.Context, j *domain.Job) error {
-		return errors.New("şema oluşturulamadı")
+		return errors.New("could not create schema")
 	}
 
 	p := New(testConfig(), store, handler, nil)
@@ -196,7 +196,7 @@ func TestRun_HandlerFailureIsReported(t *testing.T) {
 	assert.Zero(t, store.succeeded.Load())
 }
 
-// TestRun_PanicDoesNotKillWorker, panige duşen isin worker'i dusurmedigini
+// TestRun_PanicDoesNotKillWorker verifies that a panicking job does not take the
 // ve basarisiz sayildigini dogrular.
 func TestRun_PanicDoesNotKillWorker(t *testing.T) {
 	store := newFakeStore(job("a", "tenant-1"), job("b", "tenant-2"))

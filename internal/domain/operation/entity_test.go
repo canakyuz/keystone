@@ -52,7 +52,7 @@ func TestOperation_RejectsInvalidTransitions(t *testing.T) {
 func TestOperation_MarkFailedRequiresCode(t *testing.T) {
 	op := &Operation{Status: StatusRunning}
 
-	err := op.MarkFailed("", "bir şeyler ters gitti", time.Now())
+	err := op.MarkFailed("", "something went wrong", time.Now())
 
 	assert.ErrorIs(t, err, ErrInvalidTransition)
 	assert.Equal(t, StatusRunning, op.Status)
@@ -69,7 +69,7 @@ func TestOperation_TerminalStatesSetCompletedAt(t *testing.T) {
 	assert.True(t, succeeded.Status.IsTerminal())
 
 	failed := &Operation{Status: StatusRunning}
-	require.NoError(t, failed.MarkFailed("schema_error", "şema yok", now))
+	require.NoError(t, failed.MarkFailed("schema_error", "no schema", now))
 	assert.NotNil(t, failed.CompletedAt)
 	assert.Equal(t, "schema_error", failed.ErrorCode)
 }

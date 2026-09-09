@@ -102,6 +102,7 @@ func TenantContextMiddleware(schemaCache *TenantSchemaCache) fiber.Handler {
 //  1. The JWT claim (the only trusted source).
 //  2. The X-Tenant-ID header (development and test only).
 //  3. The query parameter (development and test only).
+//
 // allowUntrustedTenantHeader records whether selecting the tenant through the
 // X-Tenant-ID header or the tenant_id query parameter is permitted.
 //

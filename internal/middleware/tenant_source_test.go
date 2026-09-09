@@ -8,13 +8,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// newProbeApp, extractTenantID'nin sonucunu gövdede döndüren küçük bir uygulama
-// kurar. Böylece tenant seçiminin kaynağını doğrudan sınayabiliriz.
+// newProbeApp builds a tiny application that returns whatever extractTenantID
+// produced in the response body, so the source of the tenant choice can be asserted
+// directly.
 func newProbeApp(authTenantID string) *fiber.App {
 	app := fiber.New()
 
 	app.Get("/probe", func(c *fiber.Ctx) error {
-		// AuthMiddleware doğrulanmış JWT claim'ini böyle yazıyor.
+		// This is how AuthMiddleware writes the verified JWT claim.
 		if authTenantID != "" {
 			c.Locals("tenant_id", authTenantID)
 		}
@@ -39,15 +40,14 @@ func probe(t *testing.T, app *fiber.App, url string, headers map[string]string) 
 	return readAll(t, resp.Body)
 }
 
-// TestExtractTenantID_HeaderCannotOverrideJWT, kapatılan ayrıcalık yükseltme
-// açığının geri gelmesini engeller.
+// TestExtractTenantID_HeaderCannotOverrideJWT keeps the privilege escalation bug
+// that was closed here from coming back.
 //
-// Açık şuydu: extractTenantID, c.Locals("user") anahtarını okuyup
-// map[string]interface{}'e çevirmeye çalışıyordu. AuthMiddleware böyle bir
-// anahtar hiç yazmıyor, claim'i doğrudan c.Locals("tenant_id") olarak koyuyor.
-// Bu yüzden JWT yolu hiçbir zaman çalışmadı ve her istek sessizce X-Tenant-ID
-// header'ına düştü. Geçerli token taşıyan herhangi bir kullanıcı, header'ı
-// değiştirerek başka bir tenant'ın verisini okuyabiliyordu.
+// The bug: extractTenantID read the c.Locals("user") key and tried to assert it to
+// map[string]interface{}. AuthMiddleware never writes such a key; it puts the claim
+// directly into c.Locals("tenant_id"). So the JWT path never ran and every request
+// silently fell through to the X-Tenant-ID header. Any user holding a valid token
+// could read another tenant's data just by changing that header.
 func TestExtractTenantID_HeaderCannotOverrideJWT(t *testing.T) {
 	const (
 		jwtTenant    = "11111111-1111-1111-1111-111111111111"

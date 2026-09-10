@@ -1,32 +1,33 @@
--- 030: tenant izolasyon policy'lerini tek ve fail-closed bir forma getir.
+-- 030: bring the tenant isolation policies into one fail-closed form.
 --
--- Canli veritabanindan pg_policies dokumu alindi ve uc ayri hata sinifi bulundu.
+-- A pg_policies dump was taken from the live database and three classes of bug were
+-- found.
 --
--- 1) EKSIK CONTEXT'TE HATA (14 policy)
+-- 1) ERROR WHEN THE CONTEXT IS MISSING (14 policies)
 --    tenant_id = current_setting('app.current_tenant', TRUE)::UUID
---    Context sifirlandiginda current_setting bos string doner, '' ::UUID ise
---    "invalid input syntax for type uuid" firlatir. Veri sizmaz ama sorgu
---    anlasilmaz bir veritabani hatasiyla duser.
+--    With the context cleared, current_setting returns an empty string, and ''::UUID
+--    raises "invalid input syntax for type uuid". No data leaks, but the query fails
+--    with an incomprehensible database error.
 --
--- 2) AYARSIZ OTURUMDA SERT HATA (payments, payment_events, refunds)
---    current_setting('app.current_tenant') ikinci argumansiz cagriliyordu.
---    Parametre hic set edilmemisse "unrecognized configuration parameter"
---    hatasi verir.
+-- 2) HARD ERROR ON AN UNCONFIGURED SESSION (payments, payment_events, refunds)
+--    current_setting('app.current_tenant') was called without its second argument.
+--    If the parameter was never set, it raises "unrecognized configuration
+--    parameter".
 --
--- 3) FAIL-OPEN (sites)  <-- en agiri
+-- 3) FAIL-OPEN (sites)  <-- the worst of them
 --    tenant_id = COALESCE(NULLIF(current_setting(...), '')::UUID, tenant_id)
---    Context yokken COALESCE tenant_id'ye duser ve kosul tenant_id = tenant_id
---    olur, yani her satir icin TRUE. Tenant context'i ayarlamayi unutan her
---    kod yolu sites tablosunun tamamini okuyabiliyordu.
+--    With no context, COALESCE falls back to tenant_id and the condition becomes
+--    tenant_id = tenant_id, that is, TRUE for every row. Any code path that forgot to
+--    set the tenant context could read the whole sites table.
 --
--- ORTAK COZUM
+-- THE COMMON FIX
 --    tenant_id = NULLIF(current_setting('app.current_tenant', TRUE), '')::UUID
---    Bos string NULL'a cevrilir, NULL karsilastirmasi hicbir satiri eslemez.
---    Context yoksa sonuc bos kumedir: hata yok, sizinti yok.
+--    The empty string becomes NULL, and a NULL comparison matches no row. With no
+--    context the result is the empty set: no error, no leak.
 --
--- NOT: websites.public_websites_policy ve projects.public_projects_policy
--- bilincli olarak birakildi. Bunlar yayinlanmis icerigi tenant sinirindan
--- bagimsiz acan tasarim kararlaridir. Bkz. SECURITY.md.
+-- NOTE: websites.public_websites_policy and projects.public_projects_policy were left
+-- alone deliberately. They are design decisions that open published content across the
+-- tenant boundary. See SECURITY.md.
 
 
 DROP POLICY IF EXISTS tenant_isolation_policy ON appointments;

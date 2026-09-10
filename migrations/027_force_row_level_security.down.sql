@@ -1,4 +1,4 @@
--- 027 geri alma: sahibi yeniden policy'lerden muaf tutar.
+-- 027 rollback: exempts the owner from the policies again.
 -- WARNING: this disables tenant isolation for the owning application role.
 
 ALTER TABLE appointments     NO FORCE ROW LEVEL SECURITY;

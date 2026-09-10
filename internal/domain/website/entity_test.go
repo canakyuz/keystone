@@ -35,7 +35,7 @@ func createTestWebsite(t *testing.T) *Website {
 }
 
 // ═════════════════════════════════════════════════════════════
-// CONSTRUCTOR TESTS (New() fonksiyonu testleri)
+// CONSTRUCTOR TESTS
 // ═════════════════════════════════════════════════════════════
 
 // TestNew_Success tests successful website creation
@@ -71,8 +71,6 @@ func TestNew_Success(t *testing.T) {
 
 // TestNew_ValidationErrors tests validation failures in constructor
 //
-// 🎓 TABLE-DRIVEN TEST PATTERN:
-// Go'da birden fazla validation senaryosunu test etmenin en iyi yolu.
 // Each case is a struct, run in a loop.
 func TestNew_ValidationErrors(t *testing.T) {
 	tenantID := uuid.New()
@@ -173,7 +171,7 @@ func TestNew_ValidationErrors(t *testing.T) {
 
 // TestWebsite_Publish_Success tests successful publishing
 //
-// 🎓 LIFECYCLE: draft → published
+// Lifecycle: draft -> published
 func TestWebsite_Publish_Success(t *testing.T) {
 	// Arrange
 	website := createTestWebsite(t)
@@ -225,7 +223,7 @@ func TestWebsite_Publish_ArchivedWebsite(t *testing.T) {
 
 // TestWebsite_Unpublish_Success tests successful unpublishing
 //
-// 🎓 LIFECYCLE: published → unpublished
+// Lifecycle: published -> unpublished
 func TestWebsite_Unpublish_Success(t *testing.T) {
 	// Arrange
 	website := createTestWebsite(t)
@@ -244,7 +242,7 @@ func TestWebsite_Unpublish_Success(t *testing.T) {
 
 // TestWebsite_Unpublish_NotPublished tests error when unpublishing non-published website
 //
-// 🎓 BUSINESS RULE: Sadece published website unpublish edilebilir
+// Business rule: only a published website can be unpublished.
 func TestWebsite_Unpublish_NotPublished(t *testing.T) {
 	// Arrange
 	website := createTestWebsite(t)
@@ -260,7 +258,7 @@ func TestWebsite_Unpublish_NotPublished(t *testing.T) {
 
 // TestWebsite_Archive_Success tests successful archiving
 //
-// 🎓 LIFECYCLE: any status → archived
+// Lifecycle: any status -> archived
 func TestWebsite_Archive_Success(t *testing.T) {
 	// Test archiving from different statuses
 	tests := []struct {
@@ -327,7 +325,7 @@ func TestWebsite_Archive_AlreadyArchived(t *testing.T) {
 
 // TestWebsite_Restore_Success tests successful restoration from archive
 //
-// 🎓 LIFECYCLE: archived → draft
+// Lifecycle: archived -> draft
 func TestWebsite_Restore_Success(t *testing.T) {
 	// Arrange
 	website := createTestWebsite(t)
@@ -629,7 +627,7 @@ func TestWebsiteType_GetDescription(t *testing.T) {
 
 // TestWebsite_CanPublish tests publish eligibility
 //
-// 🎓 BUSINESS RULE: Website ancak draft durumunda VE homepage varsa publish edilebilir
+// Business rule: a website can only be published when it is a draft AND has a homepage.
 func TestWebsite_CanPublish(t *testing.T) {
 	tests := []struct {
 		name       string
@@ -678,40 +676,3 @@ func TestWebsite_CanPublish(t *testing.T) {
 		})
 	}
 }
-
-// 🎓 TEST COVERAGE SUMMARY:
-//
-// ✅ Constructor (New)
-//    - Success case
-//    - 7 validation error cases
-//
-// ✅ Lifecycle Methods
-//    - Publish (success, already published, archived)
-//    - Unpublish (success, not published)
-//    - Archive (from 3 different statuses, already archived)
-//    - Restore (success, not archived)
-//
-// ✅ Custom Domain Management
-//    - SetCustomDomain (success, empty domain)
-//    - VerifyCustomDomain (success, not set, already verified)
-//    - RemoveCustomDomain
-//
-// ✅ Template Management
-//    - SetTemplate
-//
-// ✅ Update Methods
-//    - Update (basic)
-//    - UpdateBasicInfo
-//
-// ✅ Validation
-//    - Status.IsValid (6 cases)
-//    - WebsiteType.IsValid (10 cases)
-//    - WebsiteType.GetDescription (10 cases)
-//
-// ✅ Helper Methods
-//    - CanPublish (4 cases)
-//    - IsDraft, IsPublished, IsArchived
-//    - HasCustomDomain, IsCustomDomainVerified
-//
-// Total Test Cases: 40+
-// Expected Coverage: ~85-90%

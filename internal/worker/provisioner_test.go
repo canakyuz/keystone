@@ -15,12 +15,11 @@ import (
 	oprepo "github.com/canakyuz/keystone/internal/repository/operation"
 )
 
-// fakeStore, gercek bir kuyruk gibi davranan bellek ici depodur.
+// fakeStore is an in-memory store that behaves like a real queue.
 //
-// Burada gercek PostgreSQL kullanilmaz cunku sinanan sey veritabani
-// garantileri degil, worker'in kapasite ve kapanma davranisidir. Veritabani
-// garantileri internal/repository/operation testlerinde gercek Postgres'e
-// karsi dogrulanir.
+// Real PostgreSQL is not used here, because what is under test is the worker's
+// capacity and shutdown behaviour, not the database guarantees. Those are verified
+// against real Postgres in the internal/repository/operation tests.
 type fakeStore struct {
 	mu   sync.Mutex
 	jobs []*domain.Job
@@ -82,7 +81,7 @@ func testConfig() Config {
 	return cfg
 }
 
-// runFor, worker'i belirli sure calistirip durdurur.
+// runFor runs the worker for a set period, then stops it.
 func runFor(t *testing.T, p *Provisioner, d time.Duration) error {
 	t.Helper()
 
@@ -92,11 +91,10 @@ func runFor(t *testing.T, p *Provisioner, d time.Duration) error {
 	return p.Run(ctx)
 }
 
-// TestRun_RespectsMaxConcurrent, toplam eszamanlilik sinirinin asilmadigini
-// dogrular.
+// TestRun_RespectsMaxConcurrent verifies the total concurrency limit is not exceeded.
 //
-// Her is icin sinirsiz goroutine acmak kolaydir; sistemin kaynaklarini
-// koruyarak ilerlemesi tasarim gerektirir.
+// Spawning an unbounded goroutine per job is easy; making progress while protecting
+// the system's resources takes design.
 func TestRun_RespectsMaxConcurrent(t *testing.T) {
 	const maxConcurrent = 3
 
@@ -133,15 +131,15 @@ func TestRun_RespectsMaxConcurrent(t *testing.T) {
 	require.NoError(t, runFor(t, p, 700*time.Millisecond))
 
 	assert.LessOrEqual(t, peak.Load(), int64(maxConcurrent),
-		"toplam eszamanlilik siniri asildi")
+		"the total concurrency limit was exceeded")
 	assert.Greater(t, store.succeeded.Load(), int64(0), "hic is tamamlanmadi")
 }
 
-// TestRun_RespectsPerTenantLimit, tek bir tenant'in butun kapasiteyi
-// tuketemedigini dogrular.
+// TestRun_RespectsPerTenantLimit verifies a single tenant cannot consume the whole
+// capacity.
 //
-// Yalnizca toplam sinir olsaydi, cok isi olan bir tenant butun yuvalari
-// doldurup digerlerini bekletebilirdi.
+// With only a total limit, a tenant with a lot of work could fill every slot and
+// leave the others waiting.
 func TestRun_RespectsPerTenantLimit(t *testing.T) {
 	const perTenant = 2
 
@@ -178,10 +176,10 @@ func TestRun_RespectsPerTenantLimit(t *testing.T) {
 	require.NoError(t, runFor(t, p, 700*time.Millisecond))
 
 	assert.LessOrEqual(t, peak.Load(), int64(perTenant),
-		"tek tenant icin eszamanlilik siniri asildi")
+		"the per-tenant concurrency limit was exceeded")
 }
 
-// TestRun_HandlerFailureIsReported, basarisiz isin bildirildigini dogrular.
+// TestRun_HandlerFailureIsReported verifies a failed job is reported.
 func TestRun_HandlerFailureIsReported(t *testing.T) {
 	store := newFakeStore(job("a", "tenant-1"))
 
@@ -197,7 +195,7 @@ func TestRun_HandlerFailureIsReported(t *testing.T) {
 }
 
 // TestRun_PanicDoesNotKillWorker verifies that a panicking job does not take the
-// ve basarisiz sayildigini dogrular.
+// worker down, and that it counts as a failed job.
 func TestRun_PanicDoesNotKillWorker(t *testing.T) {
 	store := newFakeStore(job("a", "tenant-1"), job("b", "tenant-2"))
 
@@ -216,8 +214,8 @@ func TestRun_PanicDoesNotKillWorker(t *testing.T) {
 	assert.Equal(t, int64(1), store.succeeded.Load(), "worker paniktan sonra durdu")
 }
 
-// TestRun_GracefulShutdownWaitsForRunningJobs, kapanirken calisan isin
-// tamamlanmasinin beklendigini dogrular.
+// TestRun_GracefulShutdownWaitsForRunningJobs verifies a running job is waited for
+// during shutdown.
 func TestRun_GracefulShutdownWaitsForRunningJobs(t *testing.T) {
 	store := newFakeStore(job("a", "tenant-1"))
 
@@ -233,18 +231,18 @@ func TestRun_GracefulShutdownWaitsForRunningJobs(t *testing.T) {
 
 	p := New(cfg, store, handler, nil)
 
-	// Is basladiktan hemen sonra kapatma sinyali gonder.
+	// Send the shutdown signal right after the job starts.
 	require.NoError(t, runFor(t, p, 50*time.Millisecond))
 
 	assert.True(t, completed.Load(), "kapanma calisan isi yarida kesti")
 	assert.Equal(t, int64(1), store.succeeded.Load())
 }
 
-// TestRun_ShutdownGraceExpiryCancelsJobs, nazik surenin dolmasi durumunda
-// islerin iptal edildigini dogrular.
+// TestRun_ShutdownGraceExpiryCancelsJobs verifies jobs are cancelled once the grace
+// period expires.
 //
-// Iptal edilen isler tamamlanmis sayilmaz; lease sureleri dolunca baska bir
-// worker tarafindan devralinirlar.
+// Cancelled jobs do not count as finished; they are taken over by another worker once
+// their leases expire.
 func TestRun_ShutdownGraceExpiryCancelsJobs(t *testing.T) {
 	store := newFakeStore(job("a", "tenant-1"))
 
@@ -272,19 +270,19 @@ func TestRun_ShutdownGraceExpiryCancelsJobs(t *testing.T) {
 
 	select {
 	case err := <-errCh:
-		assert.Error(t, err, "nazik sure dolmasina ragmen hata bildirilmedi")
+		assert.Error(t, err, "no error was reported although the grace period expired")
 	case <-time.After(3 * time.Second):
 		t.Fatal("worker kapanmadi")
 	}
 
-	assert.True(t, cancelled.Load(), "sure dolmasina ragmen is iptal edilmedi")
+	assert.True(t, cancelled.Load(), "the job was not cancelled although the grace period expired")
 }
 
-// TestRun_RenewsLeaseWhileWorking, uzun suren is sirasinda lease'in
-// yenilendigini dogrular.
+// TestRun_RenewsLeaseWhileWorking verifies the lease is renewed during a
+// long-running job.
 //
-// Yenilenmezse, henuz calisan bir is lease suresi doldugu icin baska bir
-// worker'a devredilirdi.
+// Without renewal, a job still executing would be handed to another worker because
+// its lease expired.
 func TestRun_RenewsLeaseWhileWorking(t *testing.T) {
 	store := newFakeStore(job("a", "tenant-1"))
 
@@ -302,11 +300,11 @@ func TestRun_RenewsLeaseWhileWorking(t *testing.T) {
 	assert.Greater(t, store.renewals.Load(), int64(2), "lease yenilenmedi")
 }
 
-// TestRun_StopsClaimingAfterCancel, iptalden sonra yeni is alinmadigini
-// dogrular.
+// TestRun_StopsClaimingAfterCancel verifies no new job is claimed after cancellation.
 //
-// Isler ayri tenant'lara dagitilir ki tenant kotasi devreye girip isleri
-// hizlica geri birakmasin; olcmek istedigimiz sey yuva siniri ve iptal.
+// The jobs are spread across separate tenants so the per-tenant quota does not kick in
+// and release them quickly; what we want to measure here is the slot limit and the
+// cancellation.
 func TestRun_StopsClaimingAfterCancel(t *testing.T) {
 	jobs := make([]*domain.Job, 0, 100)
 	for i := 0; i < 100; i++ {

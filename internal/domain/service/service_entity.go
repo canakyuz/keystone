@@ -34,7 +34,7 @@ const (
 // Service represents a service offering
 type Service struct {
 	ID           string                 `json:"id"`
-	TenantID     string                 `json:"tenant_id"` // ⚠️ Multi-tenant isolation
+	TenantID     string                 `json:"tenant_id"` // Multi-tenant isolation
 	Name         string                 `json:"name"`
 	Slug         string                 `json:"slug"`
 	Description  string                 `json:"description"`

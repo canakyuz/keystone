@@ -49,7 +49,7 @@ CREATE TABLE IF NOT EXISTS websites (
     CONSTRAINT websites_slug_format CHECK (slug ~ '^[a-z0-9]+(?:-[a-z0-9]+)*$')
 );
 
--- ⚠️ CRITICAL: Multi-tenant indexes (tenant_id first for isolation)
+-- CRITICAL: multi-tenant indexes, tenant_id first for isolation.
 CREATE INDEX idx_websites_tenant_id ON websites(tenant_id) WHERE deleted_at IS NULL;
 CREATE INDEX idx_websites_tenant_slug ON websites(tenant_id, slug) WHERE deleted_at IS NULL;
 CREATE INDEX idx_websites_tenant_status ON websites(tenant_id, status) WHERE deleted_at IS NULL;
@@ -66,7 +66,7 @@ CREATE TRIGGER websites_updated_at
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();
 
--- ⚠️ CRITICAL: Row Level Security (RLS) for tenant isolation
+-- CRITICAL: Row Level Security for tenant isolation.
 ALTER TABLE websites ENABLE ROW LEVEL SECURITY;
 
 -- Policy: Websites can only be accessed within their tenant

@@ -29,7 +29,7 @@ const (
 // Lesson represents a tutoring lesson/session
 type Lesson struct {
 	ID          string       `json:"id"`
-	TenantID    string       `json:"tenant_id"` // ⚠️ CRITICAL: Multi-tenant isolation
+	TenantID    string       `json:"tenant_id"` // CRITICAL: Multi-tenant isolation
 	StudentID   string       `json:"student_id"`
 	Title       string       `json:"title"`
 	Description string       `json:"description,omitempty"`

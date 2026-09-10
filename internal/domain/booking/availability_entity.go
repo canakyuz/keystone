@@ -26,7 +26,7 @@ const (
 // Availability represents a time slot availability
 type Availability struct {
 	ID            string                 `json:"id"`
-	TenantID      string                 `json:"tenant_id"` // ⚠️ Multi-tenant isolation
+	TenantID      string                 `json:"tenant_id"` // Multi-tenant isolation
 	UserID        string                 `json:"user_id,omitempty"`
 	Title         string                 `json:"title"`
 	Description   string                 `json:"description,omitempty"`

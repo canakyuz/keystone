@@ -1,11 +1,10 @@
 -- Development Seed Script
 -- Creates founder tenant, founder owner, and sector-specific users+modules
 --
--- 🎓 PRODUCTION GUARD
 -- This script must run ONLY in development and staging environments.
 -- Running it against production is a data safety risk.
 
--- ⚠️ GUARD: Production environment check
+-- Production environment check
 DO $$
 DECLARE
     v_environment TEXT;

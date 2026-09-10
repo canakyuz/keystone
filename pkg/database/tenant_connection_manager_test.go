@@ -100,7 +100,7 @@ func TestSetSearchPath(t *testing.T) {
 	t.Run("search_path set successfully", func(t *testing.T) {
 		schemaName := "tenant_acme"
 
-		// Beklenen SQL komutu
+		// The SQL statement expected to run.
 		expectedSQL := `SET search_path TO "tenant_acme", public`
 
 		// Tell the mock this SQL is expected to run.
@@ -115,14 +115,14 @@ func TestSetSearchPath(t *testing.T) {
 	})
 
 	t.Run("invalid schema name", func(t *testing.T) {
-		// SQL injection denemesi
+		// A SQL injection attempt.
 		schemaName := "tenant_acme; DROP TABLE users;"
 
 		// No mock expectation: validation fails, so no SQL should run at all.
 
 		err := manager.SetSearchPath(context.Background(), schemaName)
 
-		// Validation error bekliyoruz
+		// We expect a validation error.
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "invalid")
 	})
@@ -183,13 +183,13 @@ func TestExecuteInTenantContext(t *testing.T) {
 		mustExec(t, db, fmt.Sprintf("INSERT INTO %s.marker VALUES (%d)", pq.QuoteIdentifier(schema), value))
 	}
 
-	t.Run("callback tenant schemasinda calisir", func(t *testing.T) {
+	t.Run("the callback runs in the tenant schema", func(t *testing.T) {
 		var got int
 		err := manager.ExecuteInTenantContext(ctx, "tenant_alpha", func(conn *sql.Conn) error {
 			return conn.QueryRowContext(ctx, "SELECT id FROM marker").Scan(&got)
 		})
 		require.NoError(t, err)
-		assert.Equal(t, 1, got, "alpha semasindaki satir okunmali")
+		assert.Equal(t, 1, got, "the row in the alpha schema should be read")
 	})
 
 	t.Run("farkli tenant farkli veri gorur", func(t *testing.T) {
@@ -198,11 +198,11 @@ func TestExecuteInTenantContext(t *testing.T) {
 			return conn.QueryRowContext(ctx, "SELECT id FROM marker").Scan(&got)
 		})
 		require.NoError(t, err)
-		assert.Equal(t, 2, got, "beta semasindaki satir okunmali")
+		assert.Equal(t, 2, got, "the row in the beta schema should be read")
 	})
 
-	t.Run("callback hatasi yukari tasinir", func(t *testing.T) {
-		sentinel := errors.New("is mantigi hatasi")
+	t.Run("a callback error propagates upward", func(t *testing.T) {
+		sentinel := errors.New("business logic error")
 		err := manager.ExecuteInTenantContext(ctx, "tenant_alpha", func(conn *sql.Conn) error {
 			return sentinel
 		})
@@ -219,13 +219,13 @@ func TestExecuteInTenantContext(t *testing.T) {
 		assert.False(t, called, "gecersiz schema'da callback calistirilmamali")
 	})
 
-	t.Run("islem bitince search_path public'e doner", func(t *testing.T) {
+	t.Run("search_path returns to public when the work is done", func(t *testing.T) {
 		err := manager.ExecuteInTenantContext(ctx, "tenant_alpha", func(conn *sql.Conn) error {
 			return nil
 		})
 		require.NoError(t, err)
 
-		// Havuzdan yeni bir baglanti al ve kirlenmemis oldugunu dogrula.
+		// Take a fresh connection from the pool and verify it is not dirty.
 		var path string
 		require.NoError(t, db.QueryRowContext(ctx, "SHOW search_path").Scan(&path))
 		assert.NotContains(t, path, "tenant_alpha", "search_path havuza sizdi")

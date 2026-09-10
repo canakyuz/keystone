@@ -32,7 +32,7 @@ const (
 // Project represents a portfolio project
 type Project struct {
 	ID           string                 `json:"id"`
-	TenantID     string                 `json:"tenant_id"` // ⚠️ CRITICAL: Multi-tenant isolation
+	TenantID     string                 `json:"tenant_id"` // CRITICAL: Multi-tenant isolation
 	Title        string                 `json:"title"`
 	Slug         string                 `json:"slug"`
 	Description  string                 `json:"description"`

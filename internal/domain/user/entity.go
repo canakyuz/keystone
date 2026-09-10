@@ -30,7 +30,7 @@ const (
 // User represents a user in the system
 type User struct {
 	ID        string     `json:"id"`
-	TenantID  string     `json:"tenant_id"` // ⚠️ CRITICAL: Multi-tenant isolation
+	TenantID  string     `json:"tenant_id"` // CRITICAL: Multi-tenant isolation
 	Email     string     `json:"email"`
 	Password  string     `json:"-"` // Never serialize password
 	FirstName string     `json:"first_name"`

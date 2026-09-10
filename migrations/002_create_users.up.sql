@@ -47,7 +47,7 @@ CREATE TABLE IF NOT EXISTS users (
     CONSTRAINT users_last_name_length CHECK (LENGTH(last_name) >= 1 AND LENGTH(last_name) <= 100)
 );
 
--- ⚠️ CRITICAL: Multi-tenant indexes (tenant_id first for isolation)
+-- CRITICAL: multi-tenant indexes, tenant_id first for isolation.
 CREATE INDEX idx_users_tenant_id ON users(tenant_id) WHERE deleted_at IS NULL;
 CREATE INDEX idx_users_tenant_email ON users(tenant_id, email) WHERE deleted_at IS NULL;
 CREATE INDEX idx_users_tenant_role ON users(tenant_id, role) WHERE deleted_at IS NULL;
@@ -62,7 +62,7 @@ CREATE TRIGGER users_updated_at
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();
 
--- ⚠️ CRITICAL: Row Level Security (RLS) for tenant isolation
+-- CRITICAL: Row Level Security for tenant isolation.
 ALTER TABLE users ENABLE ROW LEVEL SECURITY;
 
 -- Policy: Users can only access their own tenant's data

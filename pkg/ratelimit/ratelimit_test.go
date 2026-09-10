@@ -13,9 +13,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// limiters, ayni davranis sozlesmesini iki uygulamada da sinamak icin kullanilir.
-// Surec ici ve Redis destekli uygulamalarin ayni sekilde davranmasi gerekir;
-// aksi halde yerelde gecen bir davranis uretimde farkli calisir.
+// limiters exercises the same behavioural contract against both implementations. The
+// in-process and Redis-backed limiters must behave identically; otherwise behaviour
+// that passes locally runs differently in production.
 func limiters(t *testing.T) map[string]Limiter {
 	t.Helper()
 
@@ -49,15 +49,15 @@ func dialRedis(t *testing.T) *redis.Client {
 
 var prefixCounter atomic.Uint64
 
-// uniquePrefix, testlerin birbirinin kovasini gormesini engeller.
+// uniquePrefix keeps tests from seeing each other's buckets.
 func uniquePrefix(t *testing.T) string {
 	t.Helper()
 	return "test:rl:" + t.Name() + ":" + time.Now().Format("150405.000") + ":" +
 		string(rune('a'+prefixCounter.Add(1)%26)) + ":"
 }
 
-// TestAllow_BurstThenDeny, kapasite kadar istegin gectigini ve sonrakinin
-// reddedildigini dogrular.
+// TestAllow_BurstThenDeny verifies that capacity-many requests pass and the next one
+// is rejected.
 func TestAllow_BurstThenDeny(t *testing.T) {
 	for name, limiter := range limiters(t) {
 		t.Run(name, func(t *testing.T) {
@@ -81,9 +81,8 @@ func TestAllow_BurstThenDeny(t *testing.T) {
 	}
 }
 
-// TestAllow_KeysAreIsolated, bir anahtarin limitinin digerini etkilemedigini
-// dogrular. Cok kiracili bir sistemde bu, bir tenant'in digerini
-// aclikta birakmasini engeller.
+// TestAllow_KeysAreIsolated verifies one key's limit does not affect another's. In a
+// multi-tenant system this is what keeps one tenant from starving another.
 func TestAllow_KeysAreIsolated(t *testing.T) {
 	for name, limiter := range limiters(t) {
 		t.Run(name, func(t *testing.T) {
@@ -107,12 +106,12 @@ func TestAllow_KeysAreIsolated(t *testing.T) {
 	}
 }
 
-// TestAllow_RefillsOverTime, zaman gectikce hakkin geri geldigini dogrular.
+// TestAllow_RefillsOverTime verifies the allowance comes back as time passes.
 func TestAllow_RefillsOverTime(t *testing.T) {
 	for name, limiter := range limiters(t) {
 		t.Run(name, func(t *testing.T) {
 			ctx := context.Background()
-			// Saniyede 20 token: bir token ~50ms'de dolar.
+			// 20 tokens per second, so one token refills in about 50ms.
 			quota := Quota{Burst: 1, Rate: 20}
 			key := "yenilenen"
 
@@ -128,17 +127,17 @@ func TestAllow_RefillsOverTime(t *testing.T) {
 
 			refilled, err := limiter.Allow(ctx, key, quota)
 			require.NoError(t, err)
-			assert.True(t, refilled.Allowed, "bekleme sonrasi hak geri gelmedi")
+			assert.True(t, refilled.Allowed, "the allowance did not come back after waiting")
 		})
 	}
 }
 
-// TestAllow_ConcurrentDoesNotExceedBurst, esazamanli isteklerin kapasiteyi
-// asmadigini dogrular.
+// TestAllow_ConcurrentDoesNotExceedBurst verifies concurrent requests do not exceed
+// capacity.
 //
-// Bu, "oku, hesapla, yaz" dizisinin atomik olmasini gerektirir. Redis
-// uygulamasinda bunu Lua betigi saglar; ayri komutlarla yazilsaydi iki
-// replika ayni tokeni harcayabilirdi.
+// This requires the "read, compute, write" sequence to be atomic. In the Redis
+// implementation the Lua script provides that; written as separate commands, two
+// replicas could spend the same token.
 func TestAllow_ConcurrentDoesNotExceedBurst(t *testing.T) {
 	for name, limiter := range limiters(t) {
 		t.Run(name, func(t *testing.T) {
@@ -146,7 +145,7 @@ func TestAllow_ConcurrentDoesNotExceedBurst(t *testing.T) {
 			const burst = 20
 			const attempts = 200
 
-			// Rate sifir: test suresince dolum olmasin, sayim kesin olsun.
+			// Rate is zero so nothing refills during the test and the count is exact.
 			quota := Quota{Burst: burst, Rate: 0}
 			key := "eszamanli"
 
@@ -171,7 +170,7 @@ func TestAllow_ConcurrentDoesNotExceedBurst(t *testing.T) {
 	}
 }
 
-// TestPerMinute, dakikalik kotanin beklenen hiza cevrildigini dogrular.
+// TestPerMinute verifies a per-minute quota converts to the expected rate.
 func TestPerMinute(t *testing.T) {
 	quota := PerMinute(120)
 
@@ -179,26 +178,26 @@ func TestPerMinute(t *testing.T) {
 	assert.InDelta(t, 2.0, quota.Rate, 0.0001)
 }
 
-// TestQuota_ZeroBurstDeniesEverything, sifir kotanin her istegi reddettigini
-// dogrular. Askiya alinmis bir tenant icin kullanilabilir.
+// TestQuota_ZeroBurstDeniesEverything verifies a zero quota rejects everything. It is
+// usable for a suspended tenant.
 func TestQuota_ZeroBurstDeniesEverything(t *testing.T) {
 	for name, limiter := range limiters(t) {
 		t.Run(name, func(t *testing.T) {
-			res, err := limiter.Allow(context.Background(), "askida", Quota{Burst: 0})
+			res, err := limiter.Allow(context.Background(), "suspended", Quota{Burst: 0})
 			require.NoError(t, err)
 			assert.False(t, res.Allowed)
 		})
 	}
 }
 
-// TestRedis_FailOpenWhenUnreachable, Redis erisilemedigi zaman varsayilan
-// davranisin istegi gecirmek oldugunu dogrular.
+// TestRedis_FailOpenWhenUnreachable verifies the default behaviour is to let the
+// request through when Redis is unreachable.
 //
-// Gerekce: limitleyici bir kullanilabilirlik araci degil, kotuye kullanim
-// frenidir. Redis dustugunde tum trafigi reddetmek, onlemeye calistigi
-// kesintiyi kendi eliyle yaratir.
+// The reasoning: the limiter is an abuse brake, not an availability tool. Rejecting
+// all traffic when Redis goes down manufactures the very outage it is meant to
+// prevent.
 func TestRedis_FailOpenWhenUnreachable(t *testing.T) {
-	// Kimsenin dinlemedigi bir port.
+	// A port nobody is listening on.
 	client := redis.NewClient(&redis.Options{
 		Addr:        "127.0.0.1:1",
 		DialTimeout: 100 * time.Millisecond,
@@ -210,7 +209,7 @@ func TestRedis_FailOpenWhenUnreachable(t *testing.T) {
 
 	res, err := limiter.Allow(context.Background(), "anahtar", quota)
 
-	assert.Error(t, err, "erisim hatasi bildirilmedi")
+	assert.Error(t, err, "the connection error was not reported")
 	assert.True(t, res.Allowed, "fail-open acikken istek reddedildi")
 
 	limiter.FailOpen = false

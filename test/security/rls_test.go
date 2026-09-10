@@ -55,10 +55,10 @@ func TestUsersTable_RejectsCrossTenantReads(t *testing.T) {
 	_, err := app.ExecContext(ctx, `SET app.current_tenant = '`+tenant1.ID+`'`)
 	require.NoError(t, err)
 
-	t.Run("yalnizca kendi tenant satirlari gorunur", func(t *testing.T) {
+	t.Run("only the tenant's own rows are visible", func(t *testing.T) {
 		var count int
 		require.NoError(t, app.QueryRowContext(ctx, `SELECT count(*) FROM users`).Scan(&count))
-		assert.Equal(t, 1, count, "baska tenant'in kullanicilari da gorunuyor")
+		assert.Equal(t, 1, count, "another tenant's users are visible too")
 	})
 
 	t.Run("diger tenant'in kullanicisi ID ile cekilemez", func(t *testing.T) {
@@ -68,13 +68,13 @@ func TestUsersTable_RejectsCrossTenantReads(t *testing.T) {
 		assert.Error(t, err, "capraz tenant okuma engellenmedi")
 	})
 
-	t.Run("tenant context yoksa hicbir satir gorunmez", func(t *testing.T) {
+	t.Run("no rows are visible without a tenant context", func(t *testing.T) {
 		_, err := app.ExecContext(ctx, `RESET app.current_tenant`)
 		require.NoError(t, err)
 
 		var count int
 		require.NoError(t, app.QueryRowContext(ctx, `SELECT count(*) FROM users`).Scan(&count))
-		assert.Equal(t, 0, count, "context yokken satir gorunuyor: fail-open davranis")
+		assert.Equal(t, 0, count, "rows visible with no context: fail-open behaviour")
 	})
 }
 
@@ -97,7 +97,7 @@ func TestAuthLookup_IsTransactionScoped(t *testing.T) {
 
 	app := helpers.SetupAppRoleDB(t, admin)
 
-	t.Run("bayrak acikken login aramasi calisir", func(t *testing.T) {
+	t.Run("the login lookup works while the flag is set", func(t *testing.T) {
 		tx, err := app.BeginTx(ctx, nil)
 		require.NoError(t, err)
 		defer func() { _ = tx.Rollback() }()

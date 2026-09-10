@@ -121,7 +121,7 @@ func (o *Operation) MarkFailed(code, message string, now time.Time) error {
 	return nil
 }
 
-// transition, durum degisimini dogrular ve uygular.
+// transition validates and applies a state change.
 func (o *Operation) transition(next Status, completedAt *time.Time) error {
 	if !o.CanTransitionTo(next) {
 		return fmt.Errorf("%w: %s -> %s", ErrInvalidTransition, o.Status, next)

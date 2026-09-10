@@ -23,5 +23,5 @@ DROP TABLE IF EXISTS pages CASCADE;
 DROP TABLE IF EXISTS languages CASCADE;
 
 -- ============================================================================
--- Rollback Complete ✅
+-- Rollback complete.
 -- ============================================================================

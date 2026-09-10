@@ -34,7 +34,7 @@ const (
 // Website represents a multi-tenant website entity
 type Website struct {
 	ID          uuid.UUID   `json:"id"`
-	TenantID    uuid.UUID   `json:"tenant_id"` // ⚠️ CRITICAL: Multi-tenant isolation
+	TenantID    uuid.UUID   `json:"tenant_id"` // CRITICAL: Multi-tenant isolation
 	Name        string      `json:"name"`
 	Slug        string      `json:"slug"`
 	Type        WebsiteType `json:"type"`

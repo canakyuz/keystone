@@ -29,7 +29,7 @@ const (
 // Appointment represents a scheduled appointment
 type Appointment struct {
 	ID                 string                 `json:"id"`
-	TenantID           string                 `json:"tenant_id"` // ⚠️ Multi-tenant isolation
+	TenantID           string                 `json:"tenant_id"` // Multi-tenant isolation
 	UserID             string                 `json:"user_id,omitempty"`
 	ClientName         string                 `json:"client_name"`
 	ClientEmail        string                 `json:"client_email"`

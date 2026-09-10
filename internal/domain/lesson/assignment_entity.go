@@ -19,7 +19,7 @@ const (
 // Assignment represents a homework/assignment
 type Assignment struct {
 	ID          string                 `json:"id"`
-	TenantID    string                 `json:"tenant_id"` // ⚠️ CRITICAL: Multi-tenant isolation
+	TenantID    string                 `json:"tenant_id"` // CRITICAL: Multi-tenant isolation
 	StudentID   string                 `json:"student_id"`
 	LessonID    string                 `json:"lesson_id,omitempty"`
 	Title       string                 `json:"title"`

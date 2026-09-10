@@ -124,7 +124,7 @@ func TestGet_ServesFromL1(t *testing.T) {
 // connection error must not turn into a permanent "not found".
 func TestGet_LoaderErrorIsNotCached(t *testing.T) {
 	var calls atomic.Int64
-	boom := errors.New("gecici baglanti hatasi")
+	boom := errors.New("transient connection error")
 	c := New(Config{
 		Loader:      countingLoader(&calls, "", boom),
 		TTL:         time.Minute,
@@ -137,7 +137,7 @@ func TestGet_LoaderErrorIsNotCached(t *testing.T) {
 		assert.ErrorIs(t, err, boom)
 	}
 
-	assert.Equal(t, int64(3), calls.Load(), "gecici hata onbelleklendi")
+	assert.Equal(t, int64(3), calls.Load(), "a transient error was cached")
 	assert.Equal(t, uint64(3), c.Stats().LoaderErrors)
 }
 
@@ -159,7 +159,7 @@ func TestGet_L1Expiry(t *testing.T) {
 	_, err = c.Get(ctx, "tenant-1")
 	require.NoError(t, err)
 
-	assert.Equal(t, int64(2), calls.Load(), "TTL dolmasina ragmen eski deger servis edildi")
+	assert.Equal(t, int64(2), calls.Load(), "the stale value was served although the TTL expired")
 }
 
 // TestInvalidate verifies that an invalidated key is loaded again.
@@ -180,7 +180,7 @@ func TestInvalidate(t *testing.T) {
 	_, err = c.Get(ctx, "tenant-1")
 	require.NoError(t, err)
 
-	assert.Equal(t, int64(2), calls.Load(), "invalidate sonrasi eski deger servis edildi")
+	assert.Equal(t, int64(2), calls.Load(), "the stale value was served after invalidation")
 }
 
 // TestWithJitter verifies that jitter keeps the TTL inside the expected range.

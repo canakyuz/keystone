@@ -32,7 +32,7 @@ func NewProvisioningService(db *sql.DB, templates templateRepo.Repository, log *
 
 // getIsolationStrategy returns the isolation strategy for a subscription plan.
 //
-// 🎓 BACKEND KONSEPT: Plan-Based Multi-Tenancy Strategy
+// # Plan-Based Multi-Tenancy Strategy
 //
 // Isolation Strategies Comparison:
 // ┌─────────────────────┬──────────────┬──────────┬────────────┐
@@ -43,7 +43,7 @@ func NewProvisioningService(db *sql.DB, templates templateRepo.Repository, log *
 // │ Shared + RLS        │ Weak         │ Low      │ Demo/Dev   │
 // └─────────────────────┴──────────────┴──────────┴────────────┘
 //
-// 🎓 GO KONSEPT: Constant Returns (No Complex Logic)
+// Constant Returns (No Complex Logic)
 // It is a plain mapping today. It could read configuration from the database later.
 func (s *ProvisioningService) getIsolationStrategy(plan tenant.SubscriptionPlan) string {
 	switch plan {
@@ -51,7 +51,7 @@ func (s *ProvisioningService) getIsolationStrategy(plan tenant.SubscriptionPlan)
 		return "schema-per-tenant" // Default: Strong isolation, medium cost
 
 	case tenant.PlanEnterprise:
-		// 🎓 FUTURE: Dedicated database for enterprise
+		// Dedicated database for enterprise
 		// Uses schema-per-tenant for now; to be migrated later.
 		return "schema-per-tenant"
 
@@ -110,7 +110,6 @@ func (s *ProvisioningService) ProvisionTenantSchema(ctx context.Context, t *tena
 		return fmt.Errorf("failed to set tenant search_path: %w", err)
 	}
 
-	// 🎓 PLAN-TO-ISOLATION MAPPING
 	//
 	// Multi-Tenant Isolation Strategies:
 	// 1. Schema-per-tenant (current): a separate PostgreSQL schema per tenant.

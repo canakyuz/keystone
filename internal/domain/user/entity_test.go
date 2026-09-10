@@ -212,7 +212,7 @@ func TestUserRole_Validation(t *testing.T) {
 	}
 }
 
-// 🎓 ADDITIONAL COVERAGE TESTS: Missing method coverage
+// Missing method coverage
 
 func TestUser_IsPending(t *testing.T) {
 	user, err := New("tenant-001", "test@example.com", "SecurePass123!", "John", "Doe", RoleAdmin)

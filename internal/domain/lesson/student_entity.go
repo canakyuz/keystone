@@ -28,7 +28,7 @@ const (
 // Student represents a student entity
 type Student struct {
 	ID          string        `json:"id"`
-	TenantID    string        `json:"tenant_id"` // ⚠️ CRITICAL: Multi-tenant isolation
+	TenantID    string        `json:"tenant_id"` // CRITICAL: Multi-tenant isolation
 	FirstName   string        `json:"first_name"`
 	LastName    string        `json:"last_name"`
 	Email       string        `json:"email"`

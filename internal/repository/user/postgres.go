@@ -335,12 +335,12 @@ func (r *PostgresRepository) Delete(ctx context.Context, tenantID, userID string
 		return fmt.Errorf("tenant schema not found in context")
 	}
 
-	// Soft delete: satir silinmez, deleted_at damgalanir.
-	// Sema bu kolon uzerine partial index tanimliyor
-	// (idx_users_tenant_id ... WHERE deleted_at IS NULL); okuma sorgulari da
-	// ayni yuklemi tasidigi icin index'ler artik gercekten kullanilabiliyor.
-	// Onceki hali yalnizca status = 'inactive' yaziyordu; bu, silinmis kullanici
-	// ile mesru sekilde pasiflestirilmis kullaniciyi ayirt edilemez kiliyordu.
+	// Soft delete: the row is not removed, deleted_at is stamped.
+	// The schema defines a partial index on this column
+	// (idx_users_tenant_id ... WHERE deleted_at IS NULL); because the read queries carry
+	// the same predicate, those indexes are now genuinely usable.
+	// The previous version only wrote status = 'inactive', which made a deleted user
+	// indistinguishable from one legitimately deactivated.
 	query := `
 		UPDATE users
 		SET deleted_at = NOW(), status = 'inactive'

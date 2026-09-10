@@ -18,11 +18,11 @@ import (
 	oprepo "github.com/canakyuz/keystone/internal/repository/operation"
 )
 
-// stubStore, HTTP katmaninin davranisini yalitmak icin kullanilir.
+// stubStore isolates the behaviour of the HTTP layer.
 //
-// Veritabani garantileri burada sinanmaz; onlar
-// internal/repository/operation testlerinde gercek PostgreSQL'e karsi
-// dogrulanir. Burada sinanan sey durum kodu, baslik ve hata eslemesi.
+// The database guarantees are not tested here; those are verified against real
+// PostgreSQL in the internal/repository/operation tests. What is under test here is
+// the status code, the headers and the error mapping.
 type stubStore struct {
 	result *oprepo.ProvisionResult
 	op     *domain.Operation
@@ -97,10 +97,10 @@ func decode(t *testing.T, r io.Reader) map[string]any {
 
 const validBody = `{"name":"Acme","slug":"acme","email":"acme@example.com"}`
 
-// TestCreateTenant_Returns202WithLocation, isin kabul edildigini ve
-// operasyon adresinin verildigini dogrular.
+// TestCreateTenant_Returns202WithLocation verifies the work is accepted and the
+// operation address is handed back.
 //
-// 201 Created donmek yanlis olurdu: tenant henuz kullanilabilir degil.
+// Returning 201 Created would be wrong: the tenant is not usable yet.
 func TestCreateTenant_Returns202WithLocation(t *testing.T) {
 	op := sampleOperation()
 	store := &stubStore{result: &oprepo.ProvisionResult{Operation: op, TenantID: op.TenantID}}
@@ -118,11 +118,11 @@ func TestCreateTenant_Returns202WithLocation(t *testing.T) {
 	assert.Equal(t, op.TenantID, body["tenant_id"])
 }
 
-// TestCreateTenant_PassesIdempotencyKeyAndScope, anahtarin ve kapsamin
-// depoya iletildigini dogrular.
+// TestCreateTenant_PassesIdempotencyKeyAndScope verifies the key and the scope reach
+// the store.
 //
-// Kapsam ozneye baglanir: bir musterinin anahtari digerinin istegini
-// eslestirmemelidir.
+// The scope is bound to the subject: one customer's key must not match another
+// customer's request.
 func TestCreateTenant_PassesIdempotencyKeyAndScope(t *testing.T) {
 	op := sampleOperation()
 	store := &stubStore{result: &oprepo.ProvisionResult{Operation: op, TenantID: op.TenantID}}
@@ -132,11 +132,11 @@ func TestCreateTenant_PassesIdempotencyKeyAndScope(t *testing.T) {
 
 	assert.Equal(t, "anahtar-2", store.lastRequest.IdempotencyKey, "anahtar kirpilmadi")
 	assert.Equal(t, "subject:subject-1", store.lastRequest.Scope)
-	assert.NotEmpty(t, store.lastRequest.RequestBody, "parmak izi icin govde iletilmedi")
+	assert.NotEmpty(t, store.lastRequest.RequestBody, "the body was not passed through for fingerprinting")
 }
 
-// TestCreateTenant_ReplayIsMarked, tekrarlanan istegin isaretlendigini
-// dogrular. Istemci isteginin yeni bir islem baslatmadigini gorebilmelidir.
+// TestCreateTenant_ReplayIsMarked verifies a repeated request is flagged. The client
+// must be able to see that its request did not start new work.
 func TestCreateTenant_ReplayIsMarked(t *testing.T) {
 	op := sampleOperation()
 	store := &stubStore{result: &oprepo.ProvisionResult{
@@ -151,8 +151,8 @@ func TestCreateTenant_ReplayIsMarked(t *testing.T) {
 	assert.Equal(t, "/api/v1/operations/"+op.ID, resp.Header.Get("Location"))
 }
 
-// TestCreateTenant_IdempotencyConflictReturns409, ayni anahtarin farkli
-// govdeyle kullanilmasinin 409 dondurdugunu dogrular.
+// TestCreateTenant_IdempotencyConflictReturns409 verifies that reusing a key with a
+// different body returns 409.
 func TestCreateTenant_IdempotencyConflictReturns409(t *testing.T) {
 	store := &stubStore{err: domain.ErrIdempotencyConflict}
 
@@ -165,8 +165,7 @@ func TestCreateTenant_IdempotencyConflictReturns409(t *testing.T) {
 	assert.Equal(t, "idempotency_key_reused", body["code"])
 }
 
-// TestCreateTenant_SlugTakenReturns409, kullanimdaki slug'in 409 dondurdugunu
-// dogrular.
+// TestCreateTenant_SlugTakenReturns409 verifies a slug already in use returns 409.
 func TestCreateTenant_SlugTakenReturns409(t *testing.T) {
 	store := &stubStore{err: oprepo.ErrSlugTaken}
 
@@ -179,7 +178,7 @@ func TestCreateTenant_SlugTakenReturns409(t *testing.T) {
 	assert.Equal(t, "slug_taken", body["code"])
 }
 
-// TestCreateTenant_ValidationErrors, eksik alanlarin 400 dondurdugunu dogrular.
+// TestCreateTenant_ValidationErrors verifies missing fields return 400.
 func TestCreateTenant_ValidationErrors(t *testing.T) {
 	cases := map[string]string{
 		"name eksik":  `{"slug":"acme","email":"a@example.com"}`,
@@ -203,8 +202,8 @@ func TestCreateTenant_ValidationErrors(t *testing.T) {
 	}
 }
 
-// TestCreateTenant_RejectsOverlongIdempotencyKey, sinir asan anahtarin
-// veritabani hatasi yerine dogrulama hatasi dondurdugunu dogrular.
+// TestCreateTenant_RejectsOverlongIdempotencyKey verifies an over-long key returns a
+// validation error rather than a database error.
 func TestCreateTenant_RejectsOverlongIdempotencyKey(t *testing.T) {
 	store := &stubStore{result: &oprepo.ProvisionResult{Operation: sampleOperation()}}
 
@@ -218,9 +217,9 @@ func TestCreateTenant_RejectsOverlongIdempotencyKey(t *testing.T) {
 	assert.Equal(t, "idempotency_key_too_long", body["code"])
 }
 
-// TestCreateTenant_WithoutIdempotencyKeyIsAllowed, anahtarsiz istegin kabul
-// edildigini dogrular. Anahtar zorunlu degil; olmadiginda tekrar korumasi
-// uygulanmaz ve bu bilincli bir tercih.
+// TestCreateTenant_WithoutIdempotencyKeyIsAllowed verifies a request without a key is
+// accepted. The key is not mandatory; without it no replay protection applies, and
+// that is a deliberate choice.
 func TestCreateTenant_WithoutIdempotencyKeyIsAllowed(t *testing.T) {
 	op := sampleOperation()
 	store := &stubStore{result: &oprepo.ProvisionResult{Operation: op, TenantID: op.TenantID}}
@@ -232,8 +231,7 @@ func TestCreateTenant_WithoutIdempotencyKeyIsAllowed(t *testing.T) {
 	assert.Empty(t, store.lastRequest.IdempotencyKey)
 }
 
-// TestGetOperation_ReturnsStatus, operasyon durumunun sorgulanabildigini
-// dogrular.
+// TestGetOperation_ReturnsStatus verifies the operation status can be polled.
 func TestGetOperation_ReturnsStatus(t *testing.T) {
 	completed := time.Date(2026, 9, 7, 12, 5, 0, 0, time.UTC)
 	op := sampleOperation()
@@ -253,8 +251,7 @@ func TestGetOperation_ReturnsStatus(t *testing.T) {
 	assert.Equal(t, "2026-09-07T12:05:00Z", body["completed_at"])
 }
 
-// TestGetOperation_NotFoundReturns404, olmayan operasyonun 404 dondurdugunu
-// dogrular.
+// TestGetOperation_NotFoundReturns404 verifies a missing operation returns 404.
 func TestGetOperation_NotFoundReturns404(t *testing.T) {
 	app := newApp(&stubStore{err: domain.ErrNotFound})
 

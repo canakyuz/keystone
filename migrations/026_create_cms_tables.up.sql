@@ -305,5 +305,5 @@ COMMENT ON COLUMN components.order_index IS 'Ordering, 0-indexed, auto-reorder o
 COMMENT ON TABLE languages IS 'Aktif diller ve metadata';
 
 -- ============================================================================
--- Migration Complete ✅
+-- Migration complete.
 -- ============================================================================

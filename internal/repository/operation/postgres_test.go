@@ -18,7 +18,7 @@ import (
 
 const leaseDuration = 30 * time.Second
 
-// setup, gercek veritabani ve bir test tenant'i hazirlar.
+// setup prepares a real database and one test tenant.
 func setup(t *testing.T) (*Repository, *sql.DB, string) {
 	t.Helper()
 
@@ -43,11 +43,11 @@ func createRequest(tenantID, key string, body []byte) CreateRequest {
 	}
 }
 
-// TestCreate_WritesOperationAndJobAtomically, operasyon ve isin birlikte
-// olustugunu dogrular.
+// TestCreate_WritesOperationAndJobAtomically verifies the operation and the job are
+// created together.
 //
-// Ikisi ayri yazilsaydi, aralarinda surec kapandiginda kullaniciya "islemde"
-// gorunen ama hicbir worker'in almayacagi bir kayit kalirdi.
+// Written separately, a crash in between would leave a record that looks "in
+// progress" to the user but that no worker will ever pick up.
 func TestCreate_WritesOperationAndJobAtomically(t *testing.T) {
 	repo, db, tenantID := setup(t)
 	ctx := context.Background()
@@ -67,11 +67,11 @@ func TestCreate_WritesOperationAndJobAtomically(t *testing.T) {
 	assert.Equal(t, 1, jobCount, "operasyon var ama isi yok")
 }
 
-// TestCreate_SameKeySameBodyReplays, yinelenen istegin yeni bir islem
-// yaratmadigini dogrular.
+// TestCreate_SameKeySameBodyReplays verifies a duplicate request does not create new
+// work.
 //
-// Failure scenario: the transaction committed but the HTTP response never reached
-// ulasmadi. Istemci ayni istegi tekrar gonderir.
+// Failure scenario: the transaction committed but the HTTP response never reached the
+// client. The client sends the same request again.
 func TestCreate_SameKeySameBodyReplays(t *testing.T) {
 	repo, db, tenantID := setup(t)
 	ctx := context.Background()
@@ -83,21 +83,21 @@ func TestCreate_SameKeySameBodyReplays(t *testing.T) {
 	second, err := repo.Create(ctx, createRequest(tenantID, "anahtar-2", body))
 	require.NoError(t, err)
 
-	assert.True(t, second.Replayed, "tekrar eden istek yeni islem yaratti")
+	assert.True(t, second.Replayed, "a repeated request created new work")
 	assert.Equal(t, first.Operation.ID, second.Operation.ID)
 
 	var operationCount int
 	require.NoError(t, db.QueryRow(
 		`SELECT count(*) FROM operations WHERE tenant_id = $1`, tenantID).Scan(&operationCount))
 
-	assert.Equal(t, 1, operationCount, "yinelenen istek ikinci operasyon yaratti")
+	assert.Equal(t, 1, operationCount, "a duplicate request created a second operation")
 }
 
-// TestCreate_SameKeyDifferentBodyConflicts, ayni anahtarin farkli govdeyle
-// kullanilmasinin reddedildigini dogrular.
+// TestCreate_SameKeyDifferentBodyConflicts verifies that reusing a key with a
+// different body is rejected.
 //
-// Sessizce eski sonucu dondurmek istemciyi yanlis yonlendirirdi: gonderdigi
-// istegin islendigini sanirdi.
+// Silently returning the old result would mislead the client: it would believe the
+// request it sent had been processed.
 func TestCreate_SameKeyDifferentBodyConflicts(t *testing.T) {
 	repo, _, tenantID := setup(t)
 	ctx := context.Background()
@@ -110,12 +110,12 @@ func TestCreate_SameKeyDifferentBodyConflicts(t *testing.T) {
 	assert.ErrorIs(t, err, domain.ErrIdempotencyConflict)
 }
 
-// TestCreate_ConcurrentSameKeyProducesOneOperation, ayni anahtarla ayni anda
-// gelen isteklerin tek operasyon urettigini dogrular.
+// TestCreate_ConcurrentSameKeyProducesOneOperation verifies that simultaneous
+// requests with the same key produce a single operation.
 //
-// "Once var mi diye bak, yoksa ekle" dizisi tek basina bunu saglamaz: iki
-// istek kontrolu birlikte gecip iki ayri operasyon yaratabilir. Benzersizligi
-// veritabani kisiti zorlar.
+// The "check whether it exists, insert if not" sequence does not achieve this on its
+// own: two requests can pass the check together and create two operations. The
+// database constraint is what enforces uniqueness.
 func TestCreate_ConcurrentSameKeyProducesOneOperation(t *testing.T) {
 	repo, db, tenantID := setup(t)
 	ctx := context.Background()
@@ -157,11 +157,10 @@ func TestCreate_ConcurrentSameKeyProducesOneOperation(t *testing.T) {
 	assert.Equal(t, 1, operationCount)
 }
 
-// TestClaim_OnlyOneWorkerGetsTheJob, iki worker'in ayni isi devralamadigini
-// dogrular.
+// TestClaim_OnlyOneWorkerGetsTheJob verifies two workers cannot claim the same job.
 //
-// FOR UPDATE SKIP LOCKED olmasaydi ikinci worker birincinin islemini
-// bitirmesini bekler ve kuyruk fiilen tek islemciye duserdi.
+// Without FOR UPDATE SKIP LOCKED the second worker would wait for the first's
+// transaction to finish and the queue would effectively collapse to one processor.
 func TestClaim_OnlyOneWorkerGetsTheJob(t *testing.T) {
 	repo, _, tenantID := setup(t)
 	ctx := context.Background()
@@ -188,11 +187,11 @@ func TestClaim_OnlyOneWorkerGetsTheJob(t *testing.T) {
 	assert.Equal(t, int64(1), claimed.Load(), "ayni is birden fazla worker tarafindan devralindi")
 }
 
-// TestClaim_ExpiredLeaseIsReclaimable, cokmus worker'in isinin devralinabildigini
-// dogrular.
+// TestClaim_ExpiredLeaseIsReclaimable verifies a crashed worker's job can be taken
+// over.
 //
-// Failure scenario: the worker claimed the job and died before starting. A persistent
-// "isleniyor" bayragi kullanilsaydi is sonsuza kadar o bayrakla kalirdi.
+// Failure scenario: the worker claimed the job and died before starting. With a
+// persistent "processing" flag the job would stay stuck behind it forever.
 func TestClaim_ExpiredLeaseIsReclaimable(t *testing.T) {
 	repo, db, tenantID := setup(t)
 	ctx := context.Background()
@@ -203,11 +202,11 @@ func TestClaim_ExpiredLeaseIsReclaimable(t *testing.T) {
 	first, err := repo.Claim(ctx, "worker-coken", leaseDuration)
 	require.NoError(t, err)
 
-	// Ikinci worker, lease gecerliyken devralamaz.
+	// A second worker cannot claim while the lease is valid.
 	_, err = repo.Claim(ctx, "worker-ikinci", leaseDuration)
-	assert.ErrorIs(t, err, ErrNoJob, "gecerli lease'e ragmen is devralindi")
+	assert.ErrorIs(t, err, ErrNoJob, "the job was claimed despite a valid lease")
 
-	// Worker coktu: lease'i gecmise al.
+	// The worker crashed: push the lease into the past.
 	_, err = db.Exec(
 		`UPDATE provisioning_jobs SET lease_expires_at = NOW() - interval '1 second' WHERE id = $1`,
 		first.ID)
@@ -221,12 +220,12 @@ func TestClaim_ExpiredLeaseIsReclaimable(t *testing.T) {
 	assert.Equal(t, "worker-ikinci", second.LeaseOwner)
 }
 
-// TestComplete_StaleWorkerIsRejected, gecikmis worker bildiriminin
-// reddedildigini dogrular.
+// TestComplete_StaleWorkerIsRejected verifies a late report from a worker is
+// rejected.
 //
-// Failure scenario: the old worker lost its lease, then came back and
-// "tamamlandi" bildirdi. Yalnizca lease_owner'a bakmak yetmezdi; eski worker
-// kendi adini bilir ve o kontrolu gecerdi.
+// Failure scenario: the old worker lost its lease, then came back and reported
+// "completed". Checking lease_owner alone would not be enough; the old worker knows
+// its own name and would pass that check.
 func TestComplete_StaleWorkerIsRejected(t *testing.T) {
 	repo, db, tenantID := setup(t)
 	ctx := context.Background()
@@ -234,7 +233,7 @@ func TestComplete_StaleWorkerIsRejected(t *testing.T) {
 	_, err := repo.Create(ctx, createRequest(tenantID, "", []byte(`{}`)))
 	require.NoError(t, err)
 
-	stale, err := repo.Claim(ctx, "worker-eski", leaseDuration)
+	stale, err := repo.Claim(ctx, "worker-old", leaseDuration)
 	require.NoError(t, err)
 
 	_, err = db.Exec(
@@ -242,22 +241,22 @@ func TestComplete_StaleWorkerIsRejected(t *testing.T) {
 		stale.ID)
 	require.NoError(t, err)
 
-	current, err := repo.Claim(ctx, "worker-yeni", leaseDuration)
+	current, err := repo.Claim(ctx, "worker-new", leaseDuration)
 	require.NoError(t, err)
 
-	// Eski worker elindeki fence ile bildirmeye calisir.
-	err = repo.CompleteSuccess(ctx, stale.ID, "worker-eski", stale.Fence, true)
+	// The old worker tries to report with the fence it holds.
+	err = repo.CompleteSuccess(ctx, stale.ID, "worker-old", stale.Fence, true)
 	assert.ErrorIs(t, err, domain.ErrStaleFence, "gecikmis worker bildirimi kabul edildi")
 
-	// Guncel worker bildirebilir.
-	require.NoError(t, repo.CompleteSuccess(ctx, current.ID, "worker-yeni", current.Fence, true))
+	// The current worker can report.
+	require.NoError(t, repo.CompleteSuccess(ctx, current.ID, "worker-new", current.Fence, true))
 }
 
-// TestCompleteSuccess_ActivatesTenantInSameTransaction, tenant aktiflestirme
-// ile operasyon kapatmanin birlikte gerceklestigini dogrular.
+// TestCompleteSuccess_ActivatesTenantInSameTransaction verifies that activating the
+// tenant and closing the operation happen together.
 //
-// Ikisi ayri yazilsaydi, aralarinda surec kapandiginda kullaniciya
-// "tamamlandi" gorunen ama tenant'i aktiflesmemis bir kayit kalabilirdi.
+// Written separately, a crash in between could leave a record that looks "completed"
+// to the user while its tenant was never activated.
 func TestCompleteSuccess_ActivatesTenantInSameTransaction(t *testing.T) {
 	repo, db, tenantID := setup(t)
 	ctx := context.Background()
@@ -283,8 +282,8 @@ func TestCompleteSuccess_ActivatesTenantInSameTransaction(t *testing.T) {
 	assert.Equal(t, "active", tenantStatus, "operasyon tamamlandi ama tenant aktiflesmedi")
 }
 
-// TestCompleteFailure_RetriesUntilExhausted, deneme hakki bitene kadar
-// yeniden denendigini, sonra olu isaretlendigini dogrular.
+// TestCompleteFailure_RetriesUntilExhausted verifies the job is retried until its
+// attempts run out, then marked dead.
 func TestCompleteFailure_RetriesUntilExhausted(t *testing.T) {
 	repo, db, tenantID := setup(t)
 	ctx := context.Background()
@@ -292,12 +291,12 @@ func TestCompleteFailure_RetriesUntilExhausted(t *testing.T) {
 	created, err := repo.Create(ctx, createRequest(tenantID, "", []byte(`{}`)))
 	require.NoError(t, err)
 
-	// MaxAttempts 3: ilk iki basarisizlik yeniden planlanir, ucuncusu olduruur.
+	// MaxAttempts is 3: the first two failures reschedule, the third kills the job.
 	for attempt := 1; attempt <= 3; attempt++ {
 		job, err := repo.Claim(ctx, "worker-1", leaseDuration)
 		require.NoErrorf(t, err, "%d. denemede is devralinamadi", attempt)
 
-		// retryAfter sifir: sonraki deneme hemen alinabilsin.
+		// retryAfter is zero so the next attempt is immediately claimable.
 		require.NoError(t, repo.CompleteFailure(
 			ctx, job.ID, "worker-1", job.Fence, "schema_error", "could not create schema", 0))
 	}
@@ -313,13 +312,13 @@ func TestCompleteFailure_RetriesUntilExhausted(t *testing.T) {
 	assert.Equal(t, domain.StatusFailed, op.Status)
 	assert.Equal(t, "schema_error", op.ErrorCode)
 
-	// Olu is artik devralinamaz.
+	// A dead job can no longer be claimed.
 	_, err = repo.Claim(ctx, "worker-1", leaseDuration)
 	assert.ErrorIs(t, err, ErrNoJob, "olu is devralindi")
 }
 
-// TestRenewLease_RejectsStaleFence, eski worker'in lease uzatarak guncel
-// sahibi kesintiye ugratamadigini dogrular.
+// TestRenewLease_RejectsStaleFence verifies an old worker cannot disrupt the current
+// holder by extending the lease.
 func TestRenewLease_RejectsStaleFence(t *testing.T) {
 	repo, db, tenantID := setup(t)
 	ctx := context.Background()
@@ -327,7 +326,7 @@ func TestRenewLease_RejectsStaleFence(t *testing.T) {
 	_, err := repo.Create(ctx, createRequest(tenantID, "", []byte(`{}`)))
 	require.NoError(t, err)
 
-	stale, err := repo.Claim(ctx, "worker-eski", leaseDuration)
+	stale, err := repo.Claim(ctx, "worker-old", leaseDuration)
 	require.NoError(t, err)
 
 	_, err = db.Exec(
@@ -335,17 +334,16 @@ func TestRenewLease_RejectsStaleFence(t *testing.T) {
 		stale.ID)
 	require.NoError(t, err)
 
-	current, err := repo.Claim(ctx, "worker-yeni", leaseDuration)
+	current, err := repo.Claim(ctx, "worker-new", leaseDuration)
 	require.NoError(t, err)
 
-	err = repo.RenewLease(ctx, stale.ID, "worker-eski", stale.Fence, leaseDuration)
-	assert.ErrorIs(t, err, domain.ErrStaleFence, "eski worker lease uzatabildi")
+	err = repo.RenewLease(ctx, stale.ID, "worker-old", stale.Fence, leaseDuration)
+	assert.ErrorIs(t, err, domain.ErrStaleFence, "the old worker was able to extend the lease")
 
-	require.NoError(t, repo.RenewLease(ctx, current.ID, "worker-yeni", current.Fence, leaseDuration))
+	require.NoError(t, repo.RenewLease(ctx, current.ID, "worker-new", current.Fence, leaseDuration))
 }
 
-// TestGetOperation_NotFound, olmayan operasyonun ErrNotFound dondurdugunu
-// dogrular.
+// TestGetOperation_NotFound verifies a missing operation returns ErrNotFound.
 func TestGetOperation_NotFound(t *testing.T) {
 	repo, _, _ := setup(t)
 

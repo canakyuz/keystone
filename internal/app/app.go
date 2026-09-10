@@ -85,7 +85,7 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 	})
 
 	// Test the Redis connection.
-	// 🎓 GO KONSEPT: context.Background() - root context, no timeout
+	// Root context, no timeout.
 	ctx := context.Background()
 	if err := redisClient.Ping(ctx).Err(); err != nil {
 		log.Printf("redis connection failed: %v (cache disabled, falling back to the database)", err)
@@ -167,7 +167,7 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 	tenantRepository := tenantRepo.NewPostgresRepository(db)
 	tenantConnectionManager := database.NewTenantConnectionManager(db, appLogger)
 
-	// 🎓 TENANT SCHEMA CACHE: Redis + DB fallback cache layer
+	// Tenant schema cache: Redis with a database fallback.
 	// TTL is 10 minutes: a tenant's schema rarely changes.
 	tenantSchemaCache := middleware.NewTenantSchemaCache(redisClient, db, appLogger)
 
@@ -245,7 +245,7 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 	tenantActivationService := registryService.NewTenantActivationService(moduleRepository, toolRepository, tenantModuleRepository, tenantToolRepository, dependencyCheckerService)
 
 	// Tenant context middleware: tenant isolation on every request.
-	// 🎓 CACHE-AWARE: Redis cache kullanarak schema lookup performance optimize edildi
+	// Cache-aware: schema lookups go through the cache rather than the database.
 	//
 	// SECURITY: selecting the tenant through the X-Tenant-ID header is only enabled in
 	// development. In production the verified JWT claim is the only valid source;

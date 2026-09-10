@@ -14,7 +14,6 @@ import (
 	"github.com/canakyuz/keystone/pkg/logger"
 )
 
-// 🎓 INTEGRATION TEST PATTERN
 //
 // Integration tests verify:
 // 1. Multiple components working together
@@ -45,7 +44,7 @@ func (m *mockTemplateRepository) GetTemplateByPlan(ctx context.Context, plan str
 
 // TestGenerateSchemaName tests schema name generation with database function
 func TestGenerateSchemaName(t *testing.T) {
-	// 🎓 TABLE-DRIVEN TESTS: Multiple scenarios in one test
+	// Multiple scenarios in one test
 	tests := []struct {
 		name           string
 		base           string
@@ -83,12 +82,12 @@ func TestGenerateSchemaName(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// 🎓 SETUP: Create mock database
+			// Create mock database
 			db, mock, err := sqlmock.New()
 			require.NoError(t, err, "Failed to create sqlmock")
 			defer db.Close()
 
-			// 🎓 ARRANGE: Setup expectations
+			// Setup expectations
 			if tt.mockError != nil {
 				mock.ExpectQuery("SELECT generate_schema_name").
 					WithArgs(tt.base).
@@ -101,10 +100,10 @@ func TestGenerateSchemaName(t *testing.T) {
 
 			service := NewProvisioningService(db, nil, nil)
 
-			// 🎓 ACT: Execute function
+			// Execute function
 			schema, err := service.GenerateSchemaName(context.Background(), tt.base)
 
-			// 🎓 ASSERT: Verify results
+			// Verify results
 			if tt.expectError {
 				assert.Error(t, err)
 				if tt.errorContains != "" {
@@ -123,7 +122,6 @@ func TestGenerateSchemaName(t *testing.T) {
 
 // TestProvisionTenantSchema_Success tests successful tenant provisioning
 func TestProvisionTenantSchema_Success(t *testing.T) {
-	// 🎓 SETUP
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
@@ -147,7 +145,7 @@ func TestProvisionTenantSchema_Success(t *testing.T) {
 		Status:     tenant.TenantStatusActive,
 	}
 
-	// 🎓 ARRANGE: Transaction expectations
+	// Transaction expectations
 	mock.ExpectBegin()
 
 	// CREATE SCHEMA
@@ -169,17 +167,15 @@ func TestProvisionTenantSchema_Success(t *testing.T) {
 
 	mock.ExpectCommit()
 
-	// 🎓 ACT
 	err = service.ProvisionTenantSchema(context.Background(), testTenant)
 
-	// 🎓 ASSERT
 	assert.NoError(t, err)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
 // TestProvisionTenantSchema_Rollback tests transaction rollback on error
 func TestProvisionTenantSchema_Rollback(t *testing.T) {
-	// 🎓 ROLLBACK SCENARIO: Schema creation fails, transaction rolls back
+	// ROLLBACK SCENARIO: Schema creation fails, transaction rolls back
 
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
@@ -193,7 +189,7 @@ func TestProvisionTenantSchema_Rollback(t *testing.T) {
 		Plan:       tenant.PlanFree,
 	}
 
-	// 🎓 ARRANGE: Transaction starts, then fails
+	// Transaction starts, then fails
 	mock.ExpectBegin()
 
 	// CREATE SCHEMA fails (e.g., schema already exists with different owner)
@@ -203,10 +199,8 @@ func TestProvisionTenantSchema_Rollback(t *testing.T) {
 	// Expect rollback (automatic in defer)
 	mock.ExpectRollback()
 
-	// 🎓 ACT
 	err = service.ProvisionTenantSchema(context.Background(), testTenant)
 
-	// 🎓 ASSERT
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to create tenant schema")
 	assert.NoError(t, mock.ExpectationsWereMet())
@@ -214,7 +208,7 @@ func TestProvisionTenantSchema_Rollback(t *testing.T) {
 
 // TestProvisionTenantSchema_NoTemplate tests provisioning without template
 func TestProvisionTenantSchema_NoTemplate(t *testing.T) {
-	// 🎓 EDGE CASE: Plan has no template, should succeed with empty schema
+	// EDGE CASE: Plan has no template, should succeed with empty schema
 
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
@@ -246,17 +240,15 @@ func TestProvisionTenantSchema_NoTemplate(t *testing.T) {
 		WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectCommit()
 
-	// 🎓 ACT
 	err = service.ProvisionTenantSchema(context.Background(), testTenant)
 
-	// 🎓 ASSERT
 	assert.NoError(t, err, "Should succeed even without template")
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
 // TestProvisionTenantSchema_InvalidSchemaName tests validation
 func TestProvisionTenantSchema_InvalidSchemaName(t *testing.T) {
-	// 🎓 VALIDATION TEST: Invalid schema name should be rejected early
+	// VALIDATION TEST: Invalid schema name should be rejected early
 
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
@@ -312,7 +304,7 @@ func TestProvisionTenantSchema_InvalidSchemaName(t *testing.T) {
 
 // TestGetIsolationStrategy tests plan-to-isolation mapping
 func TestGetIsolationStrategy(t *testing.T) {
-	// 🎓 STRATEGY MAPPING TEST
+	// STRATEGY MAPPING TEST
 
 	service := &ProvisioningService{
 		logger: logger.New(logger.Config{Level: "debug"}),
@@ -339,7 +331,7 @@ func TestGetIsolationStrategy(t *testing.T) {
 
 // TestProvisionTenantSchema_NilTenant tests nil tenant handling
 func TestProvisionTenantSchema_NilTenant(t *testing.T) {
-	// 🎓 NIL CHECK: Defensive programming
+	// NIL CHECK: Defensive programming
 
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
@@ -357,7 +349,7 @@ func TestProvisionTenantSchema_NilTenant(t *testing.T) {
 
 // BenchmarkProvisionTenantSchema benchmarks provisioning performance
 func BenchmarkProvisionTenantSchema(b *testing.B) {
-	// 🎓 PERFORMANCE BENCHMARK
+	// PERFORMANCE BENCHMARK
 
 	db, mock, err := sqlmock.New()
 	require.NoError(b, err)

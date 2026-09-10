@@ -86,7 +86,7 @@ func (h *Handler) CreateTenant(c *fiber.Ctx) error {
 	key := strings.TrimSpace(c.Get("Idempotency-Key"))
 	if len(key) > maxIdempotencyKeyLength {
 		return problem(c, http.StatusBadRequest, "idempotency_key_too_long",
-			fmt.Sprintf("Idempotency-Key en fazla %d karakter olabilir", maxIdempotencyKeyLength))
+			fmt.Sprintf("Idempotency-Key may be at most %d characters", maxIdempotencyKeyLength))
 	}
 
 	result, err := h.store.CreateTenantProvision(c.UserContext(), oprepo.ProvisionRequest{

@@ -59,7 +59,7 @@ func (r *postgresRepo) List(ctx context.Context, tenantID uuid.UUID) ([]*website
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close() // 🎓 RESOURCE CLEANUP: Her zaman defer ile close
+	defer rows.Close()
 
 	var websites []*website.Website
 	for rows.Next() {
@@ -70,7 +70,7 @@ func (r *postgresRepo) List(ctx context.Context, tenantID uuid.UUID) ([]*website
 		websites = append(websites, site)
 	}
 
-	// 🎓 CHECK ITERATION ERROR: rows.Err() kontrol edilmeli
+	// rows.Err() must be checked: iteration can fail after the last Next().
 	if err = rows.Err(); err != nil {
 		return nil, err
 	}
@@ -80,7 +80,7 @@ func (r *postgresRepo) List(ctx context.Context, tenantID uuid.UUID) ([]*website
 
 // GetByID retrieves a website by ID (tenant-scoped)
 //
-// 🎓 SECURITY: Hem ID hem tenant_id ile filtrele (cross-tenant access prevention)
+// Filters on both id and tenant_id, which is what prevents cross-tenant access.
 func (r *postgresRepo) GetByID(ctx context.Context, id, tenantID uuid.UUID) (*website.Website, error) {
 	query := `
 		SELECT
@@ -156,7 +156,7 @@ func (r *postgresRepo) SlugExists(ctx context.Context, slug string) (bool, error
 
 // Create creates a new website
 //
-// 🎓 INSERT PATTERN:
+// Insert pattern:
 //   - RETURNING gives back the generated values (id, timestamps).
 //   - A duplicate key error is caught and mapped to a domain error.
 func (r *postgresRepo) Create(ctx context.Context, site *website.Website) error {
@@ -231,7 +231,7 @@ func (r *postgresRepo) Create(ctx context.Context, site *website.Website) error 
 
 // Update updates an existing website
 //
-// 🎓 UPDATE PATTERN:
+// Update pattern:
 // - SET updated_at = NOW() otomatik
 // - WHERE id AND tenant_id (security)
 //   - RowsAffected() distinguishes "updated" from "not found".
@@ -298,7 +298,7 @@ func (r *postgresRepo) Update(ctx context.Context, site *website.Website) error 
 		return err
 	}
 
-	// 🎓 CHECK AFFECTED ROWS: 0 rows = not found
+	// Zero affected rows means not found.
 	rows, err := result.RowsAffected()
 	if err != nil {
 		return err
@@ -345,7 +345,7 @@ func (r *postgresRepo) Delete(ctx context.Context, id, tenantID uuid.UUID) error
 
 // scanWebsite is a helper function to scan a website from a database row
 //
-// 🎓 SCAN PATTERN:
+// Scan pattern:
 // - Interface ile hem *sql.Row hem *sql.Rows destekle
 //   - NULL values are handled with pointers (*string, *uuid.UUID).
 //   - The scan order must match the SELECT order.

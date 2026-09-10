@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	domain "github.com/canakyuz/keystone/internal/domain/operation"
+	outboxrepo "github.com/canakyuz/keystone/internal/repository/outbox"
 	"github.com/canakyuz/keystone/pkg/tracing"
 	"github.com/canakyuz/keystone/test/helpers"
 )
@@ -435,4 +436,76 @@ func TestClaim_CarriesTheTraceContext(t *testing.T) {
 	assert.Equal(t, "4bf92f3577b34da6a3ce929d0e0e4736",
 		links[0].SpanContext.TraceID().String(),
 		"the link points at a different trace than the request")
+}
+
+// TestCompleteSuccess_EmitsTheEventInTheSameTransaction is rule 8 in INVARIANTS, proved.
+//
+// The rule says an external webhook failure must not roll back a completed provisioning.
+// That holds because the completion never calls a webhook: it writes an event beside the
+// tenant activation, in one transaction, and delivery happens afterwards from committed
+// rows.
+//
+// This asserts the half that matters. If the event could be written outside that
+// transaction, a tenant could go active with nobody ever told, or a notification could
+// go out for work that rolled back. Both are silent, and neither shows up anywhere except
+// in a customer's inbox.
+func TestCompleteSuccess_EmitsTheEventInTheSameTransaction(t *testing.T) {
+	repo, db, tenantID := setup(t)
+	ctx := context.Background()
+
+	var endpointID string
+	require.NoError(t, db.QueryRow(`
+		INSERT INTO tenant_webhook_endpoints (tenant_id, url, secret)
+		VALUES ($1, 'https://receiver.test/hook', 'shhh')
+		RETURNING id`, tenantID).Scan(&endpointID))
+
+	withOutbox := repo.WithOutbox(outboxrepo.New(db))
+
+	created, err := withOutbox.Create(ctx, CreateRequest{
+		TenantID: tenantID,
+		Kind:     domain.KindTenantProvision,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, created.Operation)
+
+	job, err := withOutbox.Claim(ctx, "worker-1", time.Minute)
+	require.NoError(t, err)
+
+	require.NoError(t, withOutbox.CompleteSuccess(ctx, job.ID, "worker-1", job.Fence, true))
+
+	var status string
+	require.NoError(t, db.QueryRow(`SELECT status FROM tenants WHERE id = $1`, tenantID).Scan(&status))
+	require.Equal(t, "active", status, "the tenant was not activated")
+
+	var events int
+	var eventType string
+	require.NoError(t, db.QueryRow(`
+		SELECT count(*), coalesce(max(event_type), '')
+		FROM outbox_events WHERE tenant_id = $1`, tenantID).Scan(&events, &eventType))
+
+	assert.Equal(t, 1, events, "the tenant went active without an event being recorded")
+	assert.Equal(t, "tenant.provisioned", eventType)
+}
+
+// TestCompleteSuccess_WithoutAnOutboxStillProvisions verifies notifications are optional.
+//
+// Losing notifications is bad; refusing to provision a tenant because notifications are
+// not configured is worse. A repository built without an outbox does the work and emits
+// nothing.
+func TestCompleteSuccess_WithoutAnOutboxStillProvisions(t *testing.T) {
+	repo, db, tenantID := setup(t)
+	ctx := context.Background()
+
+	created, err := repo.Create(ctx, CreateRequest{TenantID: tenantID, Kind: domain.KindTenantProvision})
+	require.NoError(t, err)
+	require.NotNil(t, created.Operation)
+
+	job, err := repo.Claim(ctx, "worker-1", time.Minute)
+	require.NoError(t, err)
+
+	require.NoError(t, repo.CompleteSuccess(ctx, job.ID, "worker-1", job.Fence, true))
+
+	var status string
+	require.NoError(t, db.QueryRow(`SELECT status FROM tenants WHERE id = $1`, tenantID).Scan(&status))
+	assert.Equal(t, "active", status)
 }

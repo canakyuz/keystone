@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
 
@@ -26,6 +27,7 @@ import (
 
 	"github.com/canakyuz/keystone/internal/config"
 	operationRepo "github.com/canakyuz/keystone/internal/repository/operation"
+	outboxRepo "github.com/canakyuz/keystone/internal/repository/outbox"
 	templateRepo "github.com/canakyuz/keystone/internal/repository/template"
 	tenantRepo "github.com/canakyuz/keystone/internal/repository/tenant"
 	tenantUsecase "github.com/canakyuz/keystone/internal/usecase/tenant"
@@ -64,7 +66,11 @@ func run() error {
 	// with several instances running it is visible which job is where.
 	workerID := workerIdentity()
 
-	operations := operationRepo.New(db)
+	outbox := outboxRepo.New(db)
+
+	// The operations repository emits notifications in the transaction that completes a
+	// job; see internal/repository/operation. Delivery is a separate loop below.
+	operations := operationRepo.New(db).WithOutbox(outbox)
 	tenants := tenantRepo.NewPostgresRepository(db)
 	provisioner := tenantUsecase.NewProvisioningService(db, templateRepo.NewFileSystemRepository("templates/tenants"), log)
 
@@ -112,10 +118,32 @@ func run() error {
 		"shutdown_grace": cfgWorker.ShutdownGrace.String(),
 	}).Info("worker started")
 
+	// The delivery loop runs beside the provisioning loop in this process.
+	//
+	// Beside, not inside: they claim from different tables at different rates, and a
+	// backlog of webhook retries must not delay a tenant being provisioned. Splitting
+	// them into separate processes later needs no code change, only a flag — which is the
+	// reason they are separate loops rather than one.
+	outboxCfg := worker.DefaultOutboxConfig(workerID)
+	outboxCfg.Metrics = metricsRegistry
+	outboxWorker := worker.NewOutbox(outboxCfg, outbox, nil, log)
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+
+		if err := outboxWorker.Run(ctx); err != nil {
+			log.WithFields(logger.Fields{"error": err.Error()}).Warn("outbox worker stopped")
+		}
+	}()
+
 	// Run continues until ctx is cancelled. Shutdown order: claiming stops, running
 	// jobs get a bounded grace period, and are cancelled when it expires. Jobs that
 	// cannot finish are taken over once their lease expires.
 	err = provisionerWorker.Run(ctx)
+
+	wg.Wait()
 
 	log.Info("worker stopped")
 

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	domain "github.com/canakyuz/keystone/internal/domain/operation"
+	outboxrepo "github.com/canakyuz/keystone/internal/repository/outbox"
 )
 
 // ErrNoJob reports that no claimable job exists.
@@ -151,6 +152,33 @@ func (r *Repository) CompleteSuccess(
 			WHERE id = $1 AND deleted_at IS NULL`, tenantID)
 		if err != nil {
 			return fmt.Errorf("could not activate tenant: %w", err)
+		}
+
+		// The notification is written here, in the transaction that activates the tenant.
+		//
+		// That placement is the whole of the outbox pattern and the reason rule 8 in
+		// INVARIANTS can now be met. Either the tenant becomes active and the intent to
+		// notify is recorded, or neither happens. Calling a webhook after this commits
+		// would lose the notification if the process died in between; calling it before
+		// would hold this transaction open for as long as somebody else's server takes,
+		// and roll back a completed provisioning when that server is down.
+		//
+		// Delivery is somebody else's problem now, which is the point: it can be slow, it
+		// can fail, and none of it touches this transaction.
+		if r.outbox != nil {
+			if _, err := r.outbox.AppendTx(ctx, tx, outboxrepo.AppendRequest{
+				TenantID:      tenantID,
+				AggregateType: "tenant",
+				AggregateID:   tenantID,
+				EventType:     "tenant.provisioned",
+				Payload: map[string]string{
+					"event":     "tenant.provisioned",
+					"tenant_id": tenantID,
+					"job_id":    jobID,
+				},
+			}); err != nil {
+				return fmt.Errorf("could not record the provisioning event: %w", err)
+			}
 		}
 
 		return nil

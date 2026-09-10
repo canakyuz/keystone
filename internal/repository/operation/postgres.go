@@ -18,6 +18,7 @@ import (
 	"github.com/lib/pq"
 
 	domain "github.com/canakyuz/keystone/internal/domain/operation"
+	outboxrepo "github.com/canakyuz/keystone/internal/repository/outbox"
 )
 
 // pgUniqueViolation is PostgreSQL's unique violation code.
@@ -32,11 +33,29 @@ const defaultIdempotencyTTL = 24 * time.Hour
 // Repository accesses operation and job records.
 type Repository struct {
 	db *sql.DB
+
+	// outbox appends notifications in the same transaction that completes a job. It may
+	// be nil, in which case no events are emitted and provisioning is unaffected — losing
+	// notifications is bad, refusing to provision because notifications are unconfigured
+	// is worse.
+	outbox *outboxrepo.Repository
 }
 
 // New creates the repository.
 func New(db *sql.DB) *Repository {
 	return &Repository{db: db}
+}
+
+// WithOutbox returns a repository that emits notifications alongside its writes.
+//
+// A separate constructor rather than a required parameter, so the many call sites that do
+// not care about notifications — every test that exercises the state machine, for one —
+// are not forced to supply one.
+func (r *Repository) WithOutbox(outbox *outboxrepo.Repository) *Repository {
+	clone := *r
+	clone.outbox = outbox
+
+	return &clone
 }
 
 // CreateRequest describes a request for a new operation.

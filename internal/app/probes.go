@@ -34,6 +34,15 @@ const probeTimeout = 2 * time.Second
 // The previous implementation had only /health and returned a constant JSON body.
 // Because it answered "ok" even when the database was unreachable, the load balancer
 // kept sending it requests.
+// Both are registered before the global middleware, which in Fiber means none of it runs
+// for them. That is deliberate for a probe and only for a probe: an orchestrator polls
+// these every few seconds forever, so counting them would swamp the request rate, tracing
+// them would make liveness checks the bulk of the trace volume, and rate limiting them
+// would pull a healthy instance out of the pool for answering too often.
+//
+// Nothing else belongs on that side of the middleware. The provisioning endpoints were
+// registered there too, and the effect was that the most important endpoint in the system
+// had no metrics, no traces and no rate limit.
 func registerProbes(app *fiber.App, cfg *config.Config, db *sql.DB, rdb *redis.Client) {
 	app.Get("/health", func(c *fiber.Ctx) error {
 		return c.JSON(fiber.Map{

@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
@@ -54,6 +55,7 @@ import (
 	pkgLogger "github.com/canakyuz/keystone/pkg/logger"
 	"github.com/canakyuz/keystone/pkg/metrics"
 	"github.com/canakyuz/keystone/pkg/ratelimit"
+	"github.com/canakyuz/keystone/pkg/tracing"
 	"github.com/canakyuz/keystone/pkg/validator"
 )
 
@@ -63,6 +65,11 @@ type Application struct {
 	config *config.Config
 	db     *sql.DB
 	app    *fiber.App
+
+	// shutdownTracing flushes buffered spans. Spans are exported in batches, so without
+	// this the last few seconds of a run are lost — which is the window containing
+	// whatever made someone restart the process.
+	shutdownTracing func(context.Context) error
 }
 
 // NewApplication builds and wires an application instance: database, logging,
@@ -121,14 +128,21 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 	// The metrics registry is built before anything that records into it.
 	metricsRegistry := metrics.New()
 
+	// Tracing is installed before the middleware that starts spans. With no endpoint
+	// configured this installs the propagator and a no-op tracer, so an untraced
+	// deployment still forwards a caller's trace context rather than breaking it.
+	shutdownTracing, err := tracing.Init(context.Background(), tracing.Config{
+		Endpoint:    cfg.Tracing.Endpoint,
+		ServiceName: "keystone-api",
+		Environment: cfg.Server.Environment,
+		SampleRatio: cfg.Tracing.SampleRatio,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("could not initialise tracing: %w", err)
+	}
+
 	registerProbes(app, cfg, db, redisClient)
 	registerMetrics(app, metricsRegistry)
-
-	// Tenant provisioning and operation lookup endpoints. These do not use the tenant
-	// context middleware, because the new tenant does not exist yet.
-	operationRepository := operationRepo.New(db)
-	registerOperationRoutes(app, cfg.Auth.JWTSecret,
-		operationHandler.New(operationRepository, appLogger))
 
 	// Global middleware, run for every incoming request.
 	//
@@ -137,6 +151,7 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 	// rejected, is exactly when the dashboards must not disagree with reality.
 	app.Use(recover.New()) // Turns a panic into a 500 instead of a crash.
 	app.Use(middleware.Metrics(metricsRegistry))
+	app.Use(middleware.Tracing("keystone-api"))
 	app.Use(helmet.New()) // Baseline security headers.
 
 	// Structured request logging with a correlation id. The id is taken from the
@@ -179,6 +194,21 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 		Metrics: metricsRegistry,
 		Logger:  appLogger,
 	})
+
+	// Tenant provisioning and operation lookup endpoints.
+	//
+	// Registered here, after the global middleware, so they are traced, counted, logged
+	// and rate limited like everything else. They used to be registered before it, which
+	// in Fiber means the middleware never runs for them: the single most important
+	// endpoint in a control plane was the one with no observability and no rate limit,
+	// and the operation rows it created carried neither a request id nor a trace context.
+	//
+	// What they still do not use is tenantContextMiddleware, which is applied per group
+	// rather than globally. That exemption is the real constraint — the tenant does not
+	// exist yet, so resolving its schema would fail — and it survives this move.
+	operationRepository := operationRepo.New(db)
+	registerOperationRoutes(app, cfg.Auth.JWTSecret,
+		operationHandler.New(operationRepository, appLogger))
 
 	// Note: tenantContextMiddleware is added after authentication, because extracting
 	// tenant_id from the JWT requires the auth middleware to have run first.
@@ -332,9 +362,10 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 
 	// Return the assembled application.
 	return &Application{
-		config: cfg,
-		db:     db,
-		app:    app,
+		shutdownTracing: shutdownTracing,
+		config:          cfg,
+		db:              db,
+		app:             app,
 	}, nil
 }
 
@@ -360,6 +391,15 @@ func (a *Application) Start() error {
 	// Shut the Fiber server down gracefully.
 	if err := a.app.Shutdown(); err != nil {
 		return fmt.Errorf("server shutdown failed: %w", err)
+	}
+
+	// Flush the buffered spans before the process exits.
+	if a.shutdownTracing != nil {
+		flushCtx, cancelFlush := context.WithTimeout(context.Background(), 5*time.Second)
+		if err := a.shutdownTracing(flushCtx); err != nil {
+			log.Printf("could not flush traces: %v", err)
+		}
+		cancelFlush()
 	}
 
 	// Close the database connection.

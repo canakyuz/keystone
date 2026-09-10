@@ -15,10 +15,10 @@ import (
 	"github.com/canakyuz/keystone/pkg/ratelimit"
 )
 
-// planQuotas, abonelik planini dakikalik istek hakkina cevirir.
+// planQuotas maps a subscription plan to a per-minute request allowance.
 //
-// Degerler urun karari olarak burada toplanmistir; koda dagilmis sihirli
-// sayilar yerine tek bir tabloda durur.
+// The values are a product decision, gathered here in one table rather than scattered
+// through the code as magic numbers.
 var planQuotas = map[string]ratelimit.Quota{
 	"free":       ratelimit.PerMinute(60),
 	"starter":    ratelimit.PerMinute(300),
@@ -26,42 +26,41 @@ var planQuotas = map[string]ratelimit.Quota{
 	"enterprise": ratelimit.PerMinute(6_000),
 }
 
-// anonymousQuota, kimlik dogrulamasi yapilmamis istekler icin uygulanir.
-// Tenant bilinmedigi icin anahtar IP'dir ve limit bilincli olarak dardir.
+// anonymousQuota applies to unauthenticated requests. The tenant is unknown, so the
+// key is the IP and the limit is deliberately tight.
 var anonymousQuota = ratelimit.PerMinute(30)
 
-// fallbackQuota, plan cozumlenemediginde uygulanir.
-// En dusuk plan secilir: cozumleme hatasi ucretsiz bir yukseltmeye donusmemeli.
+// fallbackQuota applies when the plan cannot be resolved. The lowest plan is chosen:
+// a resolution failure must not turn into a free upgrade.
 var fallbackQuota = planQuotas["free"]
 
-// RateLimitConfig, limitleyici middleware'ini yapilandirir.
+// RateLimitConfig configures the limiter middleware.
 type RateLimitConfig struct {
-	// Limiter zorunludur.
+	// Limiter is required.
 	Limiter ratelimit.Limiter
 
-	// Plans, tenant_id -> plan cozumlemesi yapar. Nil olabilir; o durumda
-	// tum kimlik dogrulanmis istekler fallbackQuota ile sinirlanir.
+	// Plans resolves tenant_id to a plan. It may be nil, in which case every
+	// authenticated request is limited by fallbackQuota.
 	Plans *TenantPlanCache
 
-	// SkipPaths, limitlemeden muaf yollardir.
-	// The health endpoints must be exempt: a load balancer probe must not be rejected
-	// icin basarisiz olursa saglikli instance havuzdan cikarilir.
+	// SkipPaths are the paths exempt from limiting.
+	// The health endpoints must be exempt: if a load balancer probe is rejected for
+	// hitting the limit, a healthy instance is pulled out of the pool.
 	SkipPaths map[string]bool
 
 	Logger *logger.Logger
 }
 
-// RateLimit, istek limitleyici middleware'ini olusturur.
+// RateLimit builds the rate limiting middleware.
 //
-// Anahtar secimi:
-//   - Kimlik dogrulanmissa tenant_id. Boylece limit kiraci basina uygulanir
-//     ve bir kiracinin trafigi digerini etkilemez.
-//   - Degilse istemci IP'si.
+// Key selection:
+//   - tenant_id when authenticated, so the limit applies per tenant and one tenant's
+//     traffic cannot affect another's.
+//   - The client IP otherwise.
 //
-// Fiber'in yerlesik limiter'i yerine bu kullanilir. Yerlesik olan varsayilan
-// olarak surec ici bir store tutar: uc replikada, replika basina 100 istek
-// ayari gercekte 300 istek demektir. Ayrica plan bazli kota veya kiraci
-// bazli anahtar desteklemez.
+// This replaces Fiber's built-in limiter. The built-in one keeps an in-process store
+// by default: across three replicas, a setting of 100 requests per replica actually
+// means 300. It also supports neither plan-based quotas nor a tenant-based key.
 func RateLimit(cfg RateLimitConfig) fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		if cfg.SkipPaths[c.Path()] {
@@ -88,7 +87,7 @@ func RateLimit(cfg RateLimitConfig) fiber.Handler {
 	}
 }
 
-// resolveKeyAndQuota, istegin hangi anahtar ve kota ile sinirlanacagini belirler.
+// resolveKeyAndQuota decides which key and quota limit a request.
 func resolveKeyAndQuota(c *fiber.Ctx, cfg RateLimitConfig) (string, ratelimit.Quota) {
 	tenantID, ok := c.Locals("tenant_id").(string)
 	if !ok || tenantID == "" {
@@ -98,7 +97,7 @@ func resolveKeyAndQuota(c *fiber.Ctx, cfg RateLimitConfig) (string, ratelimit.Qu
 	return "tenant:" + tenantID, quotaForTenant(c.Context(), cfg, tenantID)
 }
 
-// quotaForTenant, tenant'in planina karsilik gelen kotayi dondurur.
+// quotaForTenant returns the quota matching the tenant's plan.
 func quotaForTenant(ctx context.Context, cfg RateLimitConfig, tenantID string) ratelimit.Quota {
 	if cfg.Plans == nil {
 		return fallbackQuota
@@ -116,14 +115,14 @@ func quotaForTenant(ctx context.Context, cfg RateLimitConfig, tenantID string) r
 	return fallbackQuota
 }
 
-// writeRateLimitHeaders, istemcinin kendini ayarlayabilmesi icin durum bildirir.
-// Bu basliklar olmadan istemciler ancak 429 gorerek ogrenir.
+// writeRateLimitHeaders reports the state so clients can pace themselves. Without
+// these headers a client only finds out by receiving a 429.
 func writeRateLimitHeaders(c *fiber.Ctx, result ratelimit.Result) {
 	c.Set("X-RateLimit-Limit", strconv.Itoa(result.Limit))
 	c.Set("X-RateLimit-Remaining", strconv.Itoa(result.Remaining))
 }
 
-// tooManyRequests, 429 yanitini Retry-After ile birlikte dondurur.
+// tooManyRequests returns the 429 response together with Retry-After.
 func tooManyRequests(c *fiber.Ctx, result ratelimit.Result) error {
 	seconds := int(result.RetryAfter.Seconds())
 	if seconds < 1 {
@@ -140,7 +139,7 @@ func tooManyRequests(c *fiber.Ctx, result ratelimit.Result) error {
 	})
 }
 
-// --- plan onbellegi -------------------------------------------------------
+// --- plan cache -----------------------------------------------------------
 
 const (
 	tenantPlanKeyPrefix = "tenant:plan:"
@@ -149,17 +148,17 @@ const (
 	planNegativeTTL     = 15 * time.Second
 )
 
-// TenantPlanCache, tenant'in abonelik planini onbellekler.
+// TenantPlanCache caches a tenant's subscription plan.
 //
-// Her istekte plan icin veritabanina inmek, limitleyicinin kendisini bir
-// yuk kaynagina cevirirdi. pkg/cache yeniden kullanilir: ayni yigilma
-// korumasi ve negatif onbellekleme burada da gecerlidir.
+// Going to the database for the plan on every request would turn the limiter itself
+// into a source of load. pkg/cache is reused: the same stampede protection and
+// negative caching apply here too.
 type TenantPlanCache struct {
 	db    *sql.DB
 	cache *cache.TwoTier
 }
 
-// NewTenantPlanCache, plan onbellegini kurar. rdb nil olabilir.
+// NewTenantPlanCache builds the plan cache. rdb may be nil.
 func NewTenantPlanCache(rdb *redis.Client, db *sql.DB) *TenantPlanCache {
 	c := &TenantPlanCache{db: db}
 
@@ -181,7 +180,7 @@ func NewTenantPlanCache(rdb *redis.Client, db *sql.DB) *TenantPlanCache {
 	return c
 }
 
-// GetPlan, tenant'in planini dondurur.
+// GetPlan returns the tenant's plan.
 func (c *TenantPlanCache) GetPlan(ctx context.Context, tenantID string) (string, error) {
 	plan, err := c.cache.Get(ctx, tenantID)
 	if errors.Is(err, cache.ErrNotFound) {
@@ -191,12 +190,12 @@ func (c *TenantPlanCache) GetPlan(ctx context.Context, tenantID string) (string,
 	return plan, err
 }
 
-// Invalidate, plan degistiginde cagrilmalidir.
+// Invalidate must be called when a plan changes.
 func (c *TenantPlanCache) Invalidate(ctx context.Context, tenantID string) error {
 	return c.cache.Invalidate(ctx, tenantID)
 }
 
-// loadPlanFromDB, plani asil kaynaktan getirir.
+// loadPlanFromDB fetches the plan from the source of truth.
 func (c *TenantPlanCache) loadPlanFromDB(ctx context.Context, tenantID string) (string, error) {
 	const query = `SELECT plan FROM tenants WHERE id = $1 AND deleted_at IS NULL`
 

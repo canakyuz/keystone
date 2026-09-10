@@ -107,37 +107,36 @@ func TenantContextMiddleware(schemaCache *TenantSchemaCache) fiber.Handler {
 // X-Tenant-ID header or the tenant_id query parameter is permitted.
 //
 // It defaults to false and is only opened by AllowUntrustedTenantSource.
-// Uretimde ASLA acilmamalidir.
+// It must NEVER be enabled in production.
 var allowUntrustedTenantHeader atomic.Bool
 
-// AllowUntrustedTenantSource, yalnizca yerel gelistirme ve testler icin
-// header/query uzerinden tenant secmeyi acar.
+// AllowUntrustedTenantSource enables selecting the tenant through the header or query
+// parameter, for local development and tests only.
 //
-// Bu bir kolaylik degil, bilincli bir guvenlik anahtaridir: acikken kimlik
-// dogrulamasindan gecmis herhangi bir kullanici, baska bir tenant'in kimligini
-// header'a yazarak o tenant'in verisine erisebilir.
+// This is not a convenience, it is a deliberate security switch: while it is on, any
+// authenticated user can reach another tenant's data simply by writing that tenant's
+// id into the header.
 func AllowUntrustedTenantSource(allow bool) {
 	allowUntrustedTenantHeader.Store(allow)
 }
 
-// extractTenantID, request'in hangi tenant adina yapildigini belirler.
+// extractTenantID determines which tenant a request is made on behalf of.
 //
-// GUVENLIK: Tek guvenilir kaynak, AuthMiddleware'in dogrulanmis JWT'den
-// yazdigi c.Locals("tenant_id") degeridir.
+// SECURITY: the only trusted source is the c.Locals("tenant_id") value that
+// AuthMiddleware writes from the verified JWT.
 //
-// Onceki hali c.Locals("user") anahtarini okuyup map[string]interface{}'e
-// cevirmeye calisiyordu. AuthMiddleware boyle bir anahtar hic yazmiyor; claim'i
-// dogrudan c.Locals("tenant_id") olarak koyuyor. Dolayisiyla JWT yolu hicbir
-// zaman calismiyor ve her istek sessizce X-Tenant-ID header'ina dusuyordu.
-// Sonuc: gecerli bir token tasiyan herhangi bir kullanici, header'i degistirerek
-// istedigi tenant'in verisini okuyabiliyordu.
+// The previous version read the c.Locals("user") key and tried to assert it to
+// map[string]interface{}. AuthMiddleware never writes such a key; it puts the claim
+// directly into c.Locals("tenant_id"). So the JWT path never ran and every request
+// silently fell through to the X-Tenant-ID header. The result: any user holding a
+// valid token could read any tenant's data just by changing that header.
 func extractTenantID(c *fiber.Ctx) string {
-	// 1) Dogrulanmis JWT claim'i. Tek guvenilir kaynak.
+	// 1) The verified JWT claim. The only trusted source.
 	if tenantID, ok := c.Locals("tenant_id").(string); ok && tenantID != "" {
 		return tenantID
 	}
 
-	// 2) Header ve query yalnizca acikca izin verildiginde okunur.
+	// 2) The header and query are read only when explicitly permitted.
 	if !allowUntrustedTenantHeader.Load() {
 		return ""
 	}

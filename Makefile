@@ -93,7 +93,7 @@ migrate-status: ## List the migration files
 	@echo ""; echo "Down migrations:"; ls -1 migrations/*.down.sql 2>/dev/null || echo "  None"
 
 # ==============================================================================
-# Test ve Kalite
+# Test and quality
 # ==============================================================================
 test: ## Run the tests
 	go test -v -race ./...
@@ -115,7 +115,7 @@ check: fmt vet lint test ## Run every check
 # ==============================================================================
 clean-all: ## Clean everything
 	rm -rf bin/ coverage.out coverage.html
-migrate-bootstrap: ## Mevcut veritabanini schema_migrations ile esitle
+migrate-bootstrap: ## Reconcile an existing database with schema_migrations
 	@echo "\033[33m⚠  Bootstrap modunda schema_migrations dolduruluyor\033[0m"
 	@APP_ENV=$(APP_ENV) BOOTSTRAP_MIGRATIONS=1 scripts/run_migrations.sh
 	@echo "\033[32m✓ Bootstrap tamamlandi\033[0m"

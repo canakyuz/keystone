@@ -2,10 +2,11 @@ package user
 
 import "fmt"
 
-// Bu dosya, domain entity'sindeki opsiyonel alanlar ile Postgres'in nullable
-// columns in one place.
+// This file gathers the conversion between the domain entity's optional fields and
+// Postgres's nullable columns in one place.
 //
-// NEDEN gerekli: user.User, Avatar / Phone / Timezone / Locale / CreatedBy / UpdatedBy
+// WHY it is needed: user.User holds Avatar / Phone / Timezone / Locale / CreatedBy /
+// UpdatedBy
 // fields as plain strings. On the Postgres side those columns are nullable, and two
 // of them are UUIDs. Passing a plain string straight through caused two bugs:
 //

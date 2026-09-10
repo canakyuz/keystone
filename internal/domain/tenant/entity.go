@@ -11,14 +11,14 @@ import (
 type TenantStatus string
 
 const (
-	// TenantStatusPending, kayit olustu ama kurulum henuz baslamadi.
+	// TenantStatusPending: the record exists but provisioning has not started.
 	TenantStatusPending TenantStatus = "pending"
-	// TenantStatusProvisioning, worker semayi hazirliyor.
-	// Bu durumdaki tenant istek kabul etmez: semasi henuz hazir degildir.
+	// TenantStatusProvisioning: the worker is preparing the schema.
+	// A tenant in this state accepts no requests: its schema is not ready.
 	TenantStatusProvisioning TenantStatus = "provisioning"
-	// TenantStatusFailed, kurulum basarisiz oldu.
-	// TenantStatusInactive'den ayridir: o, calisan bir tenant'in kapatilmasini
-	// anlatir. Ayrim, "kurulum tekrar denenebilir mi?" sorusunu yanitlar.
+	// TenantStatusFailed: provisioning failed.
+	// It is distinct from TenantStatusInactive, which means a working tenant was shut
+	// down. The distinction answers the question "can provisioning be retried?"
 	TenantStatusFailed TenantStatus = "failed"
 
 	TenantStatusActive    TenantStatus = "active"

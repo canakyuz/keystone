@@ -73,7 +73,7 @@ func (r *PostgresRepository) Create(ctx context.Context, u *user.User) error {
 		updatedBy = u.UpdatedBy
 	}
 
-	// 3. TenantConnectionManager ile execute et
+	// 3. Execute through the TenantConnectionManager.
 	return r.tenantConnectionManager.ExecuteInTenantContext(ctx, schema, func(conn *sql.Conn) error {
 		_, err := conn.ExecContext(ctx, query,
 			u.ID, u.TenantID, u.Email, u.Password, u.FirstName, u.LastName, u.Role, u.Status,

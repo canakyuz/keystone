@@ -258,7 +258,7 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 
 	tenantContextMiddleware := middleware.TenantContextMiddleware(tenantSchemaCache)
 
-	// Eski tenant manager (backward compatibility)
+	// The legacy tenant manager, kept for backward compatibility.
 	tenantManager := database.NewTenantManager(db)
 	tenantScopeMiddleware := middleware.TenantScope(tenantRepository, tenantManager)
 
@@ -330,7 +330,7 @@ func (a *Application) Start() error {
 		}
 	}()
 
-	// Kapatma sinyali gelene kadar bekle.
+	// Wait until the shutdown signal arrives.
 	<-quit
 	log.Println("shutting down server")
 

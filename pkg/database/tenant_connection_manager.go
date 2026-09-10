@@ -18,7 +18,7 @@ import (
 // cleared again afterwards.
 type TenantConnectionManager interface {
 	// SetSearchPath activates the given tenant schema.
-	// UYARI: Mutlaka ResetSearchPath ile temizlenmelidir (defer kullan).
+	// WARNING: it must be cleared with ResetSearchPath; use defer.
 	SetSearchPath(ctx context.Context, schemaName string) error
 
 	// ResetSearchPath returns search_path to its default (public). This is a

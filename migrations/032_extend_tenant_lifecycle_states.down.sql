@@ -1,5 +1,5 @@
 -- 032 geri alma.
--- DIKKAT: yeni durumlardaki tenant'lar varsa kisit eklenemez.
+-- WARNING: the constraint cannot be added while tenants sit in the new states.
 ALTER TABLE tenants DROP CONSTRAINT IF EXISTS tenants_status_check;
 
 ALTER TABLE tenants ADD CONSTRAINT tenants_status_check

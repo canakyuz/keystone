@@ -346,7 +346,7 @@ func (r *postgresRepo) Delete(ctx context.Context, id, tenantID uuid.UUID) error
 // scanWebsite is a helper function to scan a website from a database row
 //
 // Scan pattern:
-// - Interface ile hem *sql.Row hem *sql.Rows destekle
+//   - An interface lets this accept both *sql.Row and *sql.Rows.
 //   - NULL values are handled with pointers (*string, *uuid.UUID).
 //   - The scan order must match the SELECT order.
 func scanWebsite(scanner interface {

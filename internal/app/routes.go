@@ -84,7 +84,7 @@ func setupRoutes(
 	//
 	// Second: provisioning is no longer synchronous. The endpoint returns 202 Accepted
 	// and an operation address the client polls. See
-	// internal/app/operations.go ve docs/INVARIANTS.md.
+	// internal/app/operations.go and docs/INVARIANTS.md.
 	tenants.Get("/current", tenantH.GetCurrent)
 	tenants.Get("/stats", tenantH.GetStats)
 	tenants.Get("/slug/:slug", tenantH.GetBySlug)

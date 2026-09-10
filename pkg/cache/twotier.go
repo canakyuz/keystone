@@ -72,7 +72,7 @@ type Config struct {
 	// NegativeTTL is how long a missing key stays cached. Zero disables negative
 	// caching.
 	//
-	// Neden gerekli: bu alan olmadan, var olmayan rastgele anahtarlarla
+	// Why it is needed: without this field, requests carrying random non-existent keys
 	// a flood of requests carrying random ids reaches the source every time. That is
 	// a cheap load-amplification vector.
 	NegativeTTL time.Duration

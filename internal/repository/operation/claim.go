@@ -124,7 +124,7 @@ func (r *Repository) RenewLease(
 // that looks "completed" to the user while its tenant is still not active. The
 // promise made to the user would itself be inconsistent.
 //
-// activateTenant true ise tenant ayni transaction icinde aktife alinir.
+// When activateTenant is true, the tenant is activated in the same transaction.
 func (r *Repository) CompleteSuccess(
 	ctx context.Context, jobID, workerID string, fence int64, activateTenant bool,
 ) error {

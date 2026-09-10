@@ -382,8 +382,8 @@ func BenchmarkProvisionTenantSchema(b *testing.B) {
 // Integration test notes
 //
 // 1. Isolation: every test must run independently.
-// 2. **Cleanup:** defer ile resource cleanup
+// 2. Cleanup: release resources with defer.
 // 3. Expectations: verify every DB call through sqlmock.
 // 4. **Edge Cases:** Nil, empty, invalid inputs test et
 // 5. Rollback: transaction rollback scenarios matter.
-// 6. **Performance:** Benchmark ile performance regression catch et
+// 6. Performance: catch regressions with a benchmark.

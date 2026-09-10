@@ -35,7 +35,7 @@ func (s *Service) Create(ctx context.Context, req *CreateTenantRequest) (*Tenant
 		return nil, err
 	}
 
-	// TODO: SaaS planina gore tenant modul listesini ve payment kurallarini burada hazirla.
+	// TODO: build the tenant's module list and payment rules here, based on the SaaS plan.
 	// Check if slug already exists
 	exists, err := s.repo.ExistsBySlug(ctx, req.Slug)
 	if err != nil {

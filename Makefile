@@ -37,7 +37,7 @@ up: ## Start the services
 	@echo "→ API: http://localhost:8080"
 	@echo "→ Swagger: http://localhost:8080/docs"
 
-down: ## Servisleri durdur
+down: ## Stop the services
 	docker compose down
 
 restart: ## Restart the services
@@ -112,7 +112,7 @@ loadtest: ## Run the load profile against a freshly seeded instance
 test: ## Run the tests
 	go test -v -race ./...
 
-fmt: ## Kod formatla
+fmt: ## Format the code
 	gofmt -s -w .
 	go mod tidy
 
@@ -125,11 +125,11 @@ vet: ## go vet
 check: fmt vet lint test ## Run every check
 
 # ==============================================================================
-# Temizlik
+# Cleanup
 # ==============================================================================
 clean-all: ## Clean everything
 	rm -rf bin/ coverage.out coverage.html
 migrate-bootstrap: ## Reconcile an existing database with schema_migrations
-	@echo "\033[33m⚠  Bootstrap modunda schema_migrations dolduruluyor\033[0m"
+	@echo "\033[33mfilling schema_migrations in bootstrap mode\033[0m"
 	@APP_ENV=$(APP_ENV) BOOTSTRAP_MIGRATIONS=1 scripts/run_migrations.sh
 	@echo "\033[32m✓ Bootstrap tamamlandi\033[0m"

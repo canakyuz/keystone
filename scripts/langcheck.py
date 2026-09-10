@@ -64,7 +64,12 @@ planned programming escalation doesn earlier lowest multiplied nullability retri
 became chargeback cta asc desc tokenized uppercase mastercard screenshot keywords homepage
 deutsch anasayfa baseline godoc oapi codegen onboarding filename normalised sqlmock plaintext
 ffffff int benchmark cardinality etc filesystem optimisation soonest subdomain
-supplies uninstall""".split())
+supplies uninstall diffing binaries datname pgcrypto protobuf startup internet latencies addr grpcurl
+loopback traceparent traceparents grpc allowlist dereference descriptor unrecognised
+admitting hang builtin println stderr unstructured fasthttp rewritten overwritten app
+largest identified debugger noisier oldest emitting authn copies golang alg labelled
+labelling quantile init serialises reconfigures initialisation decoupled ossp bufconn
+roadmap multiplies""".split())
 
 SUFFIXES = ("s", "es", "ed", "d", "ing", "er", "ers", "ly", "tion", "ation", "al", "able", "ible")
 DICTIONARIES = ("/usr/share/dict/words", "/usr/dict/words", "/usr/share/dict/american-english")
@@ -80,6 +85,16 @@ SKIP_LINES = {
 # Comment markers, plus the strings a shell script or Makefile prints. In Go and SQL the
 # prose lives in comments; in a shell script it lives in echo, and a Turkish message
 # printed at the terminal is just as visible to a reader as one in the source.
+# Generated files are skipped. Their comments come from a code generator, not a person,
+# so checking the language of prose nobody in this repository wrote is a category error —
+# and it fails the build whenever a generator's wording happens to trip a marker.
+GENERATED = re.compile(r"^// Code generated .* DO NOT EDIT\.$", re.MULTILINE)
+
+# This file defines the vocabulary it searches for, so it necessarily contains it, and its
+# own comments quote Turkish words as examples. Scanning itself is the one case where a
+# hit means the checker is working rather than that something is wrong.
+SELF = "scripts/langcheck.py"
+
 COMMENT = re.compile(r"(?://|--|#)\s?(.*)$")
 PRINTED = re.compile(r"""["']([^"']{8,})["']""")
 BACKTICKED = re.compile(r"`[^`]*`")
@@ -93,30 +108,51 @@ SENTENCE_PUNCT = re.compile(r"(?<=[A-Za-z])[.,;:!?]+(?=\s|$)")
 CODEISH = re.compile(r"\S*[/._(){}\[\]<>=$%:@|\\]\S*")
 
 
-def is_turkish(token):
-    """Match a marker, or an inflected form of one.
+# The shortest marker allowed to match as a prefix.
+#
+# Turkish is agglutinative, so "zorunlu" appears as "zorunludur" and a prefix rule is
+# needed. Four characters was too short: "sema" (schema) matched the English "semantics"
+# in generated code and failed a build. Five is long enough that the markers in this list
+# no longer prefix an English word.
+MIN_PREFIX = 5
 
-    Turkish is agglutinative: "zorunlu" appears as "zorunludur", "zorunlulugu" and so
-    on. Exact matching against the marker list let "zorunludur" through, so a marker of
-    four characters or more also matches as a prefix.
-    """
+
+def is_turkish(token):
+    """Match a marker, or an inflected form of one."""
     token = token.lower()
     if token in TURKISH_MARKERS:
         return True
-    return any(len(m) >= 4 and token.startswith(m) for m in TURKISH_MARKERS)
+
+    return any(len(m) >= MIN_PREFIX and token.startswith(m) for m in TURKISH_MARKERS)
 
 
 def comment_tokens():
     """Yield (path, line number, raw line, tokens) for every comment in the tree."""
+    # Tracked files, plus files that are new but not ignored.
+    #
+    # Scanning only tracked files is how a failure reached CI: the generated protobuf code
+    # was untracked while this ran locally, became tracked at commit time, and was first
+    # seen by the checker on the build machine. A new file has to be checked before it is
+    # committed, not after.
+    tracked = subprocess.check_output(["git", "ls-files"], text=True).split()
+    untracked = subprocess.check_output(
+        ["git", "ls-files", "--others", "--exclude-standard"], text=True
+    ).split()
+
     files = [
-        f for f in subprocess.check_output(["git", "ls-files"], text=True).split()
+        f for f in dict.fromkeys(tracked + untracked)
         if f.endswith((".go", ".sql", ".yml", ".yaml", ".sh", ".py")) or f == "Makefile"
     ]
     for path in files:
         try:
-            lines = open(path, encoding="utf-8").read().split("\n")
+            content = open(path, encoding="utf-8").read()
         except (OSError, UnicodeDecodeError):
             continue
+
+        if path == SELF or GENERATED.search(content):
+            continue
+
+        lines = content.split("\n")
         for number, line in enumerate(lines, 1):
             if (path, number) in SKIP_LINES:
                 continue

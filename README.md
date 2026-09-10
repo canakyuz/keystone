@@ -416,13 +416,15 @@ PostgreSQL, superusers bypass RLS under all circumstances. Details:
 
 ## Status
 
-The core works: tenant provisioning, durable operations with lease and fencing,
-user management, RLS enforcement, migration runner. The vertical modules (blog,
-booking, lesson, payment) sit in the repository as a reference application,
-showing how features are built on top of the control plane.
+The control plane works: tenant provisioning with durable operations, leases and fencing,
+RLS enforcement verified end to end, a REST and a gRPC surface over the same
+repositories, metrics, tracing, and a migration runner. The vertical modules sit in
+`examples/verticals` as a reference application.
 
-Roadmap: gRPC contracts, transactional outbox, webhook delivery, measured load
-test results. See [docs/ROADMAP.md](docs/ROADMAP.md).
+Open: the transactional outbox and webhook delivery — rules 7 and 8 in
+[docs/INVARIANTS.md](docs/INVARIANTS.md) are still marked "not yet" — a tenant membership
+model, and a load measurement taken somewhere the load generator is not sharing a machine
+with the service. See [docs/ROADMAP.md](docs/ROADMAP.md).
 
 ## License
 

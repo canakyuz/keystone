@@ -1,62 +1,36 @@
 package middleware
 
 import (
-	"strings"
-
 	"github.com/gofiber/fiber/v2"
-	"github.com/golang-jwt/jwt/v5"
+
+	"github.com/canakyuz/keystone/pkg/authn"
 )
 
-// JWTClaims represents JWT token claims
-type JWTClaims struct {
-	UserID   string `json:"user_id"`
-	TenantID string `json:"tenant_id"`
-	Email    string `json:"email"`
-	Role     string `json:"role"`
-	jwt.RegisteredClaims
-}
+// JWTClaims is the verified content of a token.
+//
+// It is an alias rather than a copy: the gRPC interceptor and this middleware must agree
+// on what a token says, and two structs that drift apart is how a transport ends up
+// trusting a field the other one validates. See pkg/authn.
+type JWTClaims = authn.Claims
 
-// AuthMiddleware validates JWT tokens
+// AuthMiddleware validates JWT tokens.
+//
+// The verification itself lives in pkg/authn, shared with the gRPC interceptor. This
+// function is the HTTP half: pull the header out, put the claims into the Fiber context,
+// turn a failure into a status code.
+//
+// The response says only that authentication failed. Distinguishing "no header" from
+// "expired" from "bad signature" tells an unauthenticated caller which of the four they
+// hit, and none of them can act on the difference.
 func AuthMiddleware(jwtSecret string) fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		// Get token from Authorization header
-		authHeader := c.Get("Authorization")
-		if authHeader == "" {
+		claims, err := authn.Verify(c.Get("Authorization"), jwtSecret)
+		if err != nil {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-				"error": "Missing authorization header",
+				"error": "unauthenticated",
 			})
 		}
 
-		// Extract Bearer token
-		parts := strings.Split(authHeader, " ")
-		if len(parts) != 2 || parts[0] != "Bearer" {
-			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-				"error": "Invalid authorization format",
-			})
-		}
-
-		tokenString := parts[1]
-
-		// Parse and validate token
-		token, err := jwt.ParseWithClaims(tokenString, &JWTClaims{}, func(token *jwt.Token) (interface{}, error) {
-			return []byte(jwtSecret), nil
-		})
-
-		if err != nil || !token.Valid {
-			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-				"error": "Invalid or expired token",
-			})
-		}
-
-		// Extract claims
-		claims, ok := token.Claims.(*JWTClaims)
-		if !ok {
-			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-				"error": "Invalid token claims",
-			})
-		}
-
-		// Store claims in context
 		c.Locals("user_id", claims.UserID)
 		c.Locals("tenant_id", claims.TenantID)
 		c.Locals("email", claims.Email)
@@ -66,33 +40,23 @@ func AuthMiddleware(jwtSecret string) fiber.Handler {
 	}
 }
 
-// OptionalAuth validates JWT but doesn't fail if missing
+// OptionalAuth records the caller's identity when they present one, and lets the request
+// through when they do not.
+//
+// It differs from AuthMiddleware only in what it does with a failure. It must not differ
+// in what counts as a failure, which is why both go through pkg/authn: an endpoint that
+// accepted a token the strict path rejects would be a way in.
 func OptionalAuth(jwtSecret string) fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		authHeader := c.Get("Authorization")
-		if authHeader == "" {
+		claims, err := authn.Verify(c.Get("Authorization"), jwtSecret)
+		if err != nil {
 			return c.Next()
 		}
 
-		parts := strings.Split(authHeader, " ")
-		if len(parts) != 2 || parts[0] != "Bearer" {
-			return c.Next()
-		}
-
-		tokenString := parts[1]
-
-		token, err := jwt.ParseWithClaims(tokenString, &JWTClaims{}, func(token *jwt.Token) (interface{}, error) {
-			return []byte(jwtSecret), nil
-		})
-
-		if err == nil && token.Valid {
-			if claims, ok := token.Claims.(*JWTClaims); ok {
-				c.Locals("user_id", claims.UserID)
-				c.Locals("tenant_id", claims.TenantID)
-				c.Locals("email", claims.Email)
-				c.Locals("role", claims.Role)
-			}
-		}
+		c.Locals("user_id", claims.UserID)
+		c.Locals("tenant_id", claims.TenantID)
+		c.Locals("email", claims.Email)
+		c.Locals("role", claims.Role)
 
 		return c.Next()
 	}

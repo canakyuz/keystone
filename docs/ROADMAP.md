@@ -19,7 +19,7 @@ The end state is that all of the following can be verified with a single command
 | Isolation holds from HTTP down to the database | `go test ./test/e2e/` | done |
 | Concurrency is written correctly | `go test -race ./internal/worker/` | done |
 | The performance claim is measured | The measured behaviour section of the README | partial |
-| The service contract is defined | `buf lint` plus a `grpcurl` example | open |
+| The service contract is defined | `buf lint` plus a `grpcurl` example | done |
 
 ---
 
@@ -134,26 +134,28 @@ wrapped, which is a different kind of change from the rest of this phase.
 
 ---
 
-## Phase 2: gRPC and protobuf contracts
+## Done: gRPC and protobuf contracts
 
-**Effort:** 1 week
-**Why:** Job listings ask for REST and gRPC together. A type-safe contract also
-naturally removes a share of the current `interface{}` usage.
+`proto/keystone/v1` defines OperationService and UserService; `buf` lints them and
+generates the Go code, and CI regenerates and diffs it so the committed output cannot
+drift from the definitions. The server runs alongside Fiber on its own port, with an
+interceptor chain in the same order as the HTTP middleware and for the same reasons:
+recovery outermost, observability next so a rejected call is still counted, authentication
+innermost so everything below it can assume a verified tenant.
 
-**Work**
+The verification itself moved to `pkg/authn`, shared by the middleware and the
+interceptor. The roadmap asked for logic shared rather than copied, and this is the part
+where it matters: the escalation this repository already closed once lived exactly here.
 
-1. Tenant, identity and entitlement services under `proto/keystone/v1/`.
-2. Codegen and lint with `buf`. `buf.yaml`, `buf.gen.yaml`, a `buf lint` step in
-   CI.
-3. The gRPC server alongside Fiber, on a separate port.
-4. An interceptor chain: tenant context, auth, logging, panic recovery. These
-   must share logic with the HTTP middleware rather than copying it.
-5. Turn on server reflection and put a `grpcurl` example in the README.
+The finishing condition was that the isolation tests pass over gRPC, not that the codegen
+works. `test/e2e/grpc_isolation_test.go` asserts the same guarantees on this surface,
+including that caller-supplied metadata cannot override the verified token.
 
-**Touches:** new `proto/`, new `internal/grpc/`, `internal/app/app.go`
-
-**Done when:** `buf lint` is clean, `grpcurl -plaintext localhost:9090 list`
-prints the services, and the same isolation tests pass over gRPC too.
+**Not done:** `identity` and `entitlement` services. The original plan listed three
+services; two exist. UserService is there because it is what the isolation tests drive —
+a contract that only proves its own codegen works says nothing about whether the
+guarantee survives a second transport. The other two would be surface without a
+corresponding guarantee to test, so they wait until there is something behind them.
 
 ---
 

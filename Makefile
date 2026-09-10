@@ -95,6 +95,20 @@ migrate-status: ## List the migration files
 # ==============================================================================
 # Test and quality
 # ==============================================================================
+proto: ## Regenerate the protobuf code
+	@buf lint
+	@buf generate
+	@echo "\033[32mDone\033[0m"
+
+proto-lint: ## Lint the protobuf definitions
+	@buf lint
+
+grpc-list: ## List the gRPC services on a running server
+	@grpcurl -plaintext $${GRPC_ADDR:-127.0.0.1:9099} list
+
+loadtest: ## Run the load profile against a freshly seeded instance
+	@scripts/loadtest.sh
+
 test: ## Run the tests
 	go test -v -race ./...
 

@@ -1,0 +1,13 @@
+version: v2
+managed:
+  enabled: true
+  override:
+    - file_option: go_package_prefix
+      value: github.com/canakyuz/keystone/internal/grpc
+plugins:
+  - local: protoc-gen-go
+    out: internal/grpc
+    opt: paths=source_relative
+  - local: protoc-gen-go-grpc
+    out: internal/grpc
+    opt: paths=source_relative

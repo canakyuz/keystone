@@ -60,6 +60,27 @@ jobs:
       - name: language check
         run: python3 scripts/langcheck.py
 
+      - uses: bufbuild/buf-setup-action@v1
+        with:
+          github_token: ${{ github.token }}
+
+      - name: buf lint
+        run: buf lint
+
+      # Generated code is committed, which means it can fall behind the .proto files it
+      # came from. Regenerating and diffing is what turns that from a silent divergence
+      # into a failed build: the contract and the code that implements it are only useful
+      # if they are the same contract.
+      - name: protobuf codegen is in sync
+        run: |
+          go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.35.1
+          go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.5.1
+          buf generate
+          git diff --exit-code -- internal/grpc || {
+            echo "generated code is out of date; run 'buf generate' and commit the result" >&2
+            exit 1
+          }
+
       - name: build
         run: go build ./...
 

@@ -16,6 +16,21 @@ type Config struct {
 	Security SecurityConfig
 	Payment  PaymentConfig
 	Tracing  TracingConfig
+	GRPC     GRPCConfig
+}
+
+// GRPCConfig configures the typed service surface.
+type GRPCConfig struct {
+	// Addr is where the gRPC server listens. Empty disables it, so a deployment that has
+	// no gRPC clients does not open a port it does not use.
+	Addr string
+
+	// Reflection exposes the service descriptors to tools like grpcurl.
+	//
+	// Off unless explicitly enabled. Reflection hands anyone who can reach the port a
+	// complete list of methods and message shapes, which is useful in development and is
+	// a map of the attack surface anywhere else.
+	Reflection bool
 }
 
 // parseFloat reads a ratio from the environment.
@@ -166,6 +181,10 @@ func Load() (*Config, error) {
 			WriteTimeout: parseDuration(getEnv("SERVER_WRITE_TIMEOUT", "30s")),
 			IdleTimeout:  parseDuration(getEnv("SERVER_IDLE_TIMEOUT", "120s")),
 			MetricsAddr:  getEnv("WORKER_METRICS_ADDR", "127.0.0.1:9091"),
+		},
+		GRPC: GRPCConfig{
+			Addr:       getEnv("GRPC_ADDR", ""),
+			Reflection: getEnv("GRPC_REFLECTION", "false") == "true",
 		},
 		Tracing: TracingConfig{
 			Endpoint:    getEnv("OTEL_EXPORTER_OTLP_ENDPOINT", ""),

@@ -17,6 +17,7 @@ import (
 	"github.com/redis/go-redis/v9"
 
 	"github.com/canakyuz/keystone/internal/config"
+	keystonegrpc "github.com/canakyuz/keystone/internal/grpc"
 	authHandler "github.com/canakyuz/keystone/internal/handler/auth"
 	blogHandler "github.com/canakyuz/keystone/internal/handler/blog"
 	bookingHandler "github.com/canakyuz/keystone/internal/handler/booking"
@@ -65,6 +66,9 @@ type Application struct {
 	config *config.Config
 	db     *sql.DB
 	app    *fiber.App
+
+	// grpcServer is nil when no address is configured.
+	grpcServer *keystonegrpc.Server
 
 	// shutdownTracing flushes buffered spans. Spans are exported in batches, so without
 	// this the last few seconds of a run are lost — which is the window containing
@@ -360,8 +364,28 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 		moduleCatalogHTTPHandler, toolCatalogHTTPHandler, activationHTTPHandler,
 		tenantContextMiddleware, tenantScopeMiddleware, planRateLimit)
 
+	// The typed surface runs in this process, on its own port. It calls the same
+	// repositories as the REST handlers, so the guarantees have one implementation and two
+	// ways in; see internal/grpc.
+	var grpcServer *keystonegrpc.Server
+	if cfg.GRPC.Addr != "" {
+		grpcServer = keystonegrpc.New(
+			keystonegrpc.Config{
+				Addr:       cfg.GRPC.Addr,
+				JWTSecret:  cfg.Auth.JWTSecret,
+				Reflection: cfg.GRPC.Reflection,
+			},
+			tenantSchemaCache,
+			keystonegrpc.NewOperationService(operationRepository),
+			keystonegrpc.NewUserService(userRepository),
+			metricsRegistry,
+			appLogger,
+		)
+	}
+
 	// Return the assembled application.
 	return &Application{
+		grpcServer:      grpcServer,
 		shutdownTracing: shutdownTracing,
 		config:          cfg,
 		db:              db,
@@ -374,6 +398,15 @@ func (a *Application) Start() error {
 	// Graceful shutdown: give in-flight requests time to finish when the server stops.
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, os.Interrupt, syscall.SIGTERM) // Listen for interrupt (Ctrl+C) and terminate signals.
+
+	// The gRPC listener binds synchronously, before the HTTP one starts, so a port
+	// already in use is reported at startup rather than swallowed by a goroutine, where it
+	// would leave a process that looks healthy and answers nothing on one of its ports.
+	if a.grpcServer != nil {
+		if err := a.grpcServer.Start(); err != nil {
+			return fmt.Errorf("could not start the grpc server: %w", err)
+		}
+	}
 
 	// Start the server in its own goroutine so the main one is not blocked.
 	go func() {
@@ -391,6 +424,11 @@ func (a *Application) Start() error {
 	// Shut the Fiber server down gracefully.
 	if err := a.app.Shutdown(); err != nil {
 		return fmt.Errorf("server shutdown failed: %w", err)
+	}
+
+	// Drain the gRPC server alongside the HTTP one.
+	if a.grpcServer != nil {
+		a.grpcServer.Stop(10 * time.Second)
 	}
 
 	// Flush the buffered spans before the process exits.

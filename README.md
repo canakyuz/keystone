@@ -240,6 +240,57 @@ OpenTelemetry conventions call for when producer and consumer are decoupled in t
 `X-Trace-ID` comes back on every response, so "this request was slow" turns into a trace
 lookup rather than a guess.
 
+## gRPC
+
+A typed contract runs alongside the REST API, on its own port and in the same process.
+Both surfaces call the same repositories, so idempotency, tenant isolation and the
+operation state machine have one implementation and two ways in. A second implementation
+would be a second set of bugs.
+
+```bash
+GRPC_ADDR=127.0.0.1:9099 GRPC_REFLECTION=true go run ./cmd/server
+
+grpcurl -plaintext 127.0.0.1:9099 list
+# keystone.v1.OperationService
+# keystone.v1.UserService
+
+grpcurl -plaintext -H "authorization: Bearer $TOKEN" \
+  -d '{"limit": 3}' 127.0.0.1:9099 keystone.v1.UserService/ListUsers
+```
+
+Reflection is off by default. It hands anyone who can reach the port a complete list of
+methods and message shapes, which is useful in development and is a map of the attack
+surface anywhere else.
+
+### The verification is shared, not duplicated
+
+`pkg/authn` decides what a token says; the HTTP middleware and the gRPC interceptor are
+the two halves that pull it out of a header or out of metadata and translate a failure
+into a status code. That is not tidiness. The escalation this repository already closed
+once lived exactly here — a tenant read from an untrusted header instead of a verified
+claim — and two copies of that logic would be two chances to make the mistake and one
+place it gets fixed.
+
+`ListUsersRequest` has no tenant field, and that is the design. The tenant comes from the
+verified token; a field the caller controls is a field the caller can change.
+
+### It is held to the same tests
+
+The roadmap's finishing condition for this phase was that the isolation tests pass over
+gRPC, not that the codegen works. `test/e2e/grpc_isolation_test.go` drives the real
+interceptor chain against real PostgreSQL over the non-superuser role, and asserts the
+same things the HTTP tests do: an unauthenticated call is refused, a forged token is
+refused, an unknown tenant is refused, a cross-tenant read returns nothing, and
+caller-supplied metadata cannot override the token.
+
+```bash
+buf lint
+go test ./test/e2e/ -run TestGRPC
+```
+
+CI regenerates the code and diffs it, so the committed output cannot drift from the
+`.proto` files it came from.
+
 ## Health endpoints
 
 Two endpoints, two different questions.

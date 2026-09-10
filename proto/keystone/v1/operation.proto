@@ -1,0 +1,102 @@
+syntax = "proto3";
+
+// Package keystone.v1 is the control plane's typed service contract.
+//
+// WHY a contract at all when there is already a REST API: the REST surface is described
+// by an OpenAPI document that is maintained alongside the handlers, which means it can
+// drift from them. A protobuf definition is compiled into both sides, so a field that
+// changes shape breaks the build rather than the caller.
+//
+// The versioned package is part of that. Adding a field is backward compatible; removing
+// one or changing its type is not, and when that becomes necessary it happens in v2
+// while v1 keeps serving.
+package keystone.v1;
+
+option go_package = "github.com/canakyuz/keystone/internal/grpc/keystonev1;keystonev1";
+
+import "google/protobuf/timestamp.proto";
+
+// OperationService reports on long-running work.
+//
+// It mirrors the REST endpoints rather than replacing them: both call the same
+// repository, so there is one implementation of the guarantees and two ways to reach it.
+service OperationService {
+  // CreateTenant accepts the work of provisioning a tenant.
+  //
+  // It returns as soon as the intent is recorded, like the REST endpoint's 202. The
+  // tenant is not usable when this returns; the caller polls GetOperation.
+  rpc CreateTenant(CreateTenantRequest) returns (CreateTenantResponse);
+
+  // GetOperation returns the current state of an operation.
+  rpc GetOperation(GetOperationRequest) returns (GetOperationResponse);
+}
+
+// OperationStatus is the lifecycle of a unit of work.
+//
+// The UNSPECIFIED zero value is mandatory in proto3 and is not a real state: it is what
+// an older client sees when the server sends a status it does not know about, which is
+// information worth keeping distinguishable from "pending".
+enum OperationStatus {
+  OPERATION_STATUS_UNSPECIFIED = 0;
+  OPERATION_STATUS_PENDING = 1;
+  OPERATION_STATUS_RUNNING = 2;
+  OPERATION_STATUS_SUCCEEDED = 3;
+  OPERATION_STATUS_FAILED = 4;
+}
+
+// Operation is the user-facing record of long-running work.
+message Operation {
+  string id = 1;
+  string tenant_id = 2;
+  string kind = 3;
+  OperationStatus status = 4;
+
+  // The error is split into a machine-readable code and a human-facing message, for the
+  // same reason the database column is: a client that has to branch on message text
+  // breaks the first time the wording is improved.
+  string error_code = 5;
+  string error_message = 6;
+
+  google.protobuf.Timestamp created_at = 7;
+  google.protobuf.Timestamp updated_at = 8;
+
+  // Absent until the operation reaches a terminal state.
+  optional google.protobuf.Timestamp completed_at = 9;
+}
+
+message CreateTenantRequest {
+  string name = 1;
+  string slug = 2;
+  string email = 3;
+  string plan = 4;
+
+  // idempotency_key carries the same guarantee as the REST Idempotency-Key header: the
+  // same key with the same request returns the existing operation, and with a different
+  // request is a conflict. It is optional, and without it a retry starts new work.
+  string idempotency_key = 5;
+}
+
+message CreateTenantResponse {
+  Operation operation = 1;
+
+  // tenant_id is available immediately even though the tenant is not yet usable: the row
+  // exists in the pending state from the moment the request is accepted.
+  string tenant_id = 2;
+
+  // replayed reports that this request matched an idempotency key already seen, so no
+  // new work was started. A client that retried needs to be able to tell.
+  bool replayed = 3;
+}
+
+message GetOperationRequest {
+  string id = 1;
+}
+
+// GetOperationResponse wraps the resource rather than returning it directly.
+//
+// The wrapper looks redundant today and is the convention for a reason: a response can
+// grow a field — a retry hint, a link to the tenant — without changing the shape of
+// Operation itself, which is also embedded in CreateTenantResponse.
+message GetOperationResponse {
+  Operation operation = 1;
+}

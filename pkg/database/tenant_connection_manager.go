@@ -8,6 +8,8 @@ import (
 
 	"github.com/lib/pq"
 
+	"github.com/canakyuz/keystone/pkg/tenantctx"
+
 	"github.com/canakyuz/keystone/pkg/logger"
 )
 
@@ -43,6 +45,13 @@ type TenantConnectionManager interface {
 	// prefer ExecuteInTenantContext.
 	GetConnection(ctx context.Context) (*sql.Conn, error)
 }
+
+// setCurrentTenant sets the session variable the RLS policies read.
+//
+// set_config with is_local=false is used rather than SET LOCAL, because the work runs
+// on a pinned connection outside any transaction. SET LOCAL would be discarded
+// immediately and the policies would still see nothing.
+const setCurrentTenant = `SELECT set_config('app.current_tenant', $1, false)`
 
 // connectionManager is the TenantConnectionManager implementation.
 type connectionManager struct {
@@ -133,7 +142,7 @@ func (m *connectionManager) ExecuteInTenantContext(ctx context.Context, schemaNa
 		return fmt.Errorf("invalid schema name: %w", err)
 	}
 
-	// Pool'dan dedicated connection al
+	// Take a dedicated connection from the pool.
 	conn, err := m.db.Conn(ctx)
 	if err != nil {
 		if m.logger != nil {
@@ -161,6 +170,31 @@ func (m *connectionManager) ExecuteInTenantContext(ctx context.Context, schemaNa
 		return fmt.Errorf("could not set search_path: %w", err)
 	}
 
+	// Set the RLS session variable on the SAME connection.
+	//
+	// WHY this is here and not optional: search_path only decides which schema an
+	// unqualified name resolves to. It has no effect on Row Level Security. The
+	// policies on the shared tables read app.current_tenant, so without this the
+	// application sees the empty set for every RLS-protected table.
+	//
+	// This was invisible for a long time because the repository tests connect as the
+	// superuser, and superusers bypass RLS. Under the non-superuser role SECURITY.md
+	// requires in production, every such read returned nothing. test/e2e is what
+	// surfaced it.
+	//
+	// The value is bound as a parameter, never interpolated.
+	if tenantID := tenantctx.ID(ctx); tenantID != "" {
+		if _, err := conn.ExecContext(ctx, setCurrentTenant, tenantID); err != nil {
+			if m.logger != nil {
+				m.logger.WithFields(logger.Fields{
+					"tenant_id": tenantID,
+					"error":     err.Error(),
+				}).Error("could not set app.current_tenant on connection")
+			}
+			return fmt.Errorf("could not set tenant context: %w", err)
+		}
+	}
+
 	// Clear search_path when the work is done. This one is security-critical.
 	defer func() {
 		// The reset has to happen even if the context was cancelled.
@@ -172,6 +206,17 @@ func (m *connectionManager) ExecuteInTenantContext(ctx context.Context, schemaNa
 					"schema_name": schemaName,
 					"error":       err.Error(),
 				}).Error("could not reset search_path in defer")
+			}
+		}
+
+		// Clear the tenant as well. A connection going back to the pool still carrying
+		// app.current_tenant would let the next request read the previous tenant's rows
+		// if it forgot to set its own.
+		if _, err := conn.ExecContext(resetCtx, setCurrentTenant, ""); err != nil {
+			if m.logger != nil {
+				m.logger.WithFields(logger.Fields{
+					"error": err.Error(),
+				}).Error("could not reset app.current_tenant in defer")
 			}
 		}
 	}()

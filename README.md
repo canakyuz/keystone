@@ -316,6 +316,39 @@ For the promises the system makes, along with the code and tests backing them,
 see [docs/INVARIANTS.md](docs/INVARIANTS.md). A rule with nothing behind it is
 marked "not yet" there rather than being listed as a slogan.
 
+## What is the control plane and what is an example
+
+```
+internal/          the control plane          88 Go files
+  domain/          tenant, operation, user, registry
+  repository/      the same, plus template
+  usecase/         tenant provisioning, users
+  handler/         auth, tenant, operation, user, registry, upload
+  middleware/      auth, tenant context, rate limit, metrics, tracing
+  worker/          job claiming, leases, graceful shutdown
+  grpc/            the typed surface
+pkg/               cache, ratelimit, database, metrics, tracing, authn, tenantctx
+examples/verticals/ a reference application  77 Go files
+  blog, booking, lessons, payments, projects, services, websites
+```
+
+The verticals are a reference application. They are here to show what building on top of
+tenant provisioning and isolation looks like, and they are out of `internal/` so that the
+part of this repository worth reading is not buried under them.
+
+**The dependency runs one way, and the compiler enforces it.** `examples/verticals`
+imports the control plane; `internal/app` does not name a single one of those packages.
+`cmd/server` is the only place that knows about both, and dropping one line there leaves a
+control plane that builds and runs without them.
+
+That is asserted rather than described. `test/architecture` walks the real import graph —
+transitively, because an import three packages deep couples the two just as firmly as a
+direct one — and fails the build if the arrow ever points the wrong way.
+
+```bash
+go test ./test/architecture/
+```
+
 ## Architecture
 
 ```

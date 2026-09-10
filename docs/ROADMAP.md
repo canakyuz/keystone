@@ -34,7 +34,7 @@ Measured 2026-09-10.
 | Packages with tests | 17 | Worker, cache, ratelimit, metrics, RLS, operations, e2e |
 | HTTP-layer end-to-end tests | 10 | Found five defects no other test reached |
 | Decision records | 7 | |
-| Verticals under `internal/domain` | 13 | Core is 4 of them, the rest are noise |
+| Verticals under `internal/domain` | 4 | The rest moved to examples/verticals |
 
 Phases 1 through 4 of the original plan have shifted since it was written. What
 actually got built is recorded below.
@@ -159,26 +159,24 @@ corresponding guarantee to test, so they wait until there is something behind th
 
 ---
 
-## Phase 3: Focus, split out the vertical modules
+## Done: Focus, split out the vertical modules
 
-**Effort:** 3-4 days
-**Why:** Of 170 source files, roughly 15 are the interesting ones. The blog,
-booking, lesson, payment and website modules add volume without adding depth.
-They pull a reviewer's attention away from the core.
+The blog, booking, lesson, payment, project, service and website modules moved to
+`examples/verticals`, taking 77 of the 165 Go files with them. What is left in `internal/`
+is the control plane.
 
-**Why late:** This is a refactor and it touches 111 references inside
-`internal/app/app.go` and `internal/app/routes.go`. Done before the core is
-strong, not much would be left.
+The composition root split with them. `internal/app` builds the control plane and exposes
+an `Extension`; `examples/verticals` has its own `Build` and `Register`; `cmd/server` is
+the only file that names both. Handing the middleware chain over rather than letting an
+extension assemble its own is deliberate: a chain built independently could put
+authentication after the tenant context and reintroduce the escalation this repository
+already closed once.
 
-**Work**
-
-1. Move the vertical modules under `examples/verticals/`.
-2. Split the composition root in two: the core application and the example
-   application. Today a single `app.go` wires everything.
-3. Explain the boundary between core and example clearly in the README.
-
-**Done when:** `go build ./...` is green and the core application comes up
-without the vertical modules.
+The finishing condition was that the core comes up without the verticals. Rather than
+demonstrate it once, `test/architecture` walks the import graph and fails if
+`internal/...` ever reaches `examples/`, transitively. A second test asserts the arrow
+points the other way, because otherwise the first would also pass if the two halves had
+been separated by duplicating the control plane instead of depending on it.
 
 ---
 

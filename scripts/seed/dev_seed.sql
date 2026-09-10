@@ -1,8 +1,20 @@
--- Development Seed Script
+-- Development seed data.
+--
+-- pgcrypto is required: the passwords below are hashed with crypt(). The migrations
+-- install uuid-ossp but never this, so the seed failed on gen_salt until it was added
+-- here.
+--
+-- Kept in step with the schema by hand, which is why it broke twice before: migration
+-- 025 made schema_name NOT NULL and migration 029 renamed password to password_hash,
+-- and neither change reached this file. Both failures were silent at the point of use,
+-- because nothing in the test suite runs this script. If it drifts again, `make
+-- seed-dev` is the thing that reports it.
 -- Creates founder tenant, founder owner, and sector-specific users+modules
 --
 -- This script must run ONLY in development and staging environments.
 -- Running it against production is a data safety risk.
+
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
 -- Production environment check
 DO $$
@@ -31,12 +43,13 @@ DECLARE
     v_schema TEXT;
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM tenants WHERE id = v_tenant_id) THEN
-        INSERT INTO tenants (id, name, slug, email, status, plan, settings, metadata)
+        INSERT INTO tenants (id, name, slug, email, schema_name, status, plan, settings, metadata)
         VALUES (
             v_tenant_id,
             'Dev Academy',
-            'canakyuz',
+            'dev-academy',
             'owner@dev.keystone.local',
+            generate_schema_name('dev-academy'),
             'active',
             'enterprise',
             '{"timezone":"Europe/Istanbul","language":"tr","currency":"TRY"}'::jsonb,
@@ -52,7 +65,7 @@ END $$;
 
 -- 2. Founder owner account
 INSERT INTO users (
-    id, tenant_id, email, password, first_name, last_name,
+    id, tenant_id, email, password_hash, first_name, last_name,
     role, status, email_verified, email_verified_at, metadata
 ) VALUES (
     uuid_generate_v4(),
@@ -76,14 +89,15 @@ DECLARE
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM tenants WHERE id = v_tenant_id) THEN
         INSERT INTO tenants (
-            id, name, slug, email, phone, status, plan,
+            id, name, slug, email, phone, schema_name, status, plan,
             subscription_start, trial_ends_at, settings, metadata
         ) VALUES (
             v_tenant_id,
-            'Dev Academy (Dev)',
-            'canakyuz-dev',
-            'can@akyuz.tech',
-            '+90 555 123 4567',
+            'Dev Workspace',
+            'dev-workspace',
+            'owner@dev.keystone.dev',
+            '+90 555 000 0000',
+            generate_schema_name('dev-workspace'),
             'trial',
             'pro',
             NOW(),
@@ -135,7 +149,7 @@ ON CONFLICT (tenant_id, module_id) DO NOTHING;
 
 -- Sector-specific users for dev tenant
 INSERT INTO users (
-    id, tenant_id, email, password, first_name, last_name,
+    id, tenant_id, email, password_hash, first_name, last_name,
     role, status, email_verified, email_verified_at, metadata
 ) VALUES
     (gen_random_uuid(), 'aaaaaaaa-bbbb-cccc-dddd-000000000001', 'education.admin@dev.keystone.dev', crypt('DevPass123!', gen_salt('bf')), 'Education', 'Admin', 'admin', 'active', TRUE, NOW(), '{"sector":"education","role":"admin"}'::jsonb),

@@ -26,6 +26,7 @@ import (
 	_ "github.com/lib/pq"
 
 	"github.com/canakyuz/keystone/internal/config"
+	auditRepo "github.com/canakyuz/keystone/internal/repository/audit"
 	operationRepo "github.com/canakyuz/keystone/internal/repository/operation"
 	outboxRepo "github.com/canakyuz/keystone/internal/repository/outbox"
 	templateRepo "github.com/canakyuz/keystone/internal/repository/template"
@@ -70,7 +71,7 @@ func run() error {
 
 	// The operations repository emits notifications in the transaction that completes a
 	// job; see internal/repository/operation. Delivery is a separate loop below.
-	operations := operationRepo.New(db).WithOutbox(outbox)
+	operations := operationRepo.New(db).WithOutbox(outbox).WithAudit(auditRepo.New())
 	tenants := tenantRepo.NewPostgresRepository(db)
 	provisioner := tenantUsecase.NewProvisioningService(db, templateRepo.NewFileSystemRepository("templates/tenants"), log)
 

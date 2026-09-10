@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	domain "github.com/canakyuz/keystone/internal/domain/operation"
+	auditrepo "github.com/canakyuz/keystone/internal/repository/audit"
 	outboxrepo "github.com/canakyuz/keystone/internal/repository/outbox"
 	"github.com/canakyuz/keystone/pkg/tracing"
 	"github.com/canakyuz/keystone/test/helpers"
@@ -508,4 +509,82 @@ func TestCompleteSuccess_WithoutAnOutboxStillProvisions(t *testing.T) {
 	var status string
 	require.NoError(t, db.QueryRow(`SELECT status FROM tenants WHERE id = $1`, tenantID).Scan(&status))
 	assert.Equal(t, "active", status)
+}
+
+// TestCompleteSuccess_WritesTheAuditEntryInTheSameTransaction is rule 7 in INVARIANTS.
+//
+// The rule exists because a trail that can disagree with the data is worse than no trail:
+// somebody will eventually trust it. Written after the change, a crash in between leaves
+// a tenant activation nobody can account for; written before, a rollback leaves a record
+// of an activation that never happened.
+func TestCompleteSuccess_WritesTheAuditEntryInTheSameTransaction(t *testing.T) {
+	repo, db, tenantID := setup(t)
+	ctx := context.Background()
+
+	withAudit := repo.WithAudit(auditrepo.New())
+
+	created, err := withAudit.Create(ctx, CreateRequest{TenantID: tenantID, Kind: domain.KindTenantProvision})
+	require.NoError(t, err)
+	require.NotNil(t, created.Operation)
+
+	job, err := withAudit.Claim(ctx, "worker-1", time.Minute)
+	require.NoError(t, err)
+
+	require.NoError(t, withAudit.CompleteSuccess(ctx, job.ID, "worker-1", job.Fence, true))
+
+	var action, actorType string
+	var metadata []byte
+	require.NoError(t, db.QueryRow(`
+		SELECT action, actor_type, metadata FROM audit_log WHERE tenant_id = $1`, tenantID,
+	).Scan(&action, &actorType, &metadata))
+
+	assert.Equal(t, "tenant.activated", action)
+	assert.Equal(t, "system", actorType,
+		"the trail credited a person for a transition a worker performed")
+	assert.Contains(t, string(metadata), job.ID,
+		"the entry cannot be tied back to the job that caused it")
+}
+
+// TestCompleteSuccess_AuditFailureRollsBackTheActivation verifies the two share a fate.
+//
+// This is the half that is easy to get wrong: an audit write that fails quietly, or that
+// is wrapped in its own error handling, leaves the trail and the data disagreeing. If the
+// entry cannot be written, the change it describes must not stand either.
+func TestCompleteSuccess_AuditFailureRollsBackTheActivation(t *testing.T) {
+	repo, db, tenantID := setup(t)
+	ctx := context.Background()
+
+	withAudit := repo.WithAudit(auditrepo.New())
+
+	created, err := withAudit.Create(ctx, CreateRequest{TenantID: tenantID, Kind: domain.KindTenantProvision})
+	require.NoError(t, err)
+	require.NotNil(t, created.Operation)
+
+	job, err := withAudit.Claim(ctx, "worker-1", time.Minute)
+	require.NoError(t, err)
+
+	// The fixture creates tenants already active, which would make the assertion below
+	// pass for the wrong reason. Put it where a real provisioning would have left it.
+	_, err = db.Exec(`UPDATE tenants SET status = 'provisioning' WHERE id = $1`, tenantID)
+	require.NoError(t, err)
+
+	// Make the audit insert fail. A constraint rather than dropping the table, which would
+	// also take out the foreign key the rest of the row needs.
+	_, err = db.Exec(`ALTER TABLE audit_log ADD CONSTRAINT audit_log_reject_everything CHECK (false)`)
+	require.NoError(t, err)
+
+	err = withAudit.CompleteSuccess(ctx, job.ID, "worker-1", job.Fence, true)
+	require.Error(t, err, "the completion succeeded while its audit entry could not be written")
+
+	var status string
+	require.NoError(t, db.QueryRow(`SELECT status FROM tenants WHERE id = $1`, tenantID).Scan(&status))
+	assert.Equal(t, "provisioning", status,
+		"the tenant was activated without an audit entry to account for it")
+
+	// The job must be back where it was too: a partial commit that marked the job done
+	// while leaving the tenant behind would be the same inconsistency seen from the other
+	// side.
+	var jobStatus string
+	require.NoError(t, db.QueryRow(`SELECT status FROM provisioning_jobs WHERE id = $1`, job.ID).Scan(&jobStatus))
+	assert.NotEqual(t, "succeeded", jobStatus, "the job was marked done by a rolled-back transaction")
 }

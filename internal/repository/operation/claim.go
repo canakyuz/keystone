@@ -8,6 +8,7 @@ import (
 	"time"
 
 	domain "github.com/canakyuz/keystone/internal/domain/operation"
+	auditrepo "github.com/canakyuz/keystone/internal/repository/audit"
 	outboxrepo "github.com/canakyuz/keystone/internal/repository/outbox"
 )
 
@@ -163,6 +164,13 @@ func (r *Repository) CompleteSuccess(
 		// would hold this transaction open for as long as somebody else's server takes,
 		// and roll back a completed provisioning when that server is down.
 		//
+		// The trail goes in here too, for the same reason: an audit record that can
+		// disagree with the state it describes is worse than none, because somebody will
+		// trust it.
+		if err := r.appendAudit(ctx, tx, tenantID, jobID, "tenant.activated"); err != nil {
+			return err
+		}
+
 		// Delivery is somebody else's problem now, which is the point: it can be slow, it
 		// can fail, and none of it touches this transaction.
 		if r.outbox != nil {
@@ -182,6 +190,27 @@ func (r *Repository) CompleteSuccess(
 		}
 
 		return nil
+	})
+}
+
+// appendAudit records one state change, if a trail is configured.
+//
+// The actor is the system: this runs in a worker completing a job, not in a request
+// somebody made. Recording the user who originally asked for the provisioning would be a
+// lie about who performed this particular transition, hours later and possibly after
+// several retries.
+func (r *Repository) appendAudit(ctx context.Context, tx *sql.Tx, tenantID, jobID, action string) error {
+	if r.audit == nil {
+		return nil
+	}
+
+	return r.audit.AppendTx(ctx, tx, auditrepo.Entry{
+		TenantID:    tenantID,
+		ActorType:   auditrepo.ActorSystem,
+		Action:      action,
+		SubjectType: "tenant",
+		SubjectID:   tenantID,
+		Metadata:    map[string]any{"job_id": jobID},
 	})
 }
 

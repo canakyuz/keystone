@@ -18,6 +18,7 @@ import (
 	"github.com/lib/pq"
 
 	domain "github.com/canakyuz/keystone/internal/domain/operation"
+	auditrepo "github.com/canakyuz/keystone/internal/repository/audit"
 	outboxrepo "github.com/canakyuz/keystone/internal/repository/outbox"
 )
 
@@ -39,6 +40,10 @@ type Repository struct {
 	// notifications is bad, refusing to provision because notifications are unconfigured
 	// is worse.
 	outbox *outboxrepo.Repository
+
+	// audit appends the trail in that same transaction. Also optional, for the same
+	// reason.
+	audit *auditrepo.Repository
 }
 
 // New creates the repository.
@@ -54,6 +59,14 @@ func New(db *sql.DB) *Repository {
 func (r *Repository) WithOutbox(outbox *outboxrepo.Repository) *Repository {
 	clone := *r
 	clone.outbox = outbox
+
+	return &clone
+}
+
+// WithAudit returns a repository that records the trail alongside its writes.
+func (r *Repository) WithAudit(audit *auditrepo.Repository) *Repository {
+	clone := *r
+	clone.audit = audit
 
 	return &clone
 }

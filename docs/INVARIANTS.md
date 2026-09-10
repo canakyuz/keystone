@@ -164,20 +164,66 @@ does not exist yet.
 
 ## 7. A successful job status and its audit record are kept in the same transaction
 
-**Status:** Not yet
+**Status:** Enforced
 
-The audit table has not been created. Who made which change is currently held
-only in the `operations.created_by` field; there is no separate audit trail.
+Completing a provisioning writes the audit entry into the same transaction that marks the
+job done and activates the tenant. If the entry cannot be written, none of it stands.
+
+A trail that can disagree with the data is worse than no trail, because somebody will
+eventually trust it. Written after the change, a crash in between leaves an activation
+nobody can account for; written before, a rollback leaves a record of an activation that
+never happened.
+
+The actor is recorded as the system rather than as the user who originally requested the
+provisioning. A worker completing a job hours later, possibly after several retries, is
+not that user acting, and saying so would be a lie about who performed the transition.
+
+The table is append-only, and that is enforced by revoking UPDATE and DELETE rather than
+by nobody writing the code. A trail the audited system can edit answers no question worth
+asking.
+
+- Schema: `migrations/036_create_audit_log.up.sql`
+- Code: `internal/repository/audit/postgres.go`, `AppendTx`
+- Code: `internal/repository/operation/claim.go`, `appendAudit`
+- Tests: `TestCompleteSuccess_WritesTheAuditEntryInTheSameTransaction`,
+  `TestCompleteSuccess_AuditFailureRollsBackTheActivation`
+
+**Limit:** only the provisioning path writes to it so far. Tenant suspension, plan
+changes and user role changes all belong in the trail and are not there yet.
 
 ---
 
 ## 8. An external webhook failure does not roll back a completed provisioning
 
-**Status:** Not yet
+**Status:** Enforced
 
-Webhook delivery is not implemented. This rule will be met by a transactional
-outbox once delivery is added: the event is written in the same transaction as
-the business data, and delivery becomes a separate, retryable step.
+Completing a provisioning writes the notification into the same transaction that
+activates the tenant, and delivers nothing. Either both commit or neither does. Delivery
+is a separate loop reading committed rows, so a receiver that is slow, down or angry
+cannot touch the transaction that produced the event.
+
+The obvious alternative fails in both directions. Calling the endpoint inside the
+transaction holds it open for as long as the receiver takes and rolls back completed work
+when the receiver is down. Calling it after the commit loses the notification whenever the
+process dies in between.
+
+- Schema: `migrations/035_create_outbox.up.sql`
+- Code: `internal/repository/operation/claim.go`, `CompleteSuccess`
+- Code: `internal/repository/outbox/postgres.go`, `AppendTx`
+- Code: `internal/worker/outbox.go`
+- Tests: `TestCompleteSuccess_EmitsTheEventInTheSameTransaction`,
+  `TestAppendTx_IsRolledBackWithItsTransaction`,
+  `TestClaim_ConcurrentWorkersNeverShareAnEvent`,
+  `TestMarkFailed_RetriesUntilExhaustedThenDies`
+
+**Limit:** delivery is at-least-once, not exactly-once, which is not available over HTTP.
+A receiver that accepts a request and fails before answering will be sent it again. Each
+delivery carries a stable `Idempotency-Key` — the event id, unchanged across attempts —
+so the receiver can recognise the repeat. Making use of it is the receiver's half of the
+contract.
+
+**Limit:** an endpoint that refuses every attempt goes to a dead-letter state rather than
+being retried forever. Getting it out requires somebody to look at why.
 
 ---
 

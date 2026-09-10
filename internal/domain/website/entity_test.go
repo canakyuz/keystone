@@ -83,7 +83,7 @@ func TestNew_ValidationErrors(t *testing.T) {
 		websiteName  string      // Input: website name
 		slug         string      // Input: slug
 		websiteType  WebsiteType // Input: type
-		expectedErr  error       // Beklenen hata
+		expectedErr  error       // The expected error
 		errorMessage string
 	}{
 		{

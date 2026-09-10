@@ -252,7 +252,7 @@ func TestGetConnection(t *testing.T) {
 	t.Run("cancelled context", func(t *testing.T) {
 		// A context that was already cancelled.
 		ctx, cancel := context.WithCancel(context.Background())
-		cancel() // Hemen iptal et
+		cancel() // Cancel immediately.
 
 		conn, err := manager.GetConnection(ctx)
 

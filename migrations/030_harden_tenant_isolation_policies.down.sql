@@ -1,5 +1,5 @@
--- 030 geri alma: policy'ler onceki (hatali) formlarina donmez;
--- guvenli forma esdeger sade forma indirilir.
+-- 030 rollback: the policies are NOT restored to their previous (broken) forms; they
+-- are reduced to a plain form equivalent to the safe one.
 
 
 DROP POLICY IF EXISTS tenant_isolation_policy ON appointments;

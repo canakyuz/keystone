@@ -232,8 +232,8 @@ func (r *postgresRepo) Create(ctx context.Context, site *website.Website) error 
 // Update updates an existing website
 //
 // Update pattern:
-// - SET updated_at = NOW() otomatik
-// - WHERE id AND tenant_id (security)
+//   - updated_at is set to NOW() automatically.
+//   - The WHERE clause carries both id and tenant_id.
 //   - RowsAffected() distinguishes "updated" from "not found".
 func (r *postgresRepo) Update(ctx context.Context, site *website.Website) error {
 	query := `

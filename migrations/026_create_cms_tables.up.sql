@@ -153,7 +153,7 @@ CREATE TABLE IF NOT EXISTS languages (
     name VARCHAR(50) NOT NULL,                     -- "Türkçe", "English", "Deutsch"
     native_name VARCHAR(50) NOT NULL,              -- "Türkçe", "English", "Deutsch"
     is_default BOOLEAN DEFAULT false,              -- Is it the default language?
-    is_active BOOLEAN DEFAULT true,                -- Aktif mi?
+    is_active BOOLEAN DEFAULT true,                -- Is it enabled?
     flag_emoji VARCHAR(10),                        -- "🇹🇷", "🇬🇧", "🇩🇪"
 
     -- Display order

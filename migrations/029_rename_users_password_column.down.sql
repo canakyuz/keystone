@@ -1,2 +1,2 @@
--- 029 geri alma.
+-- 029 rollback.
 ALTER TABLE users RENAME COLUMN password_hash TO password;

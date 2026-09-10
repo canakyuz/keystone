@@ -133,7 +133,7 @@ func (s *ProvisioningService) ProvisionTenantSchema(ctx context.Context, t *tena
 		templateSQL, tplErr := s.templates.GetTemplateByPlan(ctx, string(t.Plan))
 		switch {
 		case tplErr == nil && strings.TrimSpace(templateSQL) != "":
-			// Template bulundu, execute et
+			// A template exists; run it.
 			if _, err = tx.ExecContext(ctx, templateSQL); err != nil {
 				return fmt.Errorf("failed to execute schema template for plan %s: %w", t.Plan, err)
 			}

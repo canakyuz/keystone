@@ -251,8 +251,7 @@ func (m *connectionManager) GetConnection(ctx context.Context) (*sql.Conn, error
 // Kurallar:
 //   - must start with 'tenant_'
 //   - lowercase letters, digits and underscore only
-//
-// - Maksimum 63 karakter (PostgreSQL limiti)
+//   - at most 63 characters, PostgreSQL's identifier limit
 //
 // Reason: the schema name in a SET search_path statement cannot be parameterised,
 // so validating it by hand is the only defence against SQL injection.

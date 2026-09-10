@@ -1,4 +1,4 @@
--- 028 geri alma.
+-- 028 rollback.
 -- WARNING: this removes read isolation from the users table entirely.
 
 DROP POLICY IF EXISTS auth_lookup_policy ON users;

@@ -53,6 +53,13 @@ jobs:
       - name: go vet
         run: go vet ./...
 
+      # The comments in this repository carry the reasoning behind the design, which is
+      # only worth anything to a reader who can read them. This repository was written in
+      # Turkish first, and two hand-rolled sweeps both reported "clean" while missing
+      # whole files, so the language is checked rather than trusted.
+      - name: language check
+        run: python3 scripts/langcheck.py
+
       - name: build
         run: go build ./...
 

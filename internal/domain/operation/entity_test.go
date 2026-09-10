@@ -100,7 +100,7 @@ func TestJob_Claimable(t *testing.T) {
 	}
 }
 
-// TestJob_VerifyFence, gecikmis bildirimin reddedildigini dogrular.
+// TestJob_VerifyFence verifies a late report is rejected.
 func TestJob_VerifyFence(t *testing.T) {
 	job := Job{Fence: 5}
 

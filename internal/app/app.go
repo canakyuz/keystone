@@ -127,9 +127,9 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 		operationHandler.New(operationRepository, appLogger))
 
 	// Global middleware, run for every incoming request.
-	app.Use(recover.New())            // Turns a panic into a 500 instead of a crash.
-	app.Use(helmet.New())             // Baseline security headers.
-	app.Use(logger.New(logger.Config{ // Gelen istekleri konsola loglar.
+	app.Use(recover.New()) // Turns a panic into a 500 instead of a crash.
+	app.Use(helmet.New())  // Baseline security headers.
+	app.Use(logger.New(logger.Config{
 		Format: "[${time}] ${status} - ${latency} ${method} ${path}\n",
 	}))
 	app.Use(cors.New(cors.Config{
@@ -319,7 +319,7 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 func (a *Application) Start() error {
 	// Graceful shutdown: give in-flight requests time to finish when the server stops.
 	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, os.Interrupt, syscall.SIGTERM) // Kesme (Ctrl+C) veya Terminate sinyallerini dinle.
+	signal.Notify(quit, os.Interrupt, syscall.SIGTERM) // Listen for interrupt (Ctrl+C) and terminate signals.
 
 	// Start the server in its own goroutine so the main one is not blocked.
 	go func() {

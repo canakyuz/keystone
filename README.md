@@ -143,6 +143,66 @@ when Redis goes down would manufacture the very outage it is meant to prevent.
 A concurrency test verifies that out of two hundred simultaneous requests exactly
 the capacity passes.
 
+## Measured behaviour
+
+The claims above are measured rather than asserted. `scripts/loadtest.sh` reproduces
+this: it brings up the dependencies, applies the migrations, seeds two tenants on
+different plans, mints their tokens, starts the server and runs `loadtest/tenant_read.js`
+against it.
+
+### What the load test established
+
+| Property | Result |
+|---|---|
+| Tenant-scoped read, median latency | 4-10 ms across every run |
+| Liveness probe, p95 | under 2 ms |
+| Readiness probe, p95 | 10-50 ms, and it touches the database and Redis |
+| Enterprise tenant at its 100/s ceiling | 6001 requests, 0 rejected |
+| Pro tenant under a 300/s burst | ~50% rejected, the rest served |
+| Tenant schema cache | 7396 L1 hits, 3 L2 hits, 1 miss |
+
+The cache line is the one ADR-0006 was missing. A comment in the previous implementation
+claimed a "98-99% hit rate" and had never been checked; the measured figure on this
+profile is 99.96%, and it is now a metric rather than a comment.
+
+The rate limiter lines matter more than they look. The plan quotas are enforced exactly:
+an enterprise tenant runs at its ceiling without a single rejection, while a pro tenant's
+smaller bucket turns away half of a burst. The token bucket lets the first 1200 through
+on purpose — bursting up to capacity is what ADR-0007 chose over a fixed window.
+
+### What it did not establish
+
+**The tail latency is not a property of this service on this hardware.** The load
+generator, the database, Redis and the server all share one laptop, and p95 for the
+tenant read moved between 5 ms and 2.39 s across runs while the median stayed in its
+4-10 ms band. Plotted against the system load average — 10 to 17 on a 15-core machine,
+with nine unrelated containers running — the tail tracks the machine, not the code.
+
+So there is no P95 figure here. Publishing the best run would be exactly the kind of
+unverified number the rest of this repository exists to avoid. What is published is the
+part that held steady regardless of load, and the script that lets anyone produce the
+rest on hardware where it would mean something.
+
+Conditions for the numbers above: Apple M5 Pro, 15 cores, 24 GB, macOS 26.6.1,
+PostgreSQL 16 and Redis 7 in Docker, k6 2.2.0, everything on one host, `RATE=100` for
+60 s with a `BURST_RATE=300` for 10 s.
+
+## Metrics
+
+`/metrics` serves the Prometheus exposition; the worker publishes its own on
+`WORKER_METRICS_ADDR`, because it is a separate process and scaling the two together
+would be an accident rather than a decision.
+
+RED signals per endpoint, worker claim and outcome counts with queue depth, cache
+outcomes, and rate limit decisions by plan.
+
+Nothing is labelled by tenant id. A Prometheus series exists per distinct combination of
+label values, so a tenant label makes the series count grow with the customer count and
+the monitoring bill grows with it — silently, because the metric keeps working. The
+labels here are bounded by construction: route templates rather than paths, status
+classes rather than codes, plan names rather than tenant ids. `pkg/metrics` carries the
+reasoning, and a test asserts the property rather than trusting review to catch it.
+
 ## Health endpoints
 
 Two endpoints, two different questions.

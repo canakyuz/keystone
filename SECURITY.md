@@ -64,6 +64,8 @@ relevant migration files.
 | `ExecuteInTenantContext` did not pass the connection to the callback | `search_path` was not applied to the connection the queries actually ran on | `pkg/database` |
 | `extractTenantID` read the wrong context key | The JWT tenant claim was never used; anyone holding a valid token could switch tenants with the `X-Tenant-ID` header | `internal/middleware` |
 | `ExecuteInTenantContext` never set `app.current_tenant` | Under the non-superuser role this file requires, every RLS-protected read returned the empty set. The application worked in development only because it connected as a superuser, which bypasses RLS | `pkg/database` |
+| The rate limiter ran before authentication | It read the tenant from a value the authenticator had not written yet, so the branch was never taken. Every authenticated tenant was held to the anonymous quota of 30 requests a minute regardless of the plan it paid for, and the plan table was dead code | `internal/middleware` |
+| Login logged the request email and returned the raw service error | The address went to stderr on every attempt, in an unstructured stream nothing rotates or redacts, and a repository failure would have described the schema to the caller | `internal/handler/auth` |
 
 ## Testing it
 

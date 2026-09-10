@@ -70,5 +70,14 @@ jobs are not scanned, so claim cost stays flat as the table grows.
 
 ## Measurement note
 
-The cost of this query was assumed, not measured. The query plan, index usage and
-lock contention each need to be looked at. Not done yet.
+The cost of this query is still assumed rather than measured. The query plan, index usage
+and lock contention each need to be looked at.
+
+What does exist now is the instrumentation to measure it against:
+`keystone_worker_jobs_claimed_total`, `keystone_worker_job_duration_seconds` and
+`keystone_worker_queue_depth`. The depth gauge is the one that answers whether the
+workers are keeping up, which no counter can.
+
+The claim query itself has not been put under load, because doing so honestly needs a
+machine that is not also running the load generator; see the measured behaviour section
+of the README for why the same caveat applies there.

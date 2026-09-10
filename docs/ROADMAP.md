@@ -18,7 +18,7 @@ The end state is that all of the following can be verified with a single command
 | Tenant isolation works | `go test ./test/security/` | done |
 | Isolation holds from HTTP down to the database | `go test ./test/e2e/` | done |
 | Concurrency is written correctly | `go test -race ./internal/worker/` | done |
-| The performance claim is measured | A P50/P95/P99 table in the README | open |
+| The performance claim is measured | The measured behaviour section of the README | partial |
 | The service contract is defined | `buf lint` plus a `grpcurl` example | open |
 
 ---
@@ -30,9 +30,9 @@ Measured 2026-09-10.
 | Measure | Value | Comment |
 |---|---|---|
 | Source files | 172 | Volume is sufficient |
-| Test files | 19 | Coverage is narrow but the core is covered |
-| Packages with tests | 16 | Worker, cache, ratelimit, RLS, operations, e2e |
-| HTTP-layer end-to-end tests | 8 | Closed in phase 1; found a real bug |
+| Test files | 22 | Coverage is narrow but the core is covered |
+| Packages with tests | 17 | Worker, cache, ratelimit, metrics, RLS, operations, e2e |
+| HTTP-layer end-to-end tests | 10 | Found five defects no other test reached |
 | Decision records | 7 | |
 | Verticals under `internal/domain` | 13 | Core is 4 of them, the rest are noise |
 
@@ -63,6 +63,9 @@ a separate process, `cmd/worker`.
 **English documentation.** Originally the last phase. Moved to the front: the depth
 is worth nothing to a reader who cannot read the prose describing it.
 
+**Metrics and a reproducible load profile.** Covered in phase 1 below, which is where
+the four defects it uncovered are listed.
+
 **End-to-end isolation proof.** `test/e2e` drives the assembled application, from an
 HTTP request through the real JWT and tenant middleware down to real PostgreSQL, over
 the non-superuser role production uses. It covers the unauthenticated and forged-token
@@ -76,7 +79,31 @@ and superusers bypass RLS. See [SECURITY.md](../SECURITY.md).
 
 ---
 
-## Phase 1: Observability and measurement
+## Phase 1: Finish the measurement
+
+**Effort:** 2-3 days
+**State:** the instrumentation is done and the profile runs; the tail is not measurable
+on the machine that has been available.
+
+`pkg/metrics` publishes RED signals, worker counts with queue depth, cache outcomes and
+rate limit decisions by plan, all with bounded labels. `loadtest/` and
+`scripts/loadtest.sh` reproduce a run end to end. That work closed four defects that no
+test had reached: the plan quotas were never applied, trial tenants were locked out, the
+user endpoints returned 500, and a metric label was being read out of a pooled buffer.
+
+What is left is a machine. The load generator, database, Redis and server currently share
+one laptop, and p95 tracks its load average rather than the code. The remaining work is
+to run the existing profile somewhere the two are separated and record the numbers.
+
+**Still to do**
+
+1. Run `scripts/loadtest.sh` with the load generator on a separate host.
+2. Record P50/P95/P99 for the tenant read in the README, with the conditions.
+3. Put the claim query under load and settle the measurement note in ADR-0002.
+
+---
+
+## Phase 1b: Tracing
 
 **Effort:** 3-5 days
 **Why:** "P95 under 200ms" is currently an unmeasured claim. A concrete number
@@ -85,17 +112,19 @@ behaviour.
 
 **Work**
 
-1. OpenTelemetry: spans for the HTTP request, the usecase, the repository and
-   SQL. A provisioning step must join the trace of the request that created it.
-2. Prometheus metrics: RED per endpoint (rate, errors, duration), labelled with
-   `tenant_id`. Queue depth and claim latency for the worker.
-3. zerolog is already in place; add trace id correlation.
-4. A k6 scenario: a mix of tenant creation, login and listing.
-5. Put the results in the README as a table. The hardware and scenario conditions
-   must be written down, or the number means nothing.
+1. OpenTelemetry: spans for the HTTP request, the usecase, the repository and SQL. A
+   provisioning step must join the trace of the request that created it.
+2. Carry `request_id` from the HTTP layer into the worker, closing the gap noted in
+   `internal/worker/provision_handler.go`.
 
-**Done when:** the README carries a P50/P95/P99 table and the k6 file that
-produced it is in the repository.
+Note on the original plan for this phase: it said to label the metrics with `tenant_id`.
+That was not done, on purpose. A series exists per distinct combination of label values,
+so a tenant label makes the series count grow with the customer count. Per-tenant
+questions belong in traces and logs, which are sampled and indexed for exactly that.
+`pkg/metrics` carries the full reasoning.
+
+**Done when:** a provisioning job's spans appear under the trace of the request that
+created it.
 
 ---
 

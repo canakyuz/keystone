@@ -212,3 +212,50 @@ func TestUntrustedSourceStillRequiresExistingTenant(t *testing.T) {
 
 	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
 }
+
+// TestTenantStatus_DecidesWhoCanServeTraffic verifies which lifecycle states resolve.
+//
+// The status filter in the schema cache is the gate between a tenant record and its
+// data, and it is easy to get subtly wrong in either direction. Listing only 'active'
+// locked every trial customer out of the product with a 404 on every request, which is
+// the failure this test was written after. Listing everything would let a suspended
+// tenant keep reading.
+func TestTenantStatus_DecidesWhoCanServeTraffic(t *testing.T) {
+	serving := map[string]bool{
+		// Entitled to serve traffic.
+		"active": true,
+		"trial":  true,
+
+		// A schema exists, but the entitlement does not.
+		"suspended": false,
+		"inactive":  false,
+		"failed":    false,
+
+		// Provisioning has not finished, so there may be no schema to resolve.
+		"pending":      false,
+		"provisioning": false,
+	}
+
+	for status, shouldServe := range serving {
+		t.Run(status, func(t *testing.T) {
+			h := newHarness(t)
+
+			tenantID := createTenant(t, h, "e2e-status-"+status)
+			seedUser(t, h.admin, tenantID, "owner@"+status+".test")
+
+			_, err := h.admin.Exec(`UPDATE tenants SET status = $1 WHERE id = $2`, status, tenantID)
+			require.NoError(t, err)
+
+			resp := h.do(t, h.get(t, "/api/v1/users", tenantID))
+
+			if shouldServe {
+				assert.Equal(t, http.StatusOK, resp.StatusCode,
+					"a %s tenant was refused", status)
+				return
+			}
+
+			assert.Equal(t, http.StatusNotFound, resp.StatusCode,
+				"a %s tenant was served", status)
+		})
+	}
+}

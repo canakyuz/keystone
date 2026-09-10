@@ -134,15 +134,22 @@ func (c *TenantSchemaCache) Stats() cache.Stats {
 
 // loadSchemaFromDB fetches the schema name from the source of truth.
 //
-// Only active, non-deleted tenants resolve: a suspended tenant's requests stop at the
-// schema resolution step.
+// Only a tenant that is entitled to serve traffic resolves, so a suspended tenant's
+// requests stop at the schema resolution step rather than reaching its data.
+//
+// 'trial' is included alongside 'active'. It was not, and the effect was that a customer
+// inside their trial period received a 404 on every tenant-scoped request: the status is
+// a billing state, not a provisioning state, and a trial tenant has a schema like any
+// other. The lifecycle states that legitimately do not resolve are 'pending' and
+// 'provisioning' (no schema yet), and 'suspended', 'inactive' and 'failed' (a schema,
+// but no entitlement).
 func (c *TenantSchemaCache) loadSchemaFromDB(ctx context.Context, tenantID string) (string, error) {
 	const query = `
 		SELECT schema_name
 		FROM tenants
 		WHERE id = $1
 		  AND deleted_at IS NULL
-		  AND status = 'active'
+		  AND status IN ('active', 'trial')
 	`
 
 	var schemaName string

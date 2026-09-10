@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-// JobStatus, is biriminin durumudur.
+// JobStatus is the state of a unit of work.
 type JobStatus string
 
 const (
@@ -15,12 +15,12 @@ const (
 	JobSucceeded JobStatus = "succeeded"
 	JobFailed    JobStatus = "failed"
 
-	// JobDead, deneme hakki tukenmis istir. Otomatik olarak tekrar alinmaz;
-	// mudahale gerektirir.
+	// JobDead is a job that has exhausted its attempts. It is never picked up again
+	// automatically; it needs intervention.
 	JobDead JobStatus = "dead"
 )
 
-// Job, worker'in devraldigi is birimidir.
+// Job is the unit of work a worker claims.
 type Job struct {
 	ID          string
 	OperationID string
@@ -31,19 +31,19 @@ type Job struct {
 	MaxAttempts int
 	NextAttempt time.Time
 
-	// LeaseOwner, isi su an sahiplenen worker'in kimligidir.
+	// LeaseOwner is the identity of the worker currently holding the job.
 	LeaseOwner string
 
-	// LeaseExpires, sahiplenmenin bitis anidir. Bu andan sonra is baska bir
-	// worker tarafindan devralinabilir.
+	// LeaseExpires is when the claim ends. After that moment another worker may take
+	// the job over.
 	LeaseExpires *time.Time
 
-	// Fence, her sahiplenmede artan sayactir.
+	// Fence is a counter incremented on every claim.
 	//
-	// Sonuc bildirimi guncel fence degeriyle yapilmak zorundadir. Lease
-	// suresi dolup is devredildikten sonra geri donen eski worker, elindeki
-	// eski fence ile bildirim yapamaz. Yalnizca LeaseOwner'a bakmak yetmez:
-	// eski worker kendi adini bilir ve o kontrolu gecerdi.
+	// A result must be reported with the current fence value. Once the lease has
+	// expired and the job has been handed over, an old worker coming back cannot report
+	// with the stale fence it holds. Checking LeaseOwner alone is not enough: the old
+	// worker knows its own name and would pass that check.
 	Fence int64
 
 	LastError string
@@ -51,16 +51,15 @@ type Job struct {
 	UpdatedAt time.Time
 }
 
-// LeaseValidAt, verilen anda sahiplenmenin hala gecerli olup olmadigini soyler.
+// LeaseValidAt says whether the claim is still valid at the given moment.
 func (j *Job) LeaseValidAt(now time.Time) bool {
 	return j.LeaseExpires != nil && now.Before(*j.LeaseExpires)
 }
 
-// Claimable, isin verilen anda devralinabilir olup olmadigini soyler.
+// Claimable says whether the job can be taken over at the given moment.
 //
-// Devralinabilir olmasi icin ya hic sahiplenilmemis olmali, ya da onceki
-// sahiplenmenin suresi dolmus olmali. Ayrica yeniden deneme zamani gelmis
-// olmalidir.
+// To be claimable it must either never have been claimed, or the previous claim must
+// have expired. The retry time must also have arrived.
 func (j *Job) Claimable(now time.Time) bool {
 	if j.Status != JobPending && j.Status != JobRunning {
 		return false
@@ -72,54 +71,53 @@ func (j *Job) Claimable(now time.Time) bool {
 	return !j.LeaseValidAt(now)
 }
 
-// VerifyFence, bildirimin guncel sahiplenmeden geldigini dogrular.
+// VerifyFence confirms the report comes from the current claim.
 func (j *Job) VerifyFence(fence int64) error {
 	if fence != j.Fence {
-		return fmt.Errorf("%w: beklenen %d, gelen %d", ErrStaleFence, j.Fence, fence)
+		return fmt.Errorf("%w: expected %d, got %d", ErrStaleFence, j.Fence, fence)
 	}
 	return nil
 }
 
-// ExhaustedAfterThisAttempt, bu denemeden sonra hak kalmayacagini soyler.
+// ExhaustedAfterThisAttempt says no attempts remain after this one.
 func (j *Job) ExhaustedAfterThisAttempt() bool {
 	return j.Attempts >= j.MaxAttempts
 }
 
-// BackoffConfig, yeniden deneme aralarini belirler.
+// BackoffConfig sets the retry intervals.
 type BackoffConfig struct {
-	// Base, ilk bekleme suresidir.
+	// Base is the first wait.
 	Base time.Duration
 
-	// Max, tek bir beklemenin ust sinirdir.
+	// Max caps any single wait.
 	Max time.Duration
 
-	// Jitter, [0,1] araliginda rastgelelik oranidir.
+	// Jitter is the randomness ratio, in [0,1].
 	//
-	// Neden gerekli: ayni anda basarisiz olan N is, jitter olmadan ayni anda
-	// yeniden dener. Bu, zaten sorunlu olan bagimliliga senkronize bir dalga
-	// gonderir (thundering herd).
+	// Why it is needed: without jitter, N jobs that failed at the same moment retry at
+	// the same moment, sending a synchronized wave at a dependency that is already in
+	// trouble. That is the thundering herd.
 	Jitter float64
 }
 
-// DefaultBackoff, makul varsayilanlari dondurur.
+// DefaultBackoff returns sensible defaults.
 func DefaultBackoff() BackoffConfig {
 	return BackoffConfig{Base: time.Second, Max: 5 * time.Minute, Jitter: 0.3}
 }
 
-// BackoffFor, verilen deneme sayisi icin bekleme suresini hesaplar.
+// BackoffFor computes the wait for a given attempt number.
 //
-// Us alma tabani ikidir: 1s, 2s, 4s, 8s... Max ile sinirlanir.
-// randFraction [0,1) araliginda bir deger almalidir; disaridan verilmesi
-// testin deterministik olmasini saglar.
+// The exponential base is two: 1s, 2s, 4s, 8s, capped by Max. randFraction must be a
+// value in [0,1); passing it in from outside is what makes the test deterministic.
 //
-// Karmasiklik: O(1).
+// Complexity: O(1).
 func BackoffFor(cfg BackoffConfig, attempt int, randFraction float64) time.Duration {
 	if attempt < 1 {
 		attempt = 1
 	}
 
-	// math.Pow yerine ust sinirli kaydirma: cok buyuk attempt degerlerinde
-	// tasma olmasin.
+	// A bounded shift rather than raw math.Pow, so a very large attempt count cannot
+	// overflow.
 	shift := math.Min(float64(attempt-1), 30)
 	wait := time.Duration(float64(cfg.Base) * math.Pow(2, shift))
 

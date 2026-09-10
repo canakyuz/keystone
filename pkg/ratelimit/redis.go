@@ -8,21 +8,21 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-// tokenBucketScript, token bucket'i tek bir atomik adimda gunceller.
+// tokenBucketScript updates the token bucket in a single atomic step.
 //
-// NEDEN LUA: oku, hesapla, yaz dizisi uc ayri Redis komutuyla yapilirsa,
-// iki replika ayni anda okuyup ayni tokeni harcayabilir. Redis, Lua betigini
-// tek bir islem olarak calistirdigi icin yaris kosulu tasarim geregi olusmaz.
-// WATCH/MULTI ile optimistic locking de mumkundu, ama cakismada yeniden deneme
-// gerektirir ve yuksek yukte tam da limitin devreye girdigi anda maliyeti artar.
+// WHY LUA: if the read, compute and write sequence is done with three separate Redis
+// commands, two replicas can read at the same time and spend the same token. Redis
+// runs a Lua script as one operation, so the race cannot occur by construction.
+// Optimistic locking with WATCH/MULTI was also possible, but it requires retries on
+// conflict, and under load the cost rises exactly when the limit starts biting.
 //
-// KEYS[1] : kova anahtari
-// ARGV[1] : kapasite (burst)
-// ARGV[2] : saniyedeki dolum hizi
-// ARGV[3] : simdi (milisaniye)
-// ARGV[4] : anahtarin yasam suresi (saniye)
+// KEYS[1] : bucket key
+// ARGV[1] : capacity (burst)
+// ARGV[2] : refill rate per second
+// ARGV[3] : now, in milliseconds
+// ARGV[4] : key lifetime, in seconds
 //
-// Donus: {izin(0/1), kalan_token, yeniden_deneme_ms}
+// Returns: {allowed(0/1), remaining_tokens, retry_after_ms}
 const tokenBucketScript = `
 local key      = KEYS[1]
 local capacity = tonumber(ARGV[1])
@@ -39,7 +39,7 @@ if tokens == nil then
   last   = now
 end
 
--- Gecen sureye gore dolum. Saat geri giderse negatif sureyi yok say.
+-- Refill for the elapsed time. Ignore a negative interval if the clock went back.
 local elapsed = math.max(0, now - last) / 1000.0
 tokens = math.min(capacity, tokens + elapsed * rate)
 
@@ -63,24 +63,22 @@ redis.call('EXPIRE', key, ttl)
 return {allowed, math.floor(tokens), retry}
 `
 
-// Redis, replikalar arasinda paylasilan token bucket limitleyicisidir.
+// Redis is the token bucket limiter shared across replicas.
 type Redis struct {
 	client *redis.Client
 	script *redis.Script
 	prefix string
 
-	// FailOpen, Redis erisilemedigi zaman isteklerin gecirilip
-	// gecirilmeyecegini belirler.
+	// FailOpen decides whether requests pass when Redis is unreachable.
 	//
-	// Varsayilan acik (gecir). Gerekce: limitleyici bir kullanilabilirlik
-	// araci degil, kotuye kullanim frenidir. Redis dustugunde tum trafigi
-	// reddetmek, onlemeye calistigi kesintiyi kendi eliyle yaratir.
-	// Kimlik dogrulama gibi kotuye kullanimin pahali oldugu uclarda bu
-	// bilincli olarak kapatilabilir.
+	// It defaults to open, that is, requests pass. The reasoning: the limiter is an
+	// abuse brake, not an availability tool. Rejecting all traffic when Redis goes down
+	// manufactures the very outage it is meant to prevent. On endpoints where abuse is
+	// expensive, authentication for example, this can be deliberately turned off.
 	FailOpen bool
 }
 
-// NewRedis, paylasimli limitleyici olusturur.
+// NewRedis creates the shared limiter.
 func NewRedis(client *redis.Client, keyPrefix string) *Redis {
 	return &Redis{
 		client:   client,
@@ -90,9 +88,9 @@ func NewRedis(client *redis.Client, keyPrefix string) *Redis {
 	}
 }
 
-// Allow, anahtar icin bir token tuketmeyi dener.
+// Allow tries to consume one token for the key.
 //
-// Karmasiklik: tek Redis gidis donusu, O(1) sunucu tarafi is.
+// Complexity: one Redis round trip, O(1) work server-side.
 func (r *Redis) Allow(ctx context.Context, key string, quota Quota) (Result, error) {
 	if quota.Burst <= 0 {
 		return Result{Allowed: false}, nil
@@ -111,10 +109,10 @@ func (r *Redis) Allow(ctx context.Context, key string, quota Quota) (Result, err
 	return parseResult(raw, quota)
 }
 
-// bucketTTL, kovanin ne kadar yasayacagini hesaplar.
+// bucketTTL computes how long the bucket key lives.
 //
-// Bos bir kovanin tamamen dolmasi icin gereken sureden kisa olmamalidir;
-// aksi halde anahtar erken silinir ve istemci kotasini sifirdan kazanir.
+// It must not be shorter than the time an empty bucket needs to refill completely;
+// otherwise the key is deleted early and the client wins back its full quota.
 func bucketTTL(quota Quota) time.Duration {
 	if quota.Rate <= 0 {
 		return time.Hour
@@ -125,7 +123,7 @@ func bucketTTL(quota Quota) time.Duration {
 	return max(2*fill, time.Minute)
 }
 
-// onFailure, Redis erisilemediginde uygulanacak davranisi uretir.
+// onFailure produces the behaviour applied when Redis is unreachable.
 func (r *Redis) onFailure(quota Quota) Result {
 	return Result{
 		Allowed:    r.FailOpen,
@@ -135,7 +133,7 @@ func (r *Redis) onFailure(quota Quota) Result {
 	}
 }
 
-// parseResult, Lua betiginin donusunu Result'a cevirir.
+// parseResult converts the Lua script's return value into a Result.
 func parseResult(raw []any, quota Quota) (Result, error) {
 	if len(raw) != 3 {
 		return Result{}, fmt.Errorf("unexpected rate limit response: %d fields", len(raw))

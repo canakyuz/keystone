@@ -1,13 +1,13 @@
-// Package operation, uzun suren islemlerin kalici takibini modeller.
+// Package operation models durable tracking of long-running work.
 //
-// Iki kavram ayri tutulur:
+// Two concepts are kept apart:
 //
-//   - Operation: kullaniciya donuk kayit. "Acme'nin kurulumu ne durumda?"
-//   - Job: calistirana donuk is birimi. "Bu isi kim, ne zamana kadar aldi?"
+//   - Operation: the user-facing record. "How is Acme's provisioning going?"
+//   - Job: the executor-facing unit of work. "Who took this, and until when?"
 //
-// Ayrimin nedeni: bir tenant'in durumu ile tek bir islemin durumu ayni sey
-// degildir. Basarisiz bir kurulumdan sonra ayni tenant icin yeni bir operasyon
-// acilabilir. Ikisini tek alanda tutmak bu ayrimi imkansiz kilardi.
+// The reason for the split: a tenant's state and a single operation's state are not
+// the same thing. After a failed provisioning, a new operation can be opened for the
+// same tenant. Holding both in one field would make that distinction impossible.
 package operation
 
 import (
@@ -16,15 +16,15 @@ import (
 	"time"
 )
 
-// Kind, islem turudur.
+// Kind is the type of work.
 type Kind string
 
 const (
-	// KindTenantProvision, yeni bir tenant icin calisma alani hazirlar.
+	// KindTenantProvision prepares the workspace for a new tenant.
 	KindTenantProvision Kind = "tenant.provision"
 )
 
-// Status, operasyonun durumudur.
+// Status is the operation's state.
 type Status string
 
 const (
@@ -34,27 +34,26 @@ const (
 	StatusFailed    Status = "failed"
 )
 
-// IsTerminal, durumun daha fazla degismeyecegini soyler.
+// IsTerminal says the state will not change again.
 func (s Status) IsTerminal() bool {
 	return s == StatusSucceeded || s == StatusFailed
 }
 
 var (
-	// ErrNotFound, operasyonun bulunamadigini bildirir.
+	// ErrNotFound reports that the operation does not exist.
 	ErrNotFound = errors.New("operation: not found")
 
-	// ErrInvalidTransition, izin verilmeyen bir durum gecisini bildirir.
+	// ErrInvalidTransition reports a state transition that is not permitted.
 	ErrInvalidTransition = errors.New("operation: invalid state transition")
 
-	// ErrStaleFence, gecikmis bir worker bildirimini reddeder.
+	// ErrStaleFence rejects a late report from a worker.
 	ErrStaleFence = errors.New("operation: stale fence, report rejected")
 
-	// ErrIdempotencyConflict, ayni anahtarin farkli govdeyle kullanildigini
-	// bildirir.
+	// ErrIdempotencyConflict reports the same key being used with a different body.
 	ErrIdempotencyConflict = errors.New("operation: idempotency key reused with a different request")
 )
 
-// Operation, kullaniciya donuk islem kaydidir.
+// Operation is the user-facing record of the work.
 type Operation struct {
 	ID       string
 	TenantID string
@@ -70,11 +69,11 @@ type Operation struct {
 	CompletedAt *time.Time
 }
 
-// allowedTransitions, izin verilen durum geciseridir.
+// allowedTransitions is the table of permitted state transitions.
 //
-// Tabloyu acikca yazmak, gecerli gecisleri kodun icine dagilmis if'lerden
-// okumaya calismaktan iyidir: hangi gecisin neden yasak oldugu tek yerde
-// gorulur ve yeni bir durum eklendiginde unutulmaz.
+// Writing the table out explicitly beats reading the valid transitions out of ifs
+// scattered through the code: why a transition is forbidden is visible in one place,
+// and adding a new state cannot be forgotten.
 var allowedTransitions = map[Status][]Status{
 	StatusPending:   {StatusRunning, StatusFailed},
 	StatusRunning:   {StatusSucceeded, StatusFailed},
@@ -82,8 +81,8 @@ var allowedTransitions = map[Status][]Status{
 	StatusFailed:    {},
 }
 
-// CanTransitionTo, gecisin izinli olup olmadigini soyler.
-// Karmasiklik: O(k), k = bir durumdan cikan gecis sayisi (en fazla 2).
+// CanTransitionTo says whether the transition is permitted.
+// Complexity: O(k), k being the transitions leaving a state, at most 2.
 func (o *Operation) CanTransitionTo(next Status) bool {
 	for _, allowed := range allowedTransitions[o.Status] {
 		if allowed == next {
@@ -93,23 +92,23 @@ func (o *Operation) CanTransitionTo(next Status) bool {
 	return false
 }
 
-// MarkRunning, operasyonu calisiyor olarak isaretler.
+// MarkRunning marks the operation as running.
 func (o *Operation) MarkRunning() error {
 	return o.transition(StatusRunning, nil)
 }
 
-// MarkSucceeded, operasyonu basarili olarak kapatir.
+// MarkSucceeded closes the operation successfully.
 func (o *Operation) MarkSucceeded(now time.Time) error {
 	return o.transition(StatusSucceeded, &now)
 }
 
-// MarkFailed, operasyonu hatayla kapatir.
+// MarkFailed closes the operation with an error.
 //
-// Hata kodu zorunludur: istemci koda gore dallanir. Yalnizca serbest metin
-// birakmak, cagiranin mesaj icerigine gore dallanmasina yol acar.
+// The error code is mandatory: clients branch on the code. Leaving only free text
+// would push the caller into branching on the message content.
 func (o *Operation) MarkFailed(code, message string, now time.Time) error {
 	if code == "" {
-		return fmt.Errorf("%w: hata kodu zorunlu", ErrInvalidTransition)
+		return fmt.Errorf("%w: an error code is required", ErrInvalidTransition)
 	}
 
 	if err := o.transition(StatusFailed, &now); err != nil {

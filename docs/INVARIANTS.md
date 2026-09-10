@@ -125,12 +125,20 @@ the result is the empty set: neither an error nor every row.
 - Schema: `migrations/030_harden_tenant_isolation_policies.up.sql`
 - Schema: `migrations/027_force_row_level_security.up.sql`
 - Code: `internal/repository/user/postgres.go`, reading the schema from context
-- Tests: `test/security/rls_test.go`
+- Code: `pkg/database/tenant_connection_manager.go`, `ExecuteInTenantContext`
+- Tests: `test/security/rls_test.go`, `test/e2e/tenant_isolation_test.go`
 
-This rule used to be violated in three separate ways. The `USING (TRUE)` policy
-on the `users` table removed read isolation entirely. Seventeen tables were
-missing `FORCE`, so the table owner role was exempt from the policies. The
-`sites` policy was fail-open: with no context set, every row was visible.
+This rule used to be violated in four separate ways. The `USING (TRUE)` policy on
+the `users` table removed read isolation entirely. Seventeen tables were missing
+`FORCE`, so the table owner role was exempt from the policies. The `sites` policy was
+fail-open: with no context set, every row was visible.
+
+The fourth was the inverse failure, and it hid behind the test setup.
+`ExecuteInTenantContext` set `search_path` but never `app.current_tenant`, so under
+the non-superuser role this rule requires, the policies matched nothing and every
+read returned the empty set. It went unnoticed because the repository tests connect
+as the superuser, and superusers bypass RLS. `test/e2e`, which connects as the
+application role, surfaced it immediately.
 
 **Operating requirement:** The application must connect with a non-superuser
 role. Superusers bypass RLS under all circumstances.

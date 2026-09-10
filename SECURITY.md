@@ -63,12 +63,23 @@ relevant migration files.
 | `current_setting` without the missing-ok argument in `payments`, `refunds`, `payment_events` policies | Hard error on a session with no context set | `030` |
 | `ExecuteInTenantContext` did not pass the connection to the callback | `search_path` was not applied to the connection the queries actually ran on | `pkg/database` |
 | `extractTenantID` read the wrong context key | The JWT tenant claim was never used; anyone holding a valid token could switch tenants with the `X-Tenant-ID` header | `internal/middleware` |
+| `ExecuteInTenantContext` never set `app.current_tenant` | Under the non-superuser role this file requires, every RLS-protected read returned the empty set. The application worked in development only because it connected as a superuser, which bypasses RLS | `pkg/database` |
 
 ## Testing it
 
-The isolation claims are verified under `test/security/`, against real PostgreSQL
-using a non-superuser role.
+The isolation claims are verified at two levels, both against real PostgreSQL and
+both using a non-superuser role.
 
 ```
-go test ./test/security/ -v
+go test ./test/security/   # the RLS configuration, driven directly with SQL
+go test ./test/e2e/        # the whole chain, from an HTTP request to the database
 ```
+
+`test/security` answers "are the policies right?". `test/e2e` answers "does a real
+request actually end up inside them?" — the step where the middleware turns a request
+into a tenant schema, which the other tests do not cover.
+
+That distinction is not academic. The `app.current_tenant` bug in the table above sat
+in the code while every other test passed, because they all connected as the
+superuser. Writing `test/e2e` against the non-superuser role surfaced it on the first
+run.

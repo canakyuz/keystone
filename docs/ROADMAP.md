@@ -13,26 +13,26 @@ interesting. Every phase must improve one of those three steps.
 
 The end state is that all of the following can be verified with a single command.
 
-| Claim | Evidence |
-|---|---|
-| Tenant isolation works | `go test ./test/security/` |
-| Isolation holds from HTTP down to the database | `go test ./test/e2e/` |
-| Concurrency is written correctly | `go test -race ./internal/worker/` |
-| The performance claim is measured | A P50/P95/P99 table in the README |
-| The service contract is defined | `buf lint` plus a `grpcurl` example |
+| Claim | Evidence | Status |
+|---|---|---|
+| Tenant isolation works | `go test ./test/security/` | done |
+| Isolation holds from HTTP down to the database | `go test ./test/e2e/` | done |
+| Concurrency is written correctly | `go test -race ./internal/worker/` | done |
+| The performance claim is measured | A P50/P95/P99 table in the README | open |
+| The service contract is defined | `buf lint` plus a `grpcurl` example | open |
 
 ---
 
 ## Where things stand
 
-Measured 2026-09-09.
+Measured 2026-09-10.
 
 | Measure | Value | Comment |
 |---|---|---|
-| Source files | 170 | Volume is sufficient |
-| Test files | 17 | Coverage is narrow but the core is covered |
-| Packages with tests | 15 | Worker, cache, ratelimit, RLS, operations |
-| HTTP-layer end-to-end tests | 0 | Still the largest gap |
+| Source files | 172 | Volume is sufficient |
+| Test files | 19 | Coverage is narrow but the core is covered |
+| Packages with tests | 16 | Worker, cache, ratelimit, RLS, operations, e2e |
+| HTTP-layer end-to-end tests | 8 | Closed in phase 1; found a real bug |
 | Decision records | 7 | |
 | Verticals under `internal/domain` | 13 | Core is 4 of them, the rest are noise |
 
@@ -60,41 +60,23 @@ uniqueness constraint, lease with a fencing token, per-tenant concurrency limits
 and tenant activation in the same transaction that closes the operation. Runs as
 a separate process, `cmd/worker`.
 
-**English documentation.** Originally the last phase. Moved to the front: the
-depth is worth nothing to a reader who cannot read the prose describing it.
+**English documentation.** Originally the last phase. Moved to the front: the depth
+is worth nothing to a reader who cannot read the prose describing it.
+
+**End-to-end isolation proof.** `test/e2e` drives the assembled application, from an
+HTTP request through the real JWT and tenant middleware down to real PostgreSQL, over
+the non-superuser role production uses. It covers the unauthenticated and forged-token
+paths, an unknown tenant, malformed tenant ids, a cross-tenant read, both untrusted
+tenant sources, and the state of a connection returned to the pool.
+
+It paid for itself on the first run: `ExecuteInTenantContext` set `search_path` but
+never `app.current_tenant`, so under the application role every RLS-protected read
+returned the empty set. Every other test passed because they connect as the superuser,
+and superusers bypass RLS. See [SECURITY.md](../SECURITY.md).
 
 ---
 
-## Phase 1: End-to-end isolation proof
-
-**Effort:** 2-3 days
-**Why first:** It is the cheapest remaining phase and it finishes work already
-done. Isolation is proven at the database layer today, but the chain from HTTP
-down to the database is untested. The tenant middleware resolves the schema from
-the request and all isolation rests on it; it has not got a single test.
-
-**Work**
-
-1. Open a `test/e2e/` package. Bring the real application up with Fiber's
-   `app.Test()`, connected to real PostgreSQL.
-2. Tenant middleware tests:
-   - 401 when the tenant header is absent
-   - 404 for an unknown tenant
-   - 400 on an invalid schema name; a SQL injection attempt must be rejected
-3. Cross-tenant test: an HTTP call using tenant A's token against tenant B's
-   resource must return no data.
-4. Verify that the middleware resets `search_path` at the end of the request. A
-   dirty connection must not go back to the pool.
-
-**Touches:** `internal/middleware/tenant_context.go`, `internal/app/routes.go`,
-new `test/e2e/`
-
-**Done when:** `go test ./test/e2e/` is green and the README has a section
-proving isolation with a single command.
-
----
-
-## Phase 2: Observability and measurement
+## Phase 1: Observability and measurement
 
 **Effort:** 3-5 days
 **Why:** "P95 under 200ms" is currently an unmeasured claim. A concrete number
@@ -117,7 +99,7 @@ produced it is in the repository.
 
 ---
 
-## Phase 3: gRPC and protobuf contracts
+## Phase 2: gRPC and protobuf contracts
 
 **Effort:** 1 week
 **Why:** Job listings ask for REST and gRPC together. A type-safe contract also
@@ -140,7 +122,7 @@ prints the services, and the same isolation tests pass over gRPC too.
 
 ---
 
-## Phase 4: Focus, split out the vertical modules
+## Phase 3: Focus, split out the vertical modules
 
 **Effort:** 3-4 days
 **Why:** Of 170 source files, roughly 15 are the interesting ones. The blog,
@@ -163,7 +145,7 @@ without the vertical modules.
 
 ---
 
-## Phase 5: Remaining invariants
+## Phase 4: Remaining invariants
 
 **Effort:** 1 week
 **Why:** Rules 7 and 8 in [INVARIANTS.md](INVARIANTS.md) are still marked "not
@@ -184,7 +166,7 @@ not.
 
 ---
 
-## Phase 6: Polish
+## Phase 5: Polish
 
 **Effort:** 2-3 days
 
@@ -217,11 +199,15 @@ These are deliberately not being done.
 
 ## Why this order
 
-Phase 1 comes first because it is the cheapest and it completes work already
-done. The story of the five isolation bugs stays half-told without HTTP tests.
+Measurement comes first among what is left, because it converts the repository's
+remaining unsupported claims into numbers. Two decision records currently say in as
+many words that a cost was assumed rather than measured; that is the one place a
+careful reader can push back.
 
-Phase 2 comes second because it converts the repository's remaining claims into
-measurements, and because it is what makes the worker's behaviour visible.
+gRPC comes second. Job listings ask for it, but a correctly written `SKIP LOCKED`
+worker is the harder thing to demonstrate, and that already exists. Generating
+protobuf is comparatively easy to copy.
 
-Phase 4 sits late because it is a hard-to-reverse refactor. It should happen after
-the core is strong.
+Splitting out the verticals sits late because it is a hard-to-reverse refactor
+touching 111 references in the composition root. It should happen after the core is
+strong.

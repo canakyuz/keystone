@@ -15,14 +15,15 @@ things.
 - **Tenant provisioning.** Creates a PostgreSQL schema for a new tenant, applies
   the migrations, and writes it into the registry.
 - **Two layers of isolation.** A per-tenant schema, plus RLS on the shared tables.
-- **Verified isolation.** The claims live under `test/security/` and are exercised
-  against real PostgreSQL using a non-superuser role.
+- **Verified isolation.** The claims are exercised against real PostgreSQL using a
+  non-superuser role, at the database layer (`test/security/`) and across the whole
+  request path (`test/e2e/`).
 
 ## Why it is interesting
 
 This repository does not merely claim tenant isolation, it tests it. Writing the
-tests that actually measure isolation surfaced five separate bugs, all of them on
-the record.
+tests that actually measure isolation surfaced six separate bugs, all of them on the
+record.
 
 The most striking one: the `users` table carried two permissive policies.
 
@@ -37,6 +38,13 @@ CREATE POLICY auth_policy ON users FOR SELECT
 PostgreSQL combines permissive policies with OR. Because the second one was a
 constant `TRUE`, the combined condition collapsed to true on every `SELECT`.
 There was no tenant isolation at all on reads from the `users` table.
+
+The most recent one is the inverse failure, and it is the reason `test/e2e` exists.
+`ExecuteInTenantContext` set `search_path` but never `app.current_tenant`, so under
+the non-superuser role the operating requirements mandate, every RLS-protected read
+returned the empty set. Every other test passed, because they all connect as the
+superuser and superusers bypass RLS. Writing one test that entered through HTTP and
+connected as the application role surfaced it on the first run.
 
 Full list and fixes: [SECURITY.md](SECURITY.md).
 
@@ -199,10 +207,18 @@ curl localhost:8080/health
 ## Tests
 
 ```bash
-go test ./...                 # everything
-go test ./test/security/      # isolation claims only
-go test -race ./internal/worker/   # concurrency, shutdown, per-tenant limits
+go test ./...                       # everything
+go test ./test/security/            # the RLS configuration, driven directly with SQL
+go test ./test/e2e/                 # the whole chain, from HTTP down to the database
+go test -race ./internal/worker/    # concurrency, shutdown, per-tenant limits
 ```
+
+The two isolation suites answer different questions. `test/security` asks whether the
+policies are right. `test/e2e` asks whether a real request actually ends up inside
+them: it drives the assembled application over the non-superuser role production uses,
+covering unauthenticated and forged tokens, unknown and malformed tenant ids, a
+cross-tenant read, both untrusted tenant sources, and the state of a connection handed
+back to the pool.
 
 Tests use real PostgreSQL. Each test opens its own isolated database and drops it
 afterwards, so running them in parallel is safe. When Postgres is unreachable the

@@ -5,12 +5,34 @@
 -- Enable UUID extension
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
--- Create application user role for RLS policies
+-- The application role the RLS policies are written against.
+--
+-- Attempt the create and catch the duplicate, rather than checking pg_roles first.
+--
+-- WHY: roles are cluster-wide, not per-database, while this migration runs once per
+-- database. The test suite creates an isolated database per test and runs the whole
+-- migration chain in each, in parallel, against one cluster. Several of them reached the
+-- IF NOT EXISTS at the same moment, all saw the role missing, and all issued CREATE ROLE;
+-- one won and the rest failed on pg_authid_rolname_index.
+--
+-- It is the same check-then-write race this repository documents for idempotency keys in
+-- migration 031, and the fix is the same shape: let the database enforce uniqueness and
+-- handle the violation. A guard that reads before it writes is not a guard.
+--
+-- It went unnoticed locally because the role already existed from an earlier run, so the
+-- branch was never taken. CI starts from an empty cluster every time, which is where the
+-- race became visible.
+--
+-- Both exception classes are caught, and that is not belt and braces. PostgreSQL raises
+-- duplicate_object when its own check finds the role, but two sessions that race past
+-- that check are stopped by the unique index on pg_authid, which raises unique_violation
+-- instead. Catching only duplicate_object still failed one session in sixteen; catching
+-- both survived sixteen out of sixteen.
 DO $$
 BEGIN
-    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'application_user') THEN
-        CREATE ROLE application_user;
-    END IF;
+    CREATE ROLE application_user;
+EXCEPTION
+    WHEN duplicate_object OR unique_violation THEN NULL;
 END
 $$;
 

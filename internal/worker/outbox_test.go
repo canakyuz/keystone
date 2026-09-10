@@ -114,6 +114,17 @@ func runOutboxFor(t *testing.T, o *Outbox, d time.Duration) {
 	_ = o.Run(ctx)
 }
 
+// localClient reaches a test server without the outbound guard.
+//
+// The guard blocks loopback on purpose, which is the whole point of it, and every
+// httptest server in this file is on loopback. These tests are about delivery behaviour —
+// signing, retries, concurrency, shutdown — so they opt out of the guard deliberately.
+// TestOutbox_DefaultClientRefusesInternalAddresses covers the guard itself, and covers it
+// through the same constructor production uses.
+func localClient() *http.Client {
+	return &http.Client{Timeout: 2 * time.Second}
+}
+
 // newOutbox builds a worker with test-sized timings.
 func newOutbox(store OutboxStore) *Outbox {
 	cfg := DefaultOutboxConfig("worker-1")
@@ -122,7 +133,7 @@ func newOutbox(store OutboxStore) *Outbox {
 	cfg.ShutdownGrace = time.Second
 	cfg.Backoff = opdomain.BackoffConfig{Base: time.Second, Max: time.Minute}
 
-	return NewOutbox(cfg, store, nil, nil)
+	return NewOutbox(cfg, store, localClient(), nil)
 }
 
 // TestOutbox_DeliversToTheEndpoint is the baseline.
@@ -282,7 +293,7 @@ func TestOutbox_RespectsMaxConcurrent(t *testing.T) {
 	cfg.PollInterval = 5 * time.Millisecond
 	cfg.ShutdownGrace = time.Second
 
-	runOutboxFor(t, NewOutbox(cfg, store, nil, nil), 400*time.Millisecond)
+	runOutboxFor(t, NewOutbox(cfg, store, localClient(), nil), 400*time.Millisecond)
 
 	assert.LessOrEqual(t, peak.Load(), int64(3), "the concurrency limit was exceeded")
 }
@@ -310,7 +321,7 @@ func TestOutbox_GracefulShutdownWaitsForInFlightDeliveries(t *testing.T) {
 	cfg.ShutdownGrace = time.Second
 
 	ctx, cancel := context.WithCancel(context.Background())
-	o := NewOutbox(cfg, store, nil, nil)
+	o := NewOutbox(cfg, store, localClient(), nil)
 
 	done := make(chan error, 1)
 	go func() { done <- o.Run(ctx) }()
@@ -322,4 +333,38 @@ func TestOutbox_GracefulShutdownWaitsForInFlightDeliveries(t *testing.T) {
 	require.NoError(t, <-done)
 	assert.True(t, completed.Load(), "an in-flight delivery was cut off by shutdown")
 	assert.Equal(t, int64(1), store.delivered.Load())
+}
+
+// TestOutbox_DefaultClientRefusesInternalAddresses is the SSRF guard, tested through the
+// constructor production uses.
+//
+// The destination is a URL a tenant registered. Without the guard a tenant can point this
+// service at http://169.254.169.254/ and read the cloud metadata credentials, or at any
+// internal service that does not expect a request from inside the perimeter. The request
+// is the damage; the response never has to come back.
+//
+// The worker is built with a nil client here, exactly as cmd/worker builds it, so what is
+// under test is the default rather than a client the test chose.
+func TestOutbox_DefaultClientRefusesInternalAddresses(t *testing.T) {
+	var reached atomic.Bool
+
+	// On loopback, which is what a rebound DNS record or a naive registration resolves to.
+	receiver := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		reached.Store(true)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer receiver.Close()
+
+	store := &fakeOutboxStore{}
+	store.add(event("e1", receiver.URL, `{}`))
+
+	cfg := DefaultOutboxConfig("worker-1")
+	cfg.PollInterval = 10 * time.Millisecond
+	cfg.ShutdownGrace = time.Second
+
+	runOutboxFor(t, NewOutbox(cfg, store, nil, nil), 400*time.Millisecond)
+
+	assert.False(t, reached.Load(), "the worker connected to an internal address")
+	assert.Zero(t, store.delivered.Load())
+	assert.Positive(t, store.failed.Load(), "the blocked delivery was not recorded as failed")
 }

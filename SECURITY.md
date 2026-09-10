@@ -36,6 +36,34 @@ provides.** Running a query through the pool (`*sql.DB`) inside
 `ExecuteInTenantContext` silently falls onto a different connection, and that
 connection's `search_path` is not set to this tenant.
 
+## Outbound requests
+
+Webhook delivery sends a request to a URL a tenant chose, from inside a network the
+tenant is not in. That is the shape of every SSRF, and the request is the damage even
+when the response never comes back.
+
+Three defences, because each one alone has a hole.
+
+| Where | What it catches | Why it is not enough alone |
+|---|---|---|
+| Registration (`outbound.ValidateURL`) | Plain http, credentials in the URL, a literal internal address | A hostname's meaning can change after it is registered |
+| Dial (`outbound.NewClient`) | The address the connection actually resolves to, every answer, not just the first | — |
+| Redirects | A public URL answering 302 with an internal `Location` | — |
+
+The dial-time check is the one that holds, because DNS rebinding defeats anything that
+inspects the URL. A name that resolves to a public address when it is registered can
+resolve to `169.254.169.254` by the time a delivery goes out, and no amount of parsing
+sees that. The dialler resolves, checks every answer, and then connects **by address**, so
+the connection cannot be re-resolved to somewhere else between the check and the socket.
+
+The blocklist covers loopback, RFC 1918, link-local including the metadata range,
+carrier-grade NAT, multicast, the IPv6 equivalents, and IPv4 addresses written in IPv6
+form — `::ffff:127.0.0.1` walks straight past an IPv4-only check.
+
+Migration 037 also constrains stored destinations to https at the database level. That is
+a last line rather than the defence: it catches a row inserted by something that forgot to
+call the validator, and it cannot see anything about where the name points.
+
 ## Known and deliberate design decisions
 
 The following are intentional behaviour, not holes.
@@ -67,6 +95,7 @@ relevant migration files.
 | The rate limiter ran before authentication | It read the tenant from a value the authenticator had not written yet, so the branch was never taken. Every authenticated tenant was held to the anonymous quota of 30 requests a minute regardless of the plan it paid for, and the plan table was dead code | `internal/middleware` |
 | Login logged the request email and returned the raw service error | The address went to stderr on every attempt, in an unstructured stream nothing rotates or redacts, and a repository failure would have described the schema to the caller | `internal/handler/auth` |
 | The provisioning endpoints were registered ahead of the global middleware | In Fiber that means the middleware never runs for them, so the endpoint that creates tenants had no rate limit, no metrics and no request log | `internal/app` |
+| Webhook delivery connected to any address a tenant supplied | Server-side request forgery: a registered destination of `http://169.254.169.254/` reaches the cloud metadata credentials, and any internal service is reachable from inside the perimeter. Not exploitable at the time it was found — there is no endpoint for registering a destination yet — but the delivery code that will serve one was unguarded | `pkg/outbound` |
 
 ## Testing it
 

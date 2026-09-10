@@ -18,6 +18,7 @@ import (
 	domain "github.com/canakyuz/keystone/internal/domain/outbox"
 	"github.com/canakyuz/keystone/pkg/logger"
 	"github.com/canakyuz/keystone/pkg/metrics"
+	"github.com/canakyuz/keystone/pkg/outbound"
 )
 
 // OutboxStore is the storage behaviour the delivery worker needs.
@@ -95,9 +96,18 @@ type Outbox struct {
 }
 
 // NewOutbox creates the delivery worker.
+//
+// The default client refuses to connect to an internal address. That is not optional
+// hardening: the destination is a URL a tenant registered, so without the guard a tenant
+// can point this service at the cloud metadata endpoint, at the database, or at any
+// internal service that does not expect a request from inside the perimeter. See
+// pkg/outbound.
+//
+// A client may be supplied, which the tests use to reach a local server on purpose.
+// Production passes nil.
 func NewOutbox(cfg OutboxConfig, store OutboxStore, client *http.Client, log *logger.Logger) *Outbox {
 	if client == nil {
-		client = &http.Client{Timeout: cfg.RequestTimeout}
+		client = outbound.NewClient(cfg.RequestTimeout)
 	}
 
 	return &Outbox{
@@ -219,6 +229,10 @@ func (o *Outbox) post(ctx context.Context, event *domain.Event) error {
 		return fmt.Errorf("delivery failed: %w", err)
 	}
 	defer resp.Body.Close()
+
+	// A redirect is refused rather than followed, so it arrives here as a 3xx and is
+	// treated as a failed delivery. A webhook receiver that answers 302 is misconfigured,
+	// and following it would mean delivering to a destination nobody validated.
 
 	// 2xx is accepted. Everything else is a failure to be retried, including 4xx: a
 	// receiver answering 404 today may be deployed tomorrow, and the alternative is

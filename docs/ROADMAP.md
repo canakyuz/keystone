@@ -105,27 +105,32 @@ to run the existing profile somewhere the two are separated and record the numbe
 
 ## Done: Tracing
 
-**Effort:** 3-5 days
-**Why:** "P95 under 200ms" is currently an unmeasured claim. A concrete number
-beats an assertion. Without tracing it is also hard to show the worker's
-behaviour.
+`pkg/tracing` installs OpenTelemetry with W3C propagation, off unless an endpoint is
+configured. Server spans cover every request; the worker's span is linked to the request
+that created the job, carried as a traceparent on the operation row (migration 034).
+`request_id` travels the same way (migration 033), so the two processes join in a log
+search as well as in a trace.
 
-**Work**
+Two things came out of this phase that the original plan did not call for:
 
-1. OpenTelemetry: spans for the HTTP request, the usecase, the repository and SQL. A
-   provisioning step must join the trace of the request that created it.
-`request_id` propagation is done: migration 033 stores the correlation id on the
-operation and the worker reads it back when it claims the job, so a provisioning can be
-followed across the two processes in a log search.
+**Metrics are not labelled by `tenant_id`.** The plan said to label them that way. A
+series exists per distinct combination of label values, so a tenant label makes the
+series count grow with the customer count — silently, because the metric keeps working
+while the storage bill grows. Per-tenant questions belong in traces and logs.
+`pkg/metrics` carries the reasoning and a test asserts the property.
 
-Note on the original plan for this phase: it said to label the metrics with `tenant_id`.
-That was not done, on purpose. A series exists per distinct combination of label values,
-so a tenant label makes the series count grow with the customer count. Per-tenant
-questions belong in traces and logs, which are sampled and indexed for exactly that.
-`pkg/metrics` carries the full reasoning.
+**The worker's span is a link, not a child.** The plan said the provisioning step should
+"join the trace of the request that created it". Joining it would keep that trace open
+until the job finally succeeds — a trace completes only when all its spans do — and every
+retry would hang off a request that ended hours earlier. A link carries the causal
+relationship without the lifetime problem.
 
-**Done when:** a provisioning job's spans appear under the trace of the request that
-created it.
+Moving the provisioning routes behind the global middleware was part of this work and is
+recorded in [SECURITY.md](../SECURITY.md): registered ahead of it, as they were, the
+endpoint that creates tenants had no rate limit, no metrics and no request log.
+
+**Still open:** spans for the repository and for SQL. Those need the database driver
+wrapped, which is a different kind of change from the rest of this phase.
 
 ---
 

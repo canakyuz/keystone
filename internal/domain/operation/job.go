@@ -46,6 +46,15 @@ type Job struct {
 	// worker knows its own name and would pass that check.
 	Fence int64
 
+	// RequestID is the correlation id of the HTTP request that created the operation
+	// this job belongs to.
+	//
+	// It is carried on the job rather than looked up when needed, because the point of it
+	// is to appear in the worker's log lines, and a lookup per log line is not something
+	// to put on the job path. It may be empty for operations created before the column
+	// existed.
+	RequestID string
+
 	LastError string
 	CreatedAt time.Time
 	UpdatedAt time.Time

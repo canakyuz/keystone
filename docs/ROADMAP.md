@@ -114,8 +114,9 @@ behaviour.
 
 1. OpenTelemetry: spans for the HTTP request, the usecase, the repository and SQL. A
    provisioning step must join the trace of the request that created it.
-2. Carry `request_id` from the HTTP layer into the worker, closing the gap noted in
-   `internal/worker/provision_handler.go`.
+`request_id` propagation is done: migration 033 stores the correlation id on the
+operation and the worker reads it back when it claims the job, so a provisioning can be
+followed across the two processes in a log search.
 
 Note on the original plan for this phase: it said to label the metrics with `tenant_id`.
 That was not done, on purpose. A series exists per distinct combination of label values,

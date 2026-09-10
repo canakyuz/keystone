@@ -95,6 +95,7 @@ func (h *Handler) CreateTenant(c *fiber.Ctx) error {
 		Email:     req.Email,
 		Plan:      req.Plan,
 		CreatedBy: subjectID(c),
+		RequestID: requestID(c),
 		// The scope is bound to the subject making the request. One customer's key must not
 		// match another customer's request.
 		Scope:          "subject:" + subjectID(c),
@@ -176,6 +177,17 @@ func validateCreate(req CreateTenantRequest) string {
 	}
 
 	return ""
+}
+
+// requestID returns the correlation id the logging middleware assigned to this request.
+//
+// It is stored on the operation so the worker, which runs minutes later in another
+// process, can put it in its own log lines. Without it the two halves of a provisioning
+// have to be matched by timestamp.
+func requestID(c *fiber.Ctx) string {
+	id, _ := c.Locals("correlation_id").(string)
+
+	return id
 }
 
 // subjectID returns the identity of the subject making the request.

@@ -47,6 +47,7 @@ func (r *Repository) Claim(
 	var leaseOwner sql.NullString
 	var leaseExpires sql.NullTime
 	var lastError sql.NullString
+	var requestID sql.NullString
 
 	err := r.db.QueryRowContext(ctx, `
 		WITH claimable AS (
@@ -66,17 +67,20 @@ func (r *Repository) Claim(
 		    fence            = j.fence + 1,
 		    attempts         = j.attempts + 1,
 		    updated_at       = NOW()
-		FROM claimable c
+		FROM claimable c, operations o
 		WHERE j.id = c.id
+		  AND o.id = j.operation_id
 		RETURNING j.id, j.operation_id, j.tenant_id, j.status,
 		          j.attempts, j.max_attempts, j.next_attempt_at,
 		          j.lease_owner, j.lease_expires_at, j.fence,
-		          j.last_error, j.created_at, j.updated_at`,
+		          j.last_error, j.created_at, j.updated_at,
+		          o.request_id`,
 		workerID, int(leaseDuration.Seconds()),
 	).Scan(&job.ID, &job.OperationID, &job.TenantID, &job.Status,
 		&job.Attempts, &job.MaxAttempts, &job.NextAttempt,
 		&leaseOwner, &leaseExpires, &job.Fence,
-		&lastError, &job.CreatedAt, &job.UpdatedAt)
+		&lastError, &job.CreatedAt, &job.UpdatedAt,
+		&requestID)
 
 	switch {
 	case errors.Is(err, sql.ErrNoRows):
@@ -87,6 +91,7 @@ func (r *Repository) Claim(
 
 	job.LeaseOwner = leaseOwner.String
 	job.LastError = lastError.String
+	job.RequestID = requestID.String
 	if leaseExpires.Valid {
 		job.LeaseExpires = &leaseExpires.Time
 	}

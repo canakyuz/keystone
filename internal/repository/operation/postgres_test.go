@@ -355,3 +355,50 @@ func TestGetOperation_NotFound(t *testing.T) {
 func workerName(i int) string {
 	return "worker-" + string(rune('a'+i%26))
 }
+
+// TestClaim_CarriesTheRequestID verifies the diagnostic chain reaches the worker.
+//
+// Provisioning is asynchronous, so the request that asked for a tenant and the worker
+// that builds it are in different processes and, for a retried job, possibly hours
+// apart. Without the request id on the claimed job the two halves can only be matched by
+// timestamp, which stops working the moment there is more than one tenant being
+// provisioned at a time.
+func TestClaim_CarriesTheRequestID(t *testing.T) {
+	repo, _, tenantID := setup(t)
+	ctx := context.Background()
+
+	created, err := repo.Create(ctx, CreateRequest{
+		TenantID:  tenantID,
+		Kind:      domain.KindTenantProvision,
+		RequestID: "req-abc-123",
+	})
+	require.NoError(t, err)
+	require.NotNil(t, created.Operation)
+
+	job, err := repo.Claim(ctx, "worker-1", time.Minute)
+	require.NoError(t, err)
+
+	assert.Equal(t, "req-abc-123", job.RequestID,
+		"the claimed job lost the request id, so the worker's logs cannot be tied to the request")
+}
+
+// TestClaim_ToleratesAMissingRequestID verifies an operation without one still claims.
+//
+// The column is nullable: operations created before migration 033 have no request id,
+// and a scan that cannot handle NULL would take the worker down on the oldest rows in
+// the table.
+func TestClaim_ToleratesAMissingRequestID(t *testing.T) {
+	repo, _, tenantID := setup(t)
+	ctx := context.Background()
+
+	_, err := repo.Create(ctx, CreateRequest{
+		TenantID: tenantID,
+		Kind:     domain.KindTenantProvision,
+	})
+	require.NoError(t, err)
+
+	job, err := repo.Claim(ctx, "worker-1", time.Minute)
+	require.NoError(t, err)
+
+	assert.Empty(t, job.RequestID)
+}

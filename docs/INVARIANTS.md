@@ -181,6 +181,26 @@ the business data, and delivery becomes a separate, retryable step.
 
 ---
 
+## Diagnosability
+
+Not a rule either, but a promise the design makes: a provisioning can be followed from
+the request that asked for it to the migration step that failed.
+
+The chain is `request_id -> operation_id -> job_id -> attempt -> worker -> step`, and
+every link is written. `request_id` is the correlation id the HTTP middleware assigns,
+stored on the operation and read back when a worker claims the job, so the two processes
+can be joined in a log search rather than by timestamp.
+
+- Schema: `migrations/033_add_operation_request_id.up.sql`
+- Code: `internal/handler/operation/handler.go`, `requestID`
+- Code: `internal/worker/provision_handler.go`, `logStep`
+- Tests: `TestClaim_CarriesTheRequestID`, `TestClaim_ToleratesAMissingRequestID`
+
+**Limit:** operations created before the column existed have no request id, and the
+field is omitted rather than emitted empty.
+
+---
+
 ## Shutdown behaviour
 
 Not a rule, but a promise of the same class: while shutting down, the worker

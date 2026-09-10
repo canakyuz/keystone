@@ -23,6 +23,9 @@ type ProvisionRequest struct {
 
 	CreatedBy string
 
+	// RequestID is the correlation id of the HTTP request; see migration 033.
+	RequestID string
+
 	Scope          string
 	IdempotencyKey string
 	RequestBody    []byte
@@ -89,6 +92,7 @@ func (r *Repository) insertProvision(
 		TenantID:       tenantID,
 		Kind:           domain.KindTenantProvision,
 		CreatedBy:      req.CreatedBy,
+		RequestID:      req.RequestID,
 		Scope:          req.Scope,
 		IdempotencyKey: req.IdempotencyKey,
 		MaxAttempts:    req.MaxAttempts,

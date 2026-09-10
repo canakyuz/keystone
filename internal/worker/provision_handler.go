@@ -125,19 +125,30 @@ func (h *ProvisionHandler) MarkFailed(ctx context.Context, tenantID string) erro
 // logStep carries the diagnostic chain.
 //
 // The chain: request_id -> operation_id -> job_id -> attempt -> worker -> migration
-// step. operation_id, job_id and attempt are written here; request_id is not yet
-// carried over from the HTTP layer.
+// step. All of it is written here.
+//
+// request_id is what ties these lines back to the HTTP request that asked for the work,
+// which ran in another process and, for a retried job, possibly hours earlier. It is
+// carried on the operation row; see migration 033.
 func (h *ProvisionHandler) logStep(job *domain.Job, step string) {
 	if h.log == nil {
 		return
 	}
 
-	h.log.WithFields(logger.Fields{
+	fields := logger.Fields{
 		"operation_id": job.OperationID,
 		"job_id":       job.ID,
 		"tenant_id":    job.TenantID,
 		"attempt":      job.Attempts,
 		"lease_owner":  job.LeaseOwner,
 		"fence":        job.Fence,
-	}).Info(step)
+	}
+
+	// Only present for operations created after migration 033. Emitting an empty field
+	// would make a log search for it match every older line.
+	if job.RequestID != "" {
+		fields["request_id"] = job.RequestID
+	}
+
+	h.log.WithFields(fields).Info(step)
 }

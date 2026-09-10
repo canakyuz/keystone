@@ -52,6 +52,11 @@ type CreateRequest struct {
 	// IdempotencyKey may be empty, in which case no replay protection applies.
 	IdempotencyKey string
 
+	// RequestID is the correlation id of the HTTP request. It is stored so the worker's
+	// log lines can be tied back to the request that asked for the work; see migration
+	// 033. It may be empty.
+	RequestID string
+
 	// RequestBody is the normalised request body the fingerprint is computed from.
 	RequestBody []byte
 
@@ -254,10 +259,10 @@ func insertOperationAndJobTx(ctx context.Context, tx *sql.Tx, req CreateRequest)
 	op := &domain.Operation{TenantID: req.TenantID, Kind: req.Kind, Status: domain.StatusPending}
 
 	err := tx.QueryRowContext(ctx, `
-		INSERT INTO operations (tenant_id, kind, status, created_by)
-		VALUES ($1, $2, 'pending', NULLIF($3, '')::UUID)
+		INSERT INTO operations (tenant_id, kind, status, created_by, request_id)
+		VALUES ($1, $2, 'pending', NULLIF($3, '')::UUID, NULLIF($4, ''))
 		RETURNING id, created_at, updated_at`,
-		req.TenantID, string(req.Kind), req.CreatedBy,
+		req.TenantID, string(req.Kind), req.CreatedBy, req.RequestID,
 	).Scan(&op.ID, &op.CreatedAt, &op.UpdatedAt)
 	if err != nil {
 		return nil, "", fmt.Errorf("could not write operation: %w", err)

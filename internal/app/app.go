@@ -152,6 +152,7 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 	// enforces three times the configured limit. Here the limit also follows the
 	// tenant's plan, and the key is the tenant rather than the IP.
 	app.Use(middleware.RateLimit(middleware.RateLimitConfig{
+		Scope:   middleware.ScopeIP,
 		Limiter: rateLimiter,
 		Plans:   tenantPlanCache,
 		Metrics: metricsRegistry,
@@ -168,6 +169,16 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 		return nil, fmt.Errorf("could not create the OpenAPI middleware: %w", err)
 	}
 	app.Use(openAPIMiddleware)
+
+	// The plan-based limit runs inside the authenticated groups, not here. It needs the
+	// tenant, and the tenant is not known until the authenticator has run.
+	planRateLimit := middleware.RateLimit(middleware.RateLimitConfig{
+		Scope:   middleware.ScopeTenant,
+		Limiter: rateLimiter,
+		Plans:   tenantPlanCache,
+		Metrics: metricsRegistry,
+		Logger:  appLogger,
+	})
 
 	// Note: tenantContextMiddleware is added after authentication, because extracting
 	// tenant_id from the JWT requires the auth middleware to have run first.
@@ -317,7 +328,7 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 		postHTTPHandler, categoryHTTPHandler,
 		paymentHTTPHandler, webhookHTTPHandler,
 		moduleCatalogHTTPHandler, toolCatalogHTTPHandler, activationHTTPHandler,
-		tenantContextMiddleware, tenantScopeMiddleware)
+		tenantContextMiddleware, tenantScopeMiddleware, planRateLimit)
 
 	// Return the assembled application.
 	return &Application{

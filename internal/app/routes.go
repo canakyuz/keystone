@@ -42,7 +42,19 @@ func setupRoutes(
 	activationH *registryHandler.ActivationHandler,
 	tenantContextMiddleware fiber.Handler,
 	tenantScope fiber.Handler,
+	planRateLimit fiber.Handler,
 ) {
+	// Authentication, then the plan-based limit, in that order.
+	//
+	// They are bundled because the second depends on the first: the limiter reads the
+	// tenant the authenticator wrote. Registering the limiter globally, ahead of
+	// authentication, is what made the plan quotas dead code — every authenticated
+	// tenant fell back to the anonymous limit.
+	authenticated := []fiber.Handler{
+		middleware.AuthMiddleware(cfg.Auth.JWTSecret),
+		planRateLimit,
+	}
+
 	// /docs serves the static Swagger/OpenAPI documentation page.
 	app.Get("/docs", func(c *fiber.Ctx) error {
 		return c.SendFile("web/static/docs/index.html")
@@ -70,12 +82,12 @@ func setupRoutes(
 	auth.Post("/logout", authH.Logout)
 
 	// Protected auth routes; a JWT is required.
-	authProtected := v1.Group("/auth", middleware.AuthMiddleware(cfg.Auth.JWTSecret))
+	authProtected := v1.Group("/auth", chain(authenticated)...)
 	authProtected.Get("/me", authH.GetMe)
 
 	// Tenant routes: authenticated, and scoped to one tenant.
 	// Middleware order: Auth -> TenantContext -> TenantScope
-	tenants := v1.Group("/tenants", middleware.AuthMiddleware(cfg.Auth.JWTSecret), tenantContextMiddleware, tenantScope)
+	tenants := v1.Group("/tenants", chain(authenticated, tenantContextMiddleware, tenantScope)...)
 	// Tenant creation is NOT in this group, for two reasons.
 	//
 	// First: this group uses tenantContextMiddleware, which tries to resolve the
@@ -100,7 +112,7 @@ func setupRoutes(
 	tenants.Delete("/:id", tenantH.Delete)
 
 	// Upload routes: tenant-scoped and authenticated.
-	upload := v1.Group("/upload", middleware.AuthMiddleware(cfg.Auth.JWTSecret), tenantContextMiddleware, tenantScope)
+	upload := v1.Group("/upload", chain(authenticated, tenantContextMiddleware, tenantScope)...)
 	upload.Post("/logo", uploadH.UploadLogo)
 	upload.Post("/favicon", uploadH.UploadFavicon)
 	upload.Post("/image", uploadH.UploadImage)
@@ -109,7 +121,7 @@ func setupRoutes(
 	app.Static("/uploads", "./uploads")
 
 	// User routes; authentication required.
-	users := v1.Group("/users", middleware.AuthMiddleware(cfg.Auth.JWTSecret), tenantContextMiddleware, tenantScope)
+	users := v1.Group("/users", chain(authenticated, tenantContextMiddleware, tenantScope)...)
 	users.Post("/", userH.Create)
 	users.Get("/stats", userH.GetStats)
 	users.Get("/:id", userH.GetByID)
@@ -123,7 +135,7 @@ func setupRoutes(
 	users.Delete("/:id", userH.Delete)
 
 	// Website routes; tenant-scoped.
-	websites := v1.Group("/websites", middleware.AuthMiddleware(cfg.Auth.JWTSecret), tenantContextMiddleware, tenantScope)
+	websites := v1.Group("/websites", chain(authenticated, tenantContextMiddleware, tenantScope)...)
 	websites.Get("/", websiteH.List)
 	websites.Post("/", websiteH.Create)
 	websites.Get("/:id", websiteH.GetByID)
@@ -133,7 +145,7 @@ func setupRoutes(
 	websites.Post("/:id/archive", websiteH.Archive)
 
 	// Student routes; part of the lessons module, tenant-scoped.
-	students := v1.Group("/students", middleware.AuthMiddleware(cfg.Auth.JWTSecret), tenantScope)
+	students := v1.Group("/students", chain(authenticated, tenantScope)...)
 	students.Post("/", studentH.Create)
 	students.Get("/stats", studentH.GetStats)
 	students.Get("/email", studentH.GetByEmail)
@@ -143,7 +155,7 @@ func setupRoutes(
 	students.Delete("/:id", studentH.Delete)
 
 	// Lesson routes; part of the lessons module, tenant-scoped.
-	lessons := v1.Group("/lessons", middleware.AuthMiddleware(cfg.Auth.JWTSecret), tenantScope)
+	lessons := v1.Group("/lessons", chain(authenticated, tenantScope)...)
 	lessons.Post("/", lessonH.Create)
 	lessons.Get("/stats", lessonH.GetStats)
 	lessons.Get("/upcoming", lessonH.GetUpcoming)
@@ -156,7 +168,7 @@ func setupRoutes(
 	students.Get("/:student_id/lessons", lessonH.GetByStudent)
 
 	// Assignment routes; part of the lessons module, tenant-scoped.
-	assignments := v1.Group("/assignments", middleware.AuthMiddleware(cfg.Auth.JWTSecret), tenantScope)
+	assignments := v1.Group("/assignments", chain(authenticated, tenantScope)...)
 	assignments.Post("/", assignmentH.Create)
 	assignments.Get("/stats", assignmentH.GetStats)
 	assignments.Get("/overdue", assignmentH.GetOverdue)
@@ -169,7 +181,7 @@ func setupRoutes(
 	students.Get("/:student_id/assignments", assignmentH.GetByStudent)
 
 	// Availability routes; part of the booking module, tenant-scoped.
-	availabilities := v1.Group("/availabilities", middleware.AuthMiddleware(cfg.Auth.JWTSecret), tenantScope)
+	availabilities := v1.Group("/availabilities", chain(authenticated, tenantScope)...)
 	availabilities.Post("/", availabilityH.Create)
 	availabilities.Get("/stats", availabilityH.GetStats)
 	availabilities.Get("/date-range", availabilityH.GetByDateRange)
@@ -182,7 +194,7 @@ func setupRoutes(
 	availabilities.Get("/user/:user_id", availabilityH.GetByUser)
 
 	// Appointment routes; part of the booking module, tenant-scoped.
-	appointments := v1.Group("/appointments", middleware.AuthMiddleware(cfg.Auth.JWTSecret), tenantScope)
+	appointments := v1.Group("/appointments", chain(authenticated, tenantScope)...)
 	appointments.Post("/", appointmentH.Create)
 	appointments.Get("/stats", appointmentH.GetStats)
 	appointments.Get("/upcoming", appointmentH.GetUpcoming)
@@ -200,7 +212,7 @@ func setupRoutes(
 	appointments.Get("/user/:user_id", appointmentH.GetByUser)
 
 	// Service routes; tenant-scoped.
-	services := v1.Group("/services", middleware.AuthMiddleware(cfg.Auth.JWTSecret), tenantScope)
+	services := v1.Group("/services", chain(authenticated, tenantScope)...)
 	services.Post("/", serviceH.Create)
 	services.Get("/stats", serviceH.GetStats)
 	services.Get("/featured", serviceH.GetFeatured)
@@ -211,7 +223,7 @@ func setupRoutes(
 	services.Delete("/:id", serviceH.Delete)
 
 	// Blog category routes; tenant-scoped.
-	categories := v1.Group("/blog/categories", middleware.AuthMiddleware(cfg.Auth.JWTSecret), tenantScope)
+	categories := v1.Group("/blog/categories", chain(authenticated, tenantScope)...)
 	categories.Post("/", categoryH.Create)
 	categories.Get("/slug/:slug", categoryH.GetBySlug)
 	categories.Get("/:id", categoryH.GetByID)
@@ -220,7 +232,7 @@ func setupRoutes(
 	categories.Delete("/:id", categoryH.Delete)
 
 	// Blog post routes; tenant-scoped.
-	posts := v1.Group("/blog/posts", middleware.AuthMiddleware(cfg.Auth.JWTSecret), tenantScope)
+	posts := v1.Group("/blog/posts", chain(authenticated, tenantScope)...)
 	posts.Post("/", postH.Create)
 	posts.Get("/featured", postH.GetFeatured)
 	posts.Get("/slug/:slug", postH.GetBySlug)
@@ -236,7 +248,7 @@ func setupRoutes(
 	categories.Get("/:category_id/posts", postH.GetByCategoryID)
 
 	// Payment routes; tenant-scoped and authenticated.
-	payments := v1.Group("/payments", middleware.AuthMiddleware(cfg.Auth.JWTSecret), tenantScope)
+	payments := v1.Group("/payments", chain(authenticated, tenantScope)...)
 	payments.Post("/", paymentH.CreatePayment)
 	payments.Post("/complete-3ds", paymentH.Complete3DSPayment)
 	payments.Get("/:id", paymentH.GetPayment)
@@ -275,7 +287,7 @@ func setupRoutes(
 	registry.Get("/tools/:id", toolCatalogH.GetToolByID)
 
 	// Tenant-scoped activation routes; authentication required.
-	tenantRegistry := v1.Group("/registry/tenant", middleware.AuthMiddleware(cfg.Auth.JWTSecret), tenantScope)
+	tenantRegistry := v1.Group("/registry/tenant", chain(authenticated, tenantScope)...)
 
 	// Module activation for the current tenant.
 	tenantRegistry.Get("/modules", activationH.GetActivatedModules)
@@ -294,4 +306,17 @@ func setupRoutes(
 	tenantRegistry.Delete("/tools/:tool_id", activationH.UninstallTool)
 	tenantRegistry.Post("/tools/:tool_id/complete-setup", activationH.CompleteToolSetup)
 	tenantRegistry.Get("/tools/:tool_id/dependencies", activationH.CheckToolDependencies)
+}
+
+// chain appends group-specific middleware to a shared base without aliasing it.
+//
+// append() on a shared slice can write into the base's spare capacity, so two groups
+// built from the same base would overwrite each other's middleware. Copying is cheap
+// here and the alternative is a bug that only appears once a second group is added.
+func chain(base []fiber.Handler, extra ...fiber.Handler) []fiber.Handler {
+	out := make([]fiber.Handler, 0, len(base)+len(extra))
+	out = append(out, base...)
+	out = append(out, extra...)
+
+	return out
 }

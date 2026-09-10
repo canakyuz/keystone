@@ -27,13 +27,46 @@ var planQuotas = map[string]ratelimit.Quota{
 	"enterprise": ratelimit.PerMinute(6_000),
 }
 
-// anonymousQuota applies to unauthenticated requests. The tenant is unknown, so the
-// key is the IP and the limit is deliberately tight.
+// anonymousQuota applies to requests that carry no credentials at all. The tenant is
+// unknown, so the key is the IP and the limit is deliberately tight.
 var anonymousQuota = ratelimit.PerMinute(30)
+
+// addressQuota is the coarse per-address brake applied to credential-bearing traffic
+// ahead of authentication.
+//
+// It sits above the largest plan on purpose. The plan quota is the product policy and
+// has to be the binding limit; this one exists so that a flood of requests carrying
+// junk credentials cannot be served for free just because it will be rejected by the
+// authenticator. Set below the top plan it would shadow it, and an enterprise tenant
+// would silently receive less than it pays for.
+//
+// It is deliberately generous rather than exact: several tenants behind one address is
+// normal, and a shared office or NAT gateway must not throttle them collectively.
+var addressQuota = ratelimit.PerMinute(12_000)
 
 // fallbackQuota applies when the plan cannot be resolved. The lowest plan is chosen:
 // a resolution failure must not turn into a free upgrade.
 var fallbackQuota = planQuotas["free"]
+
+// Scope selects which limit a middleware instance enforces.
+//
+// Two instances are needed because the plan cannot be resolved before the request is
+// authenticated, and unauthenticated traffic still has to be limited. Registering one
+// global instance and hoping it sees a tenant is what the previous version did: the
+// limiter ran before the authenticator, c.Locals("tenant_id") was always empty, and
+// every authenticated tenant was silently held to the anonymous quota of 30 requests a
+// minute regardless of the plan it paid for. The plan table existed and never applied.
+type Scope int
+
+const (
+	// ScopeIP limits by client address. Registered globally, ahead of authentication, as
+	// an abuse brake.
+	ScopeIP Scope = iota
+
+	// ScopeTenant limits by tenant, using the plan's quota. Registered inside the
+	// authenticated groups, where the tenant is known.
+	ScopeTenant
+)
 
 // RateLimitConfig configures the limiter middleware.
 type RateLimitConfig struct {
@@ -43,6 +76,9 @@ type RateLimitConfig struct {
 	// Plans resolves tenant_id to a plan. It may be nil, in which case every
 	// authenticated request is limited by fallbackQuota.
 	Plans *TenantPlanCache
+
+	// Scope selects which limit this instance enforces.
+	Scope Scope
 
 	// Metrics records each decision. It may be nil.
 	Metrics *metrics.Registry
@@ -71,7 +107,10 @@ func RateLimit(cfg RateLimitConfig) fiber.Handler {
 			return c.Next()
 		}
 
-		key, quota, plan := resolveKeyAndQuota(c, cfg)
+		key, quota, plan, ok := resolveKeyAndQuota(c, cfg)
+		if !ok {
+			return c.Next()
+		}
 
 		result, err := cfg.Limiter.Allow(c.Context(), key, quota)
 		if err != nil && cfg.Logger != nil {
@@ -95,21 +134,40 @@ func RateLimit(cfg RateLimitConfig) fiber.Handler {
 	}
 }
 
-// resolveKeyAndQuota decides which key and quota limit a request, and names the plan
-// it resolved.
+// resolveKeyAndQuota decides which key and quota limit a request, and names the plan it
+// resolved. The final return says whether this instance applies at all.
 //
 // The plan name is returned for the metric label. It is bounded — there are five of
 // them plus two fallbacks — so it answers "which tier is being throttled?" without the
 // unbounded cardinality of a tenant id.
-func resolveKeyAndQuota(c *fiber.Ctx, cfg RateLimitConfig) (string, ratelimit.Quota, string) {
-	tenantID, ok := c.Locals("tenant_id").(string)
-	if !ok || tenantID == "" {
-		return "ip:" + c.IP(), anonymousQuota, "anonymous"
+func resolveKeyAndQuota(c *fiber.Ctx, cfg RateLimitConfig) (string, ratelimit.Quota, string, bool) {
+	if cfg.Scope == ScopeTenant {
+		tenantID, _ := c.Locals("tenant_id").(string)
+
+		// Registered after authentication, so a missing tenant means the request never
+		// identified itself. The address limiter already covered it.
+		if tenantID == "" {
+			return "", ratelimit.Quota{}, "", false
+		}
+
+		quota, plan := quotaForTenant(c.Context(), cfg, tenantID)
+
+		return "tenant:" + tenantID, quota, plan, true
 	}
 
-	quota, plan := quotaForTenant(c.Context(), cfg, tenantID)
+	// ScopeIP runs before authentication, so the tenant is not knowable here. What is
+	// knowable is whether the caller presented credentials at all.
+	//
+	// The earlier version tried to read c.Locals("tenant_id") and skip authenticated
+	// requests. That value is written by the authenticator, which has not run yet, so
+	// the branch was never taken: every authenticated request was charged against the
+	// anonymous budget of 30 a minute, and an enterprise tenant paying for 6000 was cut
+	// off after 30. The load test is what surfaced it.
+	if c.Get("Authorization") != "" {
+		return "ip:" + c.IP(), addressQuota, "address", true
+	}
 
-	return "tenant:" + tenantID, quota, plan
+	return "ip:" + c.IP(), anonymousQuota, "anonymous", true
 }
 
 // quotaForTenant returns the quota matching the tenant's plan, and the plan name.

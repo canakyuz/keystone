@@ -137,7 +137,10 @@ func (s *TenantActivationService) InstallModule(ctx context.Context, req Install
 	// Update install count
 	if err := s.moduleRepo.UpdateInstallCount(ctx, req.ModuleID, 1); err != nil {
 		// Log error but don't fail the operation
-		fmt.Printf("Warning: failed to update install count: %v\n", err)
+		// The install count is a display counter, not part of the activation. Failing to
+		// bump it must not fail the activation, and it is not worth a log line on the
+		// request path either: the count is derivable from the activation rows.
+		_ = err
 	}
 
 	// Auto-activate if requested and dependencies are met
@@ -201,7 +204,10 @@ func (s *TenantActivationService) UninstallModule(ctx context.Context, tenantID,
 	// Update install count
 	if err := s.moduleRepo.UpdateInstallCount(ctx, moduleID, -1); err != nil {
 		// Log error but don't fail the operation
-		fmt.Printf("Warning: failed to update install count: %v\n", err)
+		// The install count is a display counter, not part of the activation. Failing to
+		// bump it must not fail the activation, and it is not worth a log line on the
+		// request path either: the count is derivable from the activation rows.
+		_ = err
 	}
 
 	return nil
@@ -314,7 +320,10 @@ func (s *TenantActivationService) InstallTool(ctx context.Context, req InstallTo
 	// Update install count
 	if err := s.toolRepo.UpdateInstallCount(ctx, req.ToolID, 1); err != nil {
 		// Log error but don't fail the operation
-		fmt.Printf("Warning: failed to update install count: %v\n", err)
+		// The install count is a display counter, not part of the activation. Failing to
+		// bump it must not fail the activation, and it is not worth a log line on the
+		// request path either: the count is derivable from the activation rows.
+		_ = err
 	}
 
 	// Auto-activate if requested and dependencies are met
@@ -378,7 +387,10 @@ func (s *TenantActivationService) UninstallTool(ctx context.Context, tenantID, t
 	// Update install count
 	if err := s.toolRepo.UpdateInstallCount(ctx, toolID, -1); err != nil {
 		// Log error but don't fail the operation
-		fmt.Printf("Warning: failed to update install count: %v\n", err)
+		// The install count is a display counter, not part of the activation. Failing to
+		// bump it must not fail the activation, and it is not worth a log line on the
+		// request path either: the count is derivable from the activation rows.
+		_ = err
 	}
 
 	return nil

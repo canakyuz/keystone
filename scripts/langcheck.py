@@ -77,7 +77,11 @@ SKIP_LINES = {
     ("migrations/026_create_cms_tables.up.sql", 124),
 }
 
-COMMENT = re.compile(r"(?://|--)\s?(.*)$")
+# Comment markers, plus the strings a shell script or Makefile prints. In Go and SQL the
+# prose lives in comments; in a shell script it lives in echo, and a Turkish message
+# printed at the terminal is just as visible to a reader as one in the source.
+COMMENT = re.compile(r"(?://|--|#)\s?(.*)$")
+PRINTED = re.compile(r"""["']([^"']{8,})["']""")
 BACKTICKED = re.compile(r"`[^`]*`")
 
 # Sentence punctuation is stripped before the code filter runs. Without this step a word
@@ -106,7 +110,7 @@ def comment_tokens():
     """Yield (path, line number, raw line, tokens) for every comment in the tree."""
     files = [
         f for f in subprocess.check_output(["git", "ls-files"], text=True).split()
-        if f.endswith((".go", ".sql", ".yml", ".yaml"))
+        if f.endswith((".go", ".sql", ".yml", ".yaml", ".sh", ".py")) or f == "Makefile"
     ]
     for path in files:
         try:
@@ -116,10 +120,14 @@ def comment_tokens():
         for number, line in enumerate(lines, 1):
             if (path, number) in SKIP_LINES:
                 continue
-            match = COMMENT.search(line)
-            if not match:
+            parts = []
+            if match := COMMENT.search(line):
+                parts.append(match.group(1))
+            if path.endswith((".sh",)) or path == "Makefile":
+                parts.extend(PRINTED.findall(line))
+            if not parts:
                 continue
-            text = BACKTICKED.sub(" ", match.group(1))
+            text = BACKTICKED.sub(" ", " ".join(parts))
             text = CODEISH.sub(" ", SENTENCE_PUNCT.sub(" ", text))
             tokens = [
                 tok for tok in re.findall(r"[A-Za-z]{3,}", text)

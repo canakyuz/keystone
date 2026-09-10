@@ -5,7 +5,7 @@ PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 MIGRATIONS_DIR="$PROJECT_ROOT/migrations"
 
 if [ ! -d "$MIGRATIONS_DIR" ]; then
-  echo "Migrations dizini bulunamadi: $MIGRATIONS_DIR" >&2
+  echo "migrations directory not found: $MIGRATIONS_DIR" >&2
   exit 1
 fi
 
@@ -43,7 +43,7 @@ bootstrap_migrations() {
     inserted=$((inserted + 1))
   done
 
-  echo "\033[32m[OK]\033[0m Bootstrap tamamlandi (kaydedilen dosya sayisi: $inserted)"
+  echo "\033[32m[OK]\033[0m bootstrap complete (files recorded: $inserted)"
 }
 
 migration_applied() {
@@ -75,7 +75,7 @@ main() {
   ensure_schema_table
 
   if [ "$(schema_table_empty)" = "t" ] && [ "$(table_exists public.tenants)" = "t" ]; then
-    echo "Var olan tablolari bulunan bir veritabaninda schema_migrations bos. BOOTSTRAP_MIGRATIONS=1 scripts/run_migrations.sh komutu ile bootstrap yapin." >&2
+    echo "The database has tables but schema_migrations is empty. Reconcile it first: BOOTSTRAP_MIGRATIONS=1 scripts/run_migrations.sh" >&2
     return 1
   fi
 
@@ -87,7 +87,7 @@ main() {
     filename=$(basename "$file_path")
 
     if migration_applied "$filename"; then
-      echo "-> $filename (atlanildi)"
+      echo "-> $filename (skipped)"
       skipped=$((skipped + 1))
       continue
     fi
@@ -98,7 +98,7 @@ main() {
     applied=$((applied + 1))
   done
 
-  echo "\033[32m[OK]\033[0m Migration islemi tamamlandi (uygulanan: $applied, atlanan: $skipped)"
+  echo "\033[32m[OK]\033[0m migrations complete (applied: $applied, skipped: $skipped)"
 }
 
 main "$@"

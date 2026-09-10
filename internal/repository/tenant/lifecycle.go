@@ -5,20 +5,20 @@ import (
 	"fmt"
 )
 
-// MarkProvisioning, tenant'i 'provisioning' durumuna alir.
+// MarkProvisioning moves the tenant to 'provisioning'.
 //
-// Gecis yalnizca 'pending', 'failed' veya zaten 'provisioning' durumundan
-// yapilir. Aktif bir tenant bu cagriyla geri cekilemez.
+// The transition is only made from 'pending', 'failed', or 'provisioning' itself. An
+// active tenant cannot be pulled back by this call.
 //
-// NEDEN kaynak durum kosulu: bu yazim fencing korumasinin disindadir.
-// Lease'ini kaybetmis eski bir worker, guncel worker tenant'i aktiflestirdikten
-// sonra bu cagriyi yapabilir. Kosul olmasaydi calisan bir tenant'i kurulum
-// durumuna dusururdu.
+// WHY the source-state condition: this write falls outside fencing protection. A
+// worker that has lost its lease can make this call after the current worker has
+// activated the tenant. Without the condition it would knock a working tenant back
+// into a provisioning state.
 //
-// Etkilenen satir olmamasi hata degildir: gecis uygulanmadi demektir ve bu
-// beklenen bir durumdur.
+// Affecting no rows is not an error: it means the transition did not apply, which is
+// an expected outcome.
 //
-// Karmasiklik: O(1), birincil anahtar uzerinden tekil guncelleme.
+// Complexity: O(1), a single update by primary key.
 func (r *PostgresRepository) MarkProvisioning(ctx context.Context, tenantID string) error {
 	_, err := r.db.ExecContext(ctx, `
 		UPDATE tenants
@@ -33,10 +33,10 @@ func (r *PostgresRepository) MarkProvisioning(ctx context.Context, tenantID stri
 	return nil
 }
 
-// MarkFailed, tenant'i 'failed' durumuna alir.
+// MarkFailed moves the tenant to 'failed'.
 //
-// Aktif bir tenant basarisiz isaretlenmez: kurulum zaten tamamlanmistir ve
-// gecikmis bir bildirim onu bozmamalidir.
+// An active tenant is never marked failed: its provisioning already completed, and a
+// late report must not undo that.
 func (r *PostgresRepository) MarkFailed(ctx context.Context, tenantID string) error {
 	_, err := r.db.ExecContext(ctx, `
 		UPDATE tenants

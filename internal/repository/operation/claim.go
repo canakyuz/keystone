@@ -10,34 +10,32 @@ import (
 	domain "github.com/canakyuz/keystone/internal/domain/operation"
 )
 
-// ErrNoJob, devralinabilir is olmadigini bildirir.
+// ErrNoJob reports that no claimable job exists.
 var ErrNoJob = errors.New("no claimable job")
 
-// Claim, calistirilabilir bir isi belirli sure icin sahiplenir.
+// Claim takes a runnable job for a bounded period.
 //
-// SORGU BICIMI
-// FOR UPDATE SKIP LOCKED kullanilir. Iki worker ayni anda calistiginda,
-// biri satiri kilitler, digeri o satiri atlayip bir sonrakine gecer. Bunun
-// alternatifi uygulama tarafinda kilit yonetmekti; veritabani zaten bu isi
-// yapabiliyorken ikinci bir kilit katmani eklemek gereksiz karmasiklik ve
-// yeni bir hata kaynagi olurdu.
+// QUERY SHAPE
+// FOR UPDATE SKIP LOCKED is used. With two workers running at once, one locks the
+// row and the other skips it and moves to the next. The alternative was managing a
+// lock in the application; with the database already able to do this, a second lock
+// layer would be needless complexity and a new source of failure.
 //
-// SKIP LOCKED olmasaydi ikinci worker birincinin islemini bitirmesini
-// beklerdi ve kuyruk fiilen tek islemciye duserdi.
+// Without SKIP LOCKED the second worker would wait for the first's transaction to
+// finish and the queue would effectively collapse to a single processor.
 //
 // LEASE
-// Is, kalici bir "isleniyor" bayragiyla degil, sureli bir sahiplenmeyle
-// isaretlenir. Worker kurulum ortasinda kapanirsa lease suresi dolar ve is
-// yeniden devralinabilir. Kalici bayrak kullanilsaydi is sonsuza kadar o
-// bayrakla kalirdi.
+// A job is marked with a time-bounded claim rather than a persistent "processing"
+// flag. If the worker dies mid-provisioning, the lease expires and the job can be
+// claimed again. With a persistent flag the job would stay stuck behind it forever.
 //
 // FENCE
-// Her sahiplenmede fence bir artar. Sonuc bildirimi guncel fence degeriyle
-// yapilmak zorundadir; boylece lease'i suresi dolmus eski bir worker geri
-// dondugunde bildirimi reddedilir.
+// The fence increments by one on every claim. A result must be reported with the
+// current fence value, so a report from an old worker whose lease has expired is
+// rejected when it comes back.
 //
-// Karmasiklik: partial index sayesinde yalnizca calistirilabilir isler
-// taranir, tamamlanmis isler plana girmez.
+// Complexity: thanks to the partial index only runnable jobs are scanned; completed
+// jobs never enter the plan.
 func (r *Repository) Claim(
 	ctx context.Context, workerID string, leaseDuration time.Duration,
 ) (*domain.Job, error) {
@@ -96,13 +94,13 @@ func (r *Repository) Claim(
 	return job, nil
 }
 
-// RenewLease, uzun suren bir isin sahiplenmesini uzatir.
+// RenewLease extends the claim on a long-running job.
 //
-// Fence dogrulamasi burada da yapilir: eski bir worker, devredilmis bir isin
-// lease'ini uzatarak guncel sahibini kesintiye ugratamamalidir.
+// The fence is verified here too: an old worker must not be able to disrupt the
+// current holder by extending the lease on a job that was handed over.
 //
-// Fence ARTMAZ. Yenileme yeni bir sahiplenme degildir; artirmak, worker'in
-// elindeki fence degerini gecersiz kilardi.
+// The fence does NOT increment. A renewal is not a new claim; incrementing would
+// invalidate the fence value the worker holds.
 func (r *Repository) RenewLease(
 	ctx context.Context, jobID, workerID string, fence int64, leaseDuration time.Duration,
 ) error {
@@ -120,11 +118,11 @@ func (r *Repository) RenewLease(
 	return requireOneRow(result, domain.ErrStaleFence)
 }
 
-// CompleteSuccess, isi ve operasyonu TEK transaction icinde basarili kapatir.
+// CompleteSuccess closes the job and the operation successfully in ONE transaction.
 //
-// NEDEN tek transaction: ikisi ayri yazilsaydi, aralarinda surec kapandiginda
-// kullaniciya "tamamlandi" gorunen ama tenant'i hala aktiflesmemis bir kayit
-// kalabilirdi. Kullaniciya verilen sozun kendisi tutarsiz olurdu.
+// WHY one transaction: written separately, a crash in between could leave a record
+// that looks "completed" to the user while its tenant is still not active. The
+// promise made to the user would itself be inconsistent.
 //
 // activateTenant true ise tenant ayni transaction icinde aktife alinir.
 func (r *Repository) CompleteSuccess(
@@ -152,10 +150,10 @@ func (r *Repository) CompleteSuccess(
 	})
 }
 
-// CompleteFailure, basarisiz denemeyi kaydeder.
+// CompleteFailure records a failed attempt.
 //
-// Deneme hakki kaldiysa is yeniden denenmek uzere planlanir; kalmadiysa
-// 'dead' isaretlenir ve operasyon hatayla kapatilir.
+// If attempts remain the job is scheduled for a retry; if not it is marked 'dead' and
+// the operation is closed with an error.
 func (r *Repository) CompleteFailure(
 	ctx context.Context, jobID, workerID string, fence int64,
 	errCode, errMessage string, retryAfter time.Duration,
@@ -177,11 +175,11 @@ func (r *Repository) CompleteFailure(
 	})
 }
 
-// completeInTx, fence dogrulamasini yapip verilen islemi transaction icinde
-// calistirir.
+// completeInTx verifies the fence and runs the given operation inside a
+// transaction.
 //
-// Fence kontrolu SELECT ... FOR UPDATE ile yapilir: satir kilitlendigi icin,
-// kontrol ile guncelleme arasinda baska bir worker isi devralamaz.
+// The fence check uses SELECT ... FOR UPDATE: because the row is locked, no other
+// worker can take the job over between the check and the update.
 func (r *Repository) completeInTx(
 	ctx context.Context, jobID, workerID string, fence int64,
 	fn func(context.Context, *sql.Tx, string) error,
@@ -210,9 +208,8 @@ func (r *Repository) completeInTx(
 		return fmt.Errorf("could not read job: %w", err)
 	}
 
-	// Hem fence hem sahip dogrulanir. Fence tek basina yeterlidir, ancak
-	// sahip kontrolu hatali bir cagriyi daha erken ve daha anlasilir bicimde
-	// yakalar.
+	// Both the fence and the owner are verified. The fence alone is sufficient, but the
+	// owner check catches a mistaken call earlier and more legibly.
 	if currentFence != fence || currentOwner.String != workerID {
 		return fmt.Errorf("%w: job fence=%d owner=%s, report fence=%d owner=%s",
 			domain.ErrStaleFence, currentFence, currentOwner.String, fence, workerID)
@@ -254,7 +251,7 @@ func markOperationSucceeded(ctx context.Context, tx *sql.Tx, jobID string) error
 	return nil
 }
 
-// exhaustJob, deneme hakki bitmis isi olu isaretler ve operasyonu kapatir.
+// exhaustJob marks a job out of attempts as dead and closes the operation.
 func exhaustJob(ctx context.Context, tx *sql.Tx, jobID, errCode, errMessage string) error {
 	_, err := tx.ExecContext(ctx, `
 		UPDATE provisioning_jobs
@@ -278,9 +275,9 @@ func exhaustJob(ctx context.Context, tx *sql.Tx, jobID, errCode, errMessage stri
 	return nil
 }
 
-// rescheduleJob, isi yeniden denenmek uzere planlar.
+// rescheduleJob schedules the job for a retry.
 //
-// Lease birakilir: is hemen degil, next_attempt_at geldiginde devralinabilir.
+// The lease is released: the job becomes claimable at next_attempt_at, not at once.
 func rescheduleJob(ctx context.Context, tx *sql.Tx, jobID, errMessage string, retryAfter time.Duration) error {
 	_, err := tx.ExecContext(ctx, `
 		UPDATE provisioning_jobs
@@ -298,7 +295,7 @@ func rescheduleJob(ctx context.Context, tx *sql.Tx, jobID, errMessage string, re
 	return nil
 }
 
-// requireOneRow, guncellemenin tam olarak bir satiri etkilemesini zorunlu kilar.
+// requireOneRow insists that the update affected exactly one row.
 func requireOneRow(result sql.Result, onMismatch error) error {
 	affected, err := result.RowsAffected()
 	if err != nil {

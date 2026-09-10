@@ -11,10 +11,10 @@ import (
 	domain "github.com/canakyuz/keystone/internal/domain/operation"
 )
 
-// ErrSlugTaken, slug'in baska bir tenant tarafindan kullanildigini bildirir.
+// ErrSlugTaken reports that the slug is already used by another tenant.
 var ErrSlugTaken = errors.New("slug already taken")
 
-// ProvisionRequest, yeni bir tenant kurulumu talebidir.
+// ProvisionRequest is a request to provision a new tenant.
 type ProvisionRequest struct {
 	Name  string
 	Slug  string
@@ -29,7 +29,7 @@ type ProvisionRequest struct {
 	MaxAttempts    int
 }
 
-// ProvisionResult, kurulum talebinin sonucudur.
+// ProvisionResult is the outcome of a provisioning request.
 type ProvisionResult struct {
 	Operation *domain.Operation
 	TenantID  string
@@ -37,21 +37,19 @@ type ProvisionResult struct {
 	Replayed  bool
 }
 
-// CreateTenantProvision, tenant kaydini, operasyonu, isi ve idempotency
-// kaydini TEK transaction icinde yazar.
+// CreateTenantProvision writes the tenant record, the operation, the job and the
+// idempotency record in ONE transaction.
 //
-// NEDEN dordu birlikte: aralarindan herhangi birinde surec kapanirsa yetim
-// kayit olusur.
+// WHY all four together: a crash between any two of them leaves an orphan.
 //
-//   - Tenant var, operasyon yok: kullanicinin goremeyecegi yarim bir kayit.
-//   - Operasyon var, is yok: kullaniciya "islemde" gorunen ama hicbir
-//     worker'in almayacagi bir kayit.
-//   - Is var, idempotency kaydi yok: istemcinin tekrari ikinci bir kurulum
-//     baslatir.
+//   - Tenant but no operation: a half-record the user cannot see.
+//   - Operation but no job: a record that looks "in progress" to the user but that no
+//     worker will ever pick up.
+//   - Job but no idempotency record: a client retry starts a second provisioning.
 //
-// Tenant 'pending' durumunda yazilir. 'active' olmasi worker'in kurulum
-// adimlarini tamamlamasina baglidir; boylece semasi hazir olmayan bir
-// tenant istek kabul edemez.
+// The tenant is written in the 'pending' state. Becoming 'active' depends on the
+// worker completing the provisioning steps, so a tenant whose schema is not ready
+// cannot accept requests.
 func (r *Repository) CreateTenantProvision(
 	ctx context.Context, req ProvisionRequest,
 ) (*ProvisionResult, error) {
@@ -72,7 +70,7 @@ func (r *Repository) CreateTenantProvision(
 	return result, err
 }
 
-// insertProvision, dort kaydi tek transaction icinde yazar.
+// insertProvision writes the four records in one transaction.
 func (r *Repository) insertProvision(
 	ctx context.Context, req ProvisionRequest, fingerprint string,
 ) (*ProvisionResult, error) {
@@ -114,11 +112,11 @@ func (r *Repository) insertProvision(
 	return &ProvisionResult{Operation: op, TenantID: tenantID, JobID: jobID}, nil
 }
 
-// insertPendingTenant, tenant kaydini 'pending' durumunda yazar.
+// insertPendingTenant writes the tenant record in the 'pending' state.
 //
-// Sema adi burada uretilir ve kaydedilir, ancak sema HENUZ olusturulmaz.
-// Sema olusturma worker'in isidir; API istegi uzun suren bir DDL islemini
-// beklememelidir.
+// The schema name is generated and recorded here, but the schema itself is NOT yet
+// created. Creating it is the worker's job; an API request should not wait on a
+// long-running DDL operation.
 func insertPendingTenant(ctx context.Context, tx *sql.Tx, req ProvisionRequest) (string, error) {
 	var schemaName string
 	if err := tx.QueryRowContext(ctx, `SELECT generate_schema_name($1)`, req.Slug).Scan(&schemaName); err != nil {
@@ -149,7 +147,7 @@ func insertPendingTenant(ctx context.Context, tx *sql.Tx, req ProvisionRequest) 
 	return tenantID, nil
 }
 
-// lookupProvision, anahtar daha once gorulduyse mevcut sonucu dondurur.
+// lookupProvision returns the existing result if the key was seen before.
 func (r *Repository) lookupProvision(
 	ctx context.Context, req ProvisionRequest, fingerprint string,
 ) (*ProvisionResult, error) {
@@ -167,7 +165,7 @@ func (r *Repository) lookupProvision(
 	}, nil
 }
 
-// lookupProvisionStrict, yaris sonrasi kaydin bulunmasini zorunlu kilar.
+// lookupProvisionStrict insists the record be found after a race.
 func (r *Repository) lookupProvisionStrict(
 	ctx context.Context, req ProvisionRequest, fingerprint string,
 ) (*ProvisionResult, error) {

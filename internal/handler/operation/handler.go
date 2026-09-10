@@ -1,11 +1,11 @@
-// Package operation, uzun suren islemlerin HTTP yuzunu saglar.
+// Package operation provides the HTTP face of long-running work.
 //
-// Kurulum senkron degildir: istek isi kabul eder ve bir operasyon adresi
-// dondurur. Istemci durumu o adresten sorgular.
+// Provisioning is not synchronous: the request accepts the work and returns an
+// operation address. The client polls that address for the status.
 //
-// Neden senkron degil: sema olusturma ve migration uygulama saniyeler surebilir.
-// Istegi bekletmek, zaman asimi durumunda istemciye isin ne olduguna dair
-// hicbir bilgi birakmaz.
+// Why not synchronous: creating a schema and applying migrations can take seconds.
+// Holding the request open leaves the client with no information about the work if it
+// times out.
 package operation
 
 import (
@@ -22,31 +22,31 @@ import (
 	"github.com/canakyuz/keystone/pkg/logger"
 )
 
-// maxIdempotencyKeyLength, anahtarin ust sinirdir.
-// Sema 255 karakter tutuyor; sinir burada da uygulanir ki veritabani hatasi
-// yerine anlasilir bir dogrulama hatasi donsun.
+// maxIdempotencyKeyLength caps the key.
+// The schema holds 255 characters; the limit is enforced here too so the caller gets
+// a legible validation error instead of a database error.
 const maxIdempotencyKeyLength = 255
 
-// Store, handler'in ihtiyac duydugu davranislari tanimlar.
-// Arayuz tuketen tarafta durur: handler repository'nin tamamini degil,
-// yalnizca kullandigi iki metodu bilir.
+// Store defines the behaviours the handler needs.
+// The interface sits on the consumer side: the handler knows only the two methods it
+// uses, not the whole repository.
 type Store interface {
 	CreateTenantProvision(ctx context.Context, req oprepo.ProvisionRequest) (*oprepo.ProvisionResult, error)
 	GetOperation(ctx context.Context, id string) (*domain.Operation, error)
 }
 
-// Handler, operasyon ve tenant kurulumu uclarini saglar.
+// Handler serves the operation and tenant provisioning endpoints.
 type Handler struct {
 	store Store
 	log   *logger.Logger
 }
 
-// New, handler olusturur.
+// New creates the handler.
 func New(store Store, log *logger.Logger) *Handler {
 	return &Handler{store: store, log: log}
 }
 
-// CreateTenantRequest, kurulum istegidir.
+// CreateTenantRequest is a provisioning request.
 type CreateTenantRequest struct {
 	Name  string `json:"name"`
 	Slug  string `json:"slug"`
@@ -54,7 +54,7 @@ type CreateTenantRequest struct {
 	Plan  string `json:"plan,omitempty"`
 }
 
-// OperationResponse, operasyon kaynaginin temsilidir.
+// OperationResponse is the representation of an operation resource.
 type OperationResponse struct {
 	ID          string `json:"id"`
 	TenantID    string `json:"tenant_id"`
@@ -66,13 +66,13 @@ type OperationResponse struct {
 	CompletedAt string `json:"completed_at,omitempty"`
 }
 
-// CreateTenant, kurulum isini kabul eder.
+// CreateTenant accepts the provisioning work.
 //
-// Yanit 202 Accepted'dir ve Location basligi operasyon kaynagini gosterir.
-// 201 Created donmek yanlis olurdu: tenant henuz kullanilabilir degil.
+// The response is 202 Accepted, and the Location header points at the operation
+// resource. Returning 201 Created would be wrong: the tenant is not usable yet.
 //
-// Tekrarlanan istek de 202 doner ve ayni operasyonu gosterir. Istemcinin
-// yeniden denemesi ikinci bir kurulum baslatmaz.
+// A repeated request also returns 202 and points at the same operation. A client
+// retry does not start a second provisioning.
 func (h *Handler) CreateTenant(c *fiber.Ctx) error {
 	var req CreateTenantRequest
 	if err := c.BodyParser(&req); err != nil {
@@ -95,8 +95,8 @@ func (h *Handler) CreateTenant(c *fiber.Ctx) error {
 		Email:     req.Email,
 		Plan:      req.Plan,
 		CreatedBy: subjectID(c),
-		// Kapsam, anahtari isteyen ozneye baglanir. Bir musterinin anahtari
-		// digerinin istegini eslestirmemelidir.
+		// The scope is bound to the subject making the request. One customer's key must not
+		// match another customer's request.
 		Scope:          "subject:" + subjectID(c),
 		IdempotencyKey: key,
 		RequestBody:    c.Body(),
@@ -108,8 +108,8 @@ func (h *Handler) CreateTenant(c *fiber.Ctx) error {
 	location := "/api/v1/operations/" + result.Operation.ID
 	c.Set("Location", location)
 
-	// Tekrarlanan istek acikca isaretlenir. Istemci, isteginin yeni bir islem
-	// baslatmadigini gorebilmelidir.
+	// A replay is flagged explicitly. The client must be able to see that its request
+	// did not start new work.
 	if result.Replayed {
 		c.Set("Idempotent-Replay", "true")
 	}
@@ -120,7 +120,7 @@ func (h *Handler) CreateTenant(c *fiber.Ctx) error {
 	})
 }
 
-// GetOperation, operasyon durumunu dondurur.
+// GetOperation returns the operation status.
 func (h *Handler) GetOperation(c *fiber.Ctx) error {
 	op, err := h.store.GetOperation(c.UserContext(), c.Params("id"))
 
@@ -134,7 +134,7 @@ func (h *Handler) GetOperation(c *fiber.Ctx) error {
 	return c.JSON(toResponse(op))
 }
 
-// mapCreateError, alan hatalarini HTTP durumlarina cevirir.
+// mapCreateError turns domain errors into HTTP statuses.
 func (h *Handler) mapCreateError(c *fiber.Ctx, err error) error {
 	switch {
 	case errors.Is(err, domain.ErrIdempotencyConflict):
@@ -151,8 +151,8 @@ func (h *Handler) mapCreateError(c *fiber.Ctx, err error) error {
 	}
 }
 
-// internal, beklenmeyen hatalari loglar ve genel bir yanit doner.
-// Uygulama detayi istemciye sizmaz.
+// internal logs an unexpected error and returns a generic response.
+// No implementation detail leaks to the client.
 func (h *Handler) internal(c *fiber.Ctx, err error) error {
 	if h.log != nil {
 		h.log.WithFields(logger.Fields{
@@ -164,7 +164,7 @@ func (h *Handler) internal(c *fiber.Ctx, err error) error {
 	return problem(c, http.StatusInternalServerError, "internal_error", "request failed")
 }
 
-// validateCreate, zorunlu alanlari dogrular.
+// validateCreate checks the required fields.
 func validateCreate(req CreateTenantRequest) string {
 	switch {
 	case strings.TrimSpace(req.Name) == "":
@@ -178,13 +178,13 @@ func validateCreate(req CreateTenantRequest) string {
 	return ""
 }
 
-// subjectID, istegi yapan oznenin kimligini dondurur.
+// subjectID returns the identity of the subject making the request.
 func subjectID(c *fiber.Ctx) string {
 	id, _ := c.Locals("user_id").(string)
 	return id
 }
 
-// toResponse, alan nesnesini API temsiline cevirir.
+// toResponse converts the domain object into its API representation.
 func toResponse(op *domain.Operation) OperationResponse {
 	resp := OperationResponse{
 		ID:          op.ID,
@@ -203,9 +203,8 @@ func toResponse(op *domain.Operation) OperationResponse {
 	return resp
 }
 
-// problem, tutarli bir hata govdesi doner.
-// Makine tarafindan okunabilir kod, istemcinin mesaj icerigine gore
-// dallanmasini engeller.
+// problem returns a consistent error body.
+// The machine-readable code keeps clients from branching on the message text.
 func problem(c *fiber.Ctx, status int, code, detail string) error {
 	return c.Status(status).JSON(fiber.Map{
 		"type":   "https://keystone.dev/problems/" + code,

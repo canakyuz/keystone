@@ -1,9 +1,9 @@
-// Package operation, operasyon ve is kayitlarinin kalici depolanmasini saglar.
+// Package operation provides durable storage for operation and job records.
 //
-// Bu paketteki garantilerin cogu uygulama kodunda degil, veritabani
-// kisitlarinda ve sorgu bicimlerinde durur. Gerekce: iki surec ayni anda
-// calistiginda, uygulama seviyesinde yapilan "once kontrol et sonra yaz"
-// dizisi yaris kosulunu engellemez.
+// Most of the guarantees in this package live in database constraints and query
+// shapes rather than in application code. The reason: with two processes running at
+// once, a "check then write" sequence performed at the application level does not
+// prevent the race.
 package operation
 
 import (
@@ -20,77 +20,78 @@ import (
 	domain "github.com/canakyuz/keystone/internal/domain/operation"
 )
 
-// pgUniqueViolation, PostgreSQL'in benzersizlik ihlali kodudur.
+// pgUniqueViolation is PostgreSQL's unique violation code.
 const pgUniqueViolation = "23505"
 
-// defaultIdempotencyTTL, anahtarin varsayilan gecerlilik suresidir.
+// defaultIdempotencyTTL is the key's default validity window.
 //
-// Idempotency garantisi suresiz DEGILDIR: bu sure dolduktan sonra ayni
-// anahtar yeni bir islem yaratir. Sinir API dokumantasyonunda belirtilmelidir.
+// The idempotency guarantee is NOT indefinite: once this window expires the same key
+// creates a new operation. The limit must be stated in the API documentation.
 const defaultIdempotencyTTL = 24 * time.Hour
 
-// Repository, operasyon ve is kayitlarina erisir.
+// Repository accesses operation and job records.
 type Repository struct {
 	db *sql.DB
 }
 
-// New, repository olusturur.
+// New creates the repository.
 func New(db *sql.DB) *Repository {
 	return &Repository{db: db}
 }
 
-// CreateRequest, yeni bir operasyon talebini tanimlar.
+// CreateRequest describes a request for a new operation.
 type CreateRequest struct {
 	TenantID  string
 	Kind      domain.Kind
 	CreatedBy string
 
-	// Scope, idempotency anahtarinin gecerli oldugu kapsamdir.
-	// Bir musterinin anahtari digerinin istegini eslestirmemelidir.
+	// Scope is where the idempotency key is valid.
+	// One customer's key must not match another customer's request.
 	Scope string
 
-	// IdempotencyKey bos olabilir; o durumda tekrar korumasi uygulanmaz.
+	// IdempotencyKey may be empty, in which case no replay protection applies.
 	IdempotencyKey string
 
-	// RequestBody, parmak izi hesaplanacak normalize edilmis istek govdesidir.
+	// RequestBody is the normalised request body the fingerprint is computed from.
 	RequestBody []byte
 
 	IdempotencyTTL time.Duration
 	MaxAttempts    int
 }
 
-// CreateResult, olusturma sonucudur.
+// CreateResult is the outcome of creation.
 type CreateResult struct {
 	Operation *domain.Operation
 	JobID     string
 
-	// Replayed, istegin daha once gorulmus bir idempotency anahtariyla
-	// geldigini ve mevcut operasyonun dondurulduguni bildirir.
+	// Replayed reports that the request arrived with an idempotency key already seen,
+	// and that the existing operation was returned.
 	Replayed bool
 }
 
-// Fingerprint, istek govdesinin ozetini uretir.
+// Fingerprint produces the digest of a request body.
 func Fingerprint(body []byte) string {
 	sum := sha256.Sum256(body)
 	return hex.EncodeToString(sum[:])
 }
 
-// Create, operasyonu, isi ve idempotency kaydini tek transaction icinde yazar.
+// Create writes the operation, the job and the idempotency record in one transaction.
 //
-// NEDEN tek transaction: ucu ayri yazilsaydi, aralarinda surec kapandiginda
-// yetim kayit olusurdu. Operasyon var ama isi yoksa, kullaniciya "islemde"
-// gorunen ama hicbir worker'in almayacagi bir kayit kalirdi.
+// WHY one transaction: written as three separate steps, a crash in between would
+// leave an orphan. With an operation but no job, the user would see a record that
+// looks "in progress" but that no worker will ever pick up.
 //
-// Ayni idempotency anahtari tekrar geldiginde:
-//   - Istek govdesi ayni ise mevcut operasyon dondurulur (Replayed = true).
-//   - Farkli ise ErrIdempotencyConflict doner. Sessizce eski sonucu
-//     dondurmek istemciyi yanlis yonlendirirdi.
+// When the same idempotency key arrives again:
+//   - If the request body is identical, the existing operation is returned
+//     (Replayed = true).
+//   - If it differs, ErrIdempotencyConflict is returned. Silently returning the old
+//     result would mislead the client.
 //
-// Yaris kosulu iki asamada cozulur. Once mevcut anahtar okunur; bu, sik
-// gorulen tekrar durumunu ucuz yoldan karsilar. Ayni anda gelen iki istek
-// bu kontrolu birlikte gecerse, ikincisi INSERT sirasinda benzersizlik
-// kisitini ihlal eder ve ayni yola duser. Yalnizca okumaya guvenmek yeterli
-// degildir; benzersizligi veritabani zorlar.
+// The race is resolved in two stages. The existing key is read first, which handles
+// the common repeat case cheaply. If two simultaneous requests pass that check
+// together, the second violates the uniqueness constraint during INSERT and lands on
+// the same path. Relying on the read alone is not enough; the database enforces
+// uniqueness.
 func (r *Repository) Create(ctx context.Context, req CreateRequest) (*CreateResult, error) {
 	fingerprint := Fingerprint(req.RequestBody)
 
@@ -103,19 +104,18 @@ func (r *Repository) Create(ctx context.Context, req CreateRequest) (*CreateResu
 
 	result, err := r.insertAll(ctx, req, fingerprint)
 	if errors.Is(err, errKeyExists) {
-		// Yaris: baska bir istek arada anahtari yazdi. Onun operasyonunu
-		// donduruyoruz.
+		// A race: another request wrote the key in between. We return its operation.
 		return r.lookupIdempotentStrict(ctx, req, fingerprint)
 	}
 
 	return result, err
 }
 
-// errKeyExists, benzersizlik ihlalini dahili olarak isaretler.
+// errKeyExists flags a uniqueness violation internally.
 var errKeyExists = errors.New("idempotency key already exists")
 
-// lookupIdempotent, anahtar daha once gorulduyse sonucu dondurur.
-// Gorulmediyse (nil, nil) doner.
+// lookupIdempotent returns the result if the key was seen before.
+// It returns (nil, nil) if it was not.
 func (r *Repository) lookupIdempotent(
 	ctx context.Context, req CreateRequest, fingerprint string,
 ) (*CreateResult, error) {
@@ -145,7 +145,7 @@ func (r *Repository) lookupIdempotent(
 	return &CreateResult{Operation: op, Replayed: true}, nil
 }
 
-// lookupIdempotentStrict, yaris sonrasi mevcut kaydin bulunmasini zorunlu kilar.
+// lookupIdempotentStrict insists the existing record be found after a race.
 func (r *Repository) lookupIdempotentStrict(
 	ctx context.Context, req CreateRequest, fingerprint string,
 ) (*CreateResult, error) {
@@ -160,7 +160,7 @@ func (r *Repository) lookupIdempotentStrict(
 	return result, nil
 }
 
-// insertAll, operasyon, is ve idempotency kaydini tek transaction icinde yazar.
+// insertAll writes the operation, job and idempotency record in one transaction.
 func (r *Repository) insertAll(
 	ctx context.Context, req CreateRequest, fingerprint string,
 ) (*CreateResult, error) {
@@ -188,7 +188,8 @@ func (r *Repository) insertAll(
 	return &CreateResult{Operation: op, JobID: jobID}, nil
 }
 
-// insertIdempotencyKey, anahtari yazar. Kisit ihlalinde errKeyExists doner.
+// insertIdempotencyKey writes the key. It returns errKeyExists on a constraint
+// violation.
 func insertIdempotencyKey(
 	ctx context.Context, tx *sql.Tx, req CreateRequest, fingerprint, operationID string,
 ) error {
@@ -215,7 +216,7 @@ func insertIdempotencyKey(
 	return fmt.Errorf("could not write idempotency record: %w", err)
 }
 
-// GetOperation, operasyonu kimligiyle getirir.
+// GetOperation fetches an operation by its id.
 func (r *Repository) GetOperation(ctx context.Context, id string) (*domain.Operation, error) {
 	op := &domain.Operation{}
 	var errCode, errMessage, createdBy sql.NullString
@@ -246,9 +247,9 @@ func (r *Repository) GetOperation(ctx context.Context, id string) (*domain.Opera
 	return op, nil
 }
 
-// insertOperationAndJobTx, operasyon ve ona bagli isi verilen transaction
-// icinde yazar. Tenant kurulumu akisi da ayni yardimciyi kullanir, boylece
-// iki yolun kayit bicimi ayrisamaz.
+// insertOperationAndJobTx writes an operation and its job inside the given
+// transaction. The tenant provisioning flow uses the same helper, so the two paths
+// cannot drift apart in how they record things.
 func insertOperationAndJobTx(ctx context.Context, tx *sql.Tx, req CreateRequest) (*domain.Operation, string, error) {
 	op := &domain.Operation{TenantID: req.TenantID, Kind: req.Kind, Status: domain.StatusPending}
 

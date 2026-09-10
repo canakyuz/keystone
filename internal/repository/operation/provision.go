@@ -26,6 +26,9 @@ type ProvisionRequest struct {
 	// RequestID is the correlation id of the HTTP request; see migration 033.
 	RequestID string
 
+	// TraceContext is the W3C traceparent of the request; see migration 034.
+	TraceContext string
+
 	Scope          string
 	IdempotencyKey string
 	RequestBody    []byte
@@ -93,6 +96,7 @@ func (r *Repository) insertProvision(
 		Kind:           domain.KindTenantProvision,
 		CreatedBy:      req.CreatedBy,
 		RequestID:      req.RequestID,
+		TraceContext:   req.TraceContext,
 		Scope:          req.Scope,
 		IdempotencyKey: req.IdempotencyKey,
 		MaxAttempts:    req.MaxAttempts,

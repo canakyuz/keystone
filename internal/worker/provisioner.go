@@ -22,10 +22,15 @@ import (
 	"sync"
 	"time"
 
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
+
 	domain "github.com/canakyuz/keystone/internal/domain/operation"
 	oprepo "github.com/canakyuz/keystone/internal/repository/operation"
 	"github.com/canakyuz/keystone/pkg/logger"
 	"github.com/canakyuz/keystone/pkg/metrics"
+	"github.com/canakyuz/keystone/pkg/tracing"
 )
 
 // Handler performs the actual work of a job.
@@ -293,6 +298,28 @@ func (p *Provisioner) execute(parent context.Context, job *domain.Job) {
 	ctx, cancel := context.WithTimeout(parent, p.cfg.JobTimeout)
 	defer cancel()
 
+	// The job's span is LINKED to the request that created it, not parented to it.
+	//
+	// The request finished long ago. Parenting would keep its trace open until this job
+	// finally succeeds, and a trace only completes when all its spans do, so a job that
+	// keeps failing would leave a trace that never closes. Every retry would also appear
+	// as another child of a request that ended hours earlier.
+	//
+	// A link says "this was caused by that" without claiming the two are one operation.
+	ctx, span := tracing.Tracer("keystone-worker").Start(ctx,
+		"provision "+job.TenantID,
+		trace.WithSpanKind(trace.SpanKindConsumer),
+		trace.WithLinks(tracing.LinkFrom(job.TraceContext)...),
+		trace.WithAttributes(
+			attribute.String("keystone.operation_id", job.OperationID),
+			attribute.String("keystone.job_id", job.ID),
+			attribute.String("keystone.tenant_id", job.TenantID),
+			attribute.Int("keystone.attempt", job.Attempts),
+			attribute.String("keystone.request_id", job.RequestID),
+		),
+	)
+	defer span.End()
+
 	// Lease renewal runs in the background while the job runs. Without it, a
 	// long-running job would be handed to another worker while still executing.
 	stopRenew := p.startLeaseRenewal(ctx, job)
@@ -303,6 +330,11 @@ func (p *Provisioner) execute(parent context.Context, job *domain.Job) {
 	err := p.runHandler(ctx, job)
 
 	finish(outcomeOf(err), time.Since(started))
+
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+	}
 
 	p.report(job, err)
 }

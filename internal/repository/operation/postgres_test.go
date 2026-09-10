@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	domain "github.com/canakyuz/keystone/internal/domain/operation"
+	"github.com/canakyuz/keystone/pkg/tracing"
 	"github.com/canakyuz/keystone/test/helpers"
 )
 
@@ -401,4 +402,37 @@ func TestClaim_ToleratesAMissingRequestID(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Empty(t, job.RequestID)
+}
+
+// TestClaim_CarriesTheTraceContext verifies the worker can link back to the request.
+//
+// This is the hop with no headers. The API writes a row, the worker reads it back in
+// another process, and the traceparent on that row is the only thing connecting them.
+// If it does not survive, the two halves of a provisioning land in unrelated traces and
+// the feature silently does nothing — which is the failure mode worth a test, because
+// nothing else about the system misbehaves.
+func TestClaim_CarriesTheTraceContext(t *testing.T) {
+	repo, _, tenantID := setup(t)
+	ctx := context.Background()
+
+	const traceparent = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+
+	_, err := repo.Create(ctx, CreateRequest{
+		TenantID:     tenantID,
+		Kind:         domain.KindTenantProvision,
+		TraceContext: traceparent,
+	})
+	require.NoError(t, err)
+
+	job, err := repo.Claim(ctx, "worker-1", time.Minute)
+	require.NoError(t, err)
+
+	require.Equal(t, traceparent, job.TraceContext)
+
+	links := tracing.LinkFrom(job.TraceContext)
+	require.Len(t, links, 1, "the stored context did not produce a link")
+
+	assert.Equal(t, "4bf92f3577b34da6a3ce929d0e0e4736",
+		links[0].SpanContext.TraceID().String(),
+		"the link points at a different trace than the request")
 }

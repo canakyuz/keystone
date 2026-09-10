@@ -20,6 +20,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	_ "github.com/lib/pq"
 
@@ -32,6 +33,7 @@ import (
 	"github.com/canakyuz/keystone/pkg/database"
 	"github.com/canakyuz/keystone/pkg/logger"
 	"github.com/canakyuz/keystone/pkg/metrics"
+	"github.com/canakyuz/keystone/pkg/tracing"
 )
 
 func main() {
@@ -72,6 +74,25 @@ func run() error {
 	// process from the API, so it needs a separate scrape target; sharing the API's
 	// endpoint would attribute the worker's numbers to the API and would stop working
 	// the moment the two are scaled independently, which is the point of splitting them.
+	// A separate service name from the API. They are separate processes, and attributing
+	// the worker's spans to the API would make the two indistinguishable in the collector.
+	shutdownTracing, err := tracing.Init(context.Background(), tracing.Config{
+		Endpoint:    cfg.Tracing.Endpoint,
+		ServiceName: "keystone-worker",
+		Environment: cfg.Server.Environment,
+		SampleRatio: cfg.Tracing.SampleRatio,
+	})
+	if err != nil {
+		return fmt.Errorf("could not initialise tracing: %w", err)
+	}
+	defer func() {
+		// Spans leave in batches, so without an explicit flush the last few seconds of a
+		// run are lost, which is the window that matters when a worker is being restarted.
+		flushCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_ = shutdownTracing(flushCtx)
+	}()
+
 	metricsRegistry := metrics.New()
 	stopMetrics := serveMetrics(cfg.Server.MetricsAddr, metricsRegistry, log)
 	defer stopMetrics()

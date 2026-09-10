@@ -48,6 +48,7 @@ func (r *Repository) Claim(
 	var leaseExpires sql.NullTime
 	var lastError sql.NullString
 	var requestID sql.NullString
+	var traceContext sql.NullString
 
 	err := r.db.QueryRowContext(ctx, `
 		WITH claimable AS (
@@ -74,13 +75,13 @@ func (r *Repository) Claim(
 		          j.attempts, j.max_attempts, j.next_attempt_at,
 		          j.lease_owner, j.lease_expires_at, j.fence,
 		          j.last_error, j.created_at, j.updated_at,
-		          o.request_id`,
+		          o.request_id, o.trace_context`,
 		workerID, int(leaseDuration.Seconds()),
 	).Scan(&job.ID, &job.OperationID, &job.TenantID, &job.Status,
 		&job.Attempts, &job.MaxAttempts, &job.NextAttempt,
 		&leaseOwner, &leaseExpires, &job.Fence,
 		&lastError, &job.CreatedAt, &job.UpdatedAt,
-		&requestID)
+		&requestID, &traceContext)
 
 	switch {
 	case errors.Is(err, sql.ErrNoRows):
@@ -92,6 +93,7 @@ func (r *Repository) Claim(
 	job.LeaseOwner = leaseOwner.String
 	job.LastError = lastError.String
 	job.RequestID = requestID.String
+	job.TraceContext = traceContext.String
 	if leaseExpires.Valid {
 		job.LeaseExpires = &leaseExpires.Time
 	}

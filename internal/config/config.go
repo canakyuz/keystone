@@ -15,6 +15,21 @@ type Config struct {
 	Auth     AuthConfig
 	Security SecurityConfig
 	Payment  PaymentConfig
+	Tracing  TracingConfig
+}
+
+// parseFloat reads a ratio from the environment.
+//
+// A malformed value yields zero, which disables sampling rather than defaulting to
+// everything: a typo in a deployment variable should not quietly start exporting every
+// span in production.
+func parseFloat(value string) float64 {
+	parsed, err := strconv.ParseFloat(value, 64)
+	if err != nil {
+		return 0
+	}
+
+	return parsed
 }
 
 // ServerConfig holds server configuration
@@ -35,6 +50,22 @@ type ServerConfig struct {
 	// It defaults to a loopback address rather than 0.0.0.0: metrics are unauthenticated
 	// by convention, so the default should not be reachable from outside the host.
 	MetricsAddr string
+}
+
+// TracingConfig configures distributed tracing.
+//
+// Tracing is off unless an endpoint is set. Off means a no-op tracer rather than a
+// branch at every call site, so the traced and untraced builds run the same code.
+type TracingConfig struct {
+	// Endpoint is the OTLP/HTTP collector address. Empty disables tracing.
+	Endpoint string
+
+	// SampleRatio is the head sampling ratio, 0 to 1.
+	//
+	// It defaults to a fraction rather than 1. Sampling everything is affordable in
+	// development and is not in production, and a default that only works in development
+	// is the kind that reaches production unnoticed.
+	SampleRatio float64
 }
 
 // DatabaseConfig holds database configuration
@@ -135,6 +166,10 @@ func Load() (*Config, error) {
 			WriteTimeout: parseDuration(getEnv("SERVER_WRITE_TIMEOUT", "30s")),
 			IdleTimeout:  parseDuration(getEnv("SERVER_IDLE_TIMEOUT", "120s")),
 			MetricsAddr:  getEnv("WORKER_METRICS_ADDR", "127.0.0.1:9091"),
+		},
+		Tracing: TracingConfig{
+			Endpoint:    getEnv("OTEL_EXPORTER_OTLP_ENDPOINT", ""),
+			SampleRatio: parseFloat(getEnv("OTEL_TRACES_SAMPLER_ARG", "0.1")),
 		},
 		Database: DatabaseConfig{
 			Host:            getEnv("DB_HOST", "localhost"),

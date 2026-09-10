@@ -20,6 +20,7 @@ import (
 	domain "github.com/canakyuz/keystone/internal/domain/operation"
 	oprepo "github.com/canakyuz/keystone/internal/repository/operation"
 	"github.com/canakyuz/keystone/pkg/logger"
+	"github.com/canakyuz/keystone/pkg/tracing"
 )
 
 // maxIdempotencyKeyLength caps the key.
@@ -96,6 +97,9 @@ func (h *Handler) CreateTenant(c *fiber.Ctx) error {
 		Plan:      req.Plan,
 		CreatedBy: subjectID(c),
 		RequestID: requestID(c),
+		// Captured here rather than in the repository: this is the last point where the
+		// request's own span is still current.
+		TraceContext: tracing.Marshal(c.UserContext()),
 		// The scope is bound to the subject making the request. One customer's key must not
 		// match another customer's request.
 		Scope:          "subject:" + subjectID(c),

@@ -55,6 +55,12 @@ type Job struct {
 	// existed.
 	RequestID string
 
+	// TraceContext is the W3C traceparent of the request that created the operation.
+	//
+	// The worker turns it into a span link rather than a parent; see pkg/tracing.LinkFrom
+	// for why. It may be empty when tracing was off, or for operations predating it.
+	TraceContext string
+
 	LastError string
 	CreatedAt time.Time
 	UpdatedAt time.Time

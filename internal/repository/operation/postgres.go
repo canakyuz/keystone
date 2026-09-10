@@ -57,6 +57,10 @@ type CreateRequest struct {
 	// 033. It may be empty.
 	RequestID string
 
+	// TraceContext is the W3C traceparent of the request; see migration 034. It may be
+	// empty.
+	TraceContext string
+
 	// RequestBody is the normalised request body the fingerprint is computed from.
 	RequestBody []byte
 
@@ -259,10 +263,10 @@ func insertOperationAndJobTx(ctx context.Context, tx *sql.Tx, req CreateRequest)
 	op := &domain.Operation{TenantID: req.TenantID, Kind: req.Kind, Status: domain.StatusPending}
 
 	err := tx.QueryRowContext(ctx, `
-		INSERT INTO operations (tenant_id, kind, status, created_by, request_id)
-		VALUES ($1, $2, 'pending', NULLIF($3, '')::UUID, NULLIF($4, ''))
+		INSERT INTO operations (tenant_id, kind, status, created_by, request_id, trace_context)
+		VALUES ($1, $2, 'pending', NULLIF($3, '')::UUID, NULLIF($4, ''), NULLIF($5, ''))
 		RETURNING id, created_at, updated_at`,
-		req.TenantID, string(req.Kind), req.CreatedBy, req.RequestID,
+		req.TenantID, string(req.Kind), req.CreatedBy, req.RequestID, req.TraceContext,
 	).Scan(&op.ID, &op.CreatedAt, &op.UpdatedAt)
 	if err != nil {
 		return nil, "", fmt.Errorf("could not write operation: %w", err)

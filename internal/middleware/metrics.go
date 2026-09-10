@@ -1,12 +1,30 @@
 package middleware
 
 import (
+	"strings"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
 
 	"github.com/canakyuz/keystone/pkg/metrics"
 )
+
+// normaliseRoute reduces a matched route to one label per endpoint.
+//
+// c.Route() answers differently depending on how far the request got: a request rejected
+// by group middleware reports the group's path ("/api/v1/users"), while one that reached
+// the handler reports the handler's ("/api/v1/users/"). Left alone that splits a single
+// endpoint across two series, so the rejected requests and the served ones cannot be
+// compared, which is the comparison a rate limit dashboard is for.
+//
+// The root path is left as "/" rather than collapsed to the empty string.
+func normaliseRoute(path string) string {
+	if len(path) > 1 && strings.HasSuffix(path, "/") {
+		return strings.Clone(strings.TrimSuffix(path, "/"))
+	}
+
+	return strings.Clone(path)
+}
 
 // Metrics records the RED signals — rate, errors, duration — for every request.
 //
@@ -23,6 +41,16 @@ func Metrics(reg *metrics.Registry) fiber.Handler {
 		start := time.Now()
 		finish := reg.HTTPStarted()
 
+		// Cloned, not referenced.
+		//
+		// c.Method() returns a string that points into fasthttp's request buffer, which is
+		// pooled and reused between requests. Holding it past the handler and storing it as
+		// a metric label meant the label could be rewritten by a later request: a real run
+		// produced the label "GETT", a "GET" whose backing bytes had been overwritten by the
+		// next request's method. A corrupt label is worse than a missing one, because it
+		// silently creates a series nothing will ever match again.
+		method := strings.Clone(c.Method())
+
 		err := c.Next()
 
 		// The route template, not the resolved path. c.Path() would carry the id, and a
@@ -32,9 +60,12 @@ func Metrics(reg *metrics.Registry) fiber.Handler {
 		// a single "unmatched" label rather than their paths, because an unmatched path is
 		// attacker-controlled: recording it verbatim would let anyone create unbounded
 		// series by requesting random URLs.
+		// The route template comes from the app's route table rather than the request, so it
+		// is not pooled. It is cloned anyway: the cost is one small allocation per request,
+		// and the alternative is depending on an implementation detail of the router.
 		route := "unmatched"
 		if r := c.Route(); r != nil && r.Path != "" {
-			route = r.Path
+			route = normaliseRoute(r.Path)
 		}
 
 		status := c.Response().StatusCode()
@@ -48,7 +79,7 @@ func Metrics(reg *metrics.Registry) fiber.Handler {
 			}
 		}
 
-		finish(c.Method(), route, status, time.Since(start))
+		finish(method, route, status, time.Since(start))
 
 		return err
 	}

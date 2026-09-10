@@ -1,16 +1,17 @@
-// Package worker, kurulum islerini yurutur.
+// Package worker runs provisioning jobs.
 //
-// Tasarim kararlari ve gerekceleri:
+// Design decisions and their reasoning:
 //
-//   - Is basina sinirsiz goroutine acilmaz. Kaynaklari korumadan ilerlemek
-//     kolaydir; sistemin altinda kalmadan ilerlemesi tasarim gerektirir.
-//   - Eszamanlilik hem toplamda hem tenant basina sinirlanir. Tenant siniri
-//     olmadan tek bir musterinin yuku butun kapasiteyi tuketebilir.
-//   - Kapanma sirasinda once yeni is alimi durur, calisanlara sinirli sure
-//     verilir, sure dolunca iptal edilir. Tamamlanamayan isler lease suresi
-//     dolunca baska bir worker tarafindan devralinir.
-//   - context iptali, daha once commit edilmis yan etkileri geri ALMAZ.
-//     Bu ayrim korunur: iptal "durmayi dene" demektir, "yapilani sil" demez.
+//   - No unbounded goroutine per job. Making progress without protecting resources is
+//     easy; making progress without collapsing under load takes design.
+//   - Concurrency is limited both in total and per tenant. Without the per-tenant
+//     limit, one customer's load could consume the entire capacity.
+//   - On shutdown, new claims stop first, running jobs get a bounded grace period,
+//     and are cancelled when it expires. Jobs that cannot finish are taken over by
+//     another worker once their lease expires.
+//   - Context cancellation does NOT undo side effects that were already committed.
+//     That distinction is preserved: cancelling means "try to stop", not "erase what
+//     was done".
 package worker
 
 import (
@@ -26,49 +27,49 @@ import (
 	"github.com/canakyuz/keystone/pkg/logger"
 )
 
-// Handler, bir isin gercek islemini yurutur.
+// Handler performs the actual work of a job.
 //
-// Sozlesme: guvenle tekrar calistirilabilir olmalidir. Lease suresi dolan bir
-// is baska bir worker'a gecebilir ve ayni adimlar bastan calisir. "En fazla
-// bir kez calisir" garantisi verilmez.
+// Contract: it must be safe to run again. A job whose lease expires can move to
+// another worker and the same steps run from the start. There is no "runs at most
+// once" guarantee.
 type Handler func(ctx context.Context, job *domain.Job) error
 
-// Config, worker'in sinirlarini belirler.
+// Config sets the worker's limits.
 type Config struct {
-	// ID, bu worker surecinin kimligidir. Lease sahipligi bununla yazilir.
+	// ID identifies this worker process. Lease ownership is recorded with it.
 	ID string
 
-	// MaxConcurrent, ayni anda yurutulen toplam is sayisidir.
+	// MaxConcurrent is the total number of jobs run at once.
 	MaxConcurrent int
 
-	// MaxPerTenant, tek bir tenant icin ayni anda yurutulen is sayisidir.
+	// MaxPerTenant is the number of jobs run at once for a single tenant.
 	//
-	// Neden ayri sinir: yalnizca toplam sinir olsaydi, cok isi olan bir
-	// tenant butun yuvalari doldurup digerlerini bekletebilirdi.
+	// Why a separate limit: with only a total limit, a tenant with a lot of work could
+	// fill every slot and leave the others waiting.
 	MaxPerTenant int
 
-	// LeaseDuration, sahiplenmenin suresidir. Bir isin tipik suresinden
-	// belirgin olarak uzun olmalidir, aksi halde is bitmeden lease duser.
+	// LeaseDuration is how long a claim lasts. It must be meaningfully longer than a
+	// typical job, or the lease expires before the job finishes.
 	LeaseDuration time.Duration
 
-	// LeaseRenewInterval, lease yenileme sikligidir.
-	// LeaseDuration'un ucte birinden kucuk olmalidir: bir yenileme kacirilsa
-	// bile lease dusmeden ikinci deneme yapilabilsin.
+	// LeaseRenewInterval is how often the lease is renewed. It must be below a third
+	// of LeaseDuration, so that a missed renewal still leaves room for a second attempt
+	// before the lease lapses.
 	LeaseRenewInterval time.Duration
 
-	// PollInterval, is bulunamadiginda beklenecek suredir.
+	// PollInterval is how long to wait when no job was found.
 	PollInterval time.Duration
 
-	// JobTimeout, tek bir isin ust sinirdir.
+	// JobTimeout caps a single job.
 	JobTimeout time.Duration
 
-	// ShutdownGrace, kapanirken calisan islere verilen suredir.
+	// ShutdownGrace is the time running jobs get during shutdown.
 	ShutdownGrace time.Duration
 
 	Backoff domain.BackoffConfig
 }
 
-// DefaultConfig, makul varsayilanlari dondurur.
+// DefaultConfig returns sensible defaults.
 func DefaultConfig(id string) Config {
 	return Config{
 		ID:                 id,
@@ -83,10 +84,10 @@ func DefaultConfig(id string) Config {
 	}
 }
 
-// Store, worker'in ihtiyac duydugu depolama davranislarini tanimlar.
+// Store defines the storage behaviour the worker needs.
 //
-// Arayuz burada, tuketen tarafta tanimlanir: worker yalnizca kullandigi dort
-// metodu bilir, repository'nin tamamini degil.
+// The interface is declared here, on the consumer side: the worker knows only the
+// four methods it uses, not the whole repository.
 type Store interface {
 	Claim(ctx context.Context, workerID string, lease time.Duration) (*domain.Job, error)
 	RenewLease(ctx context.Context, jobID, workerID string, fence int64, lease time.Duration) error
@@ -95,24 +96,24 @@ type Store interface {
 		errCode, errMessage string, retryAfter time.Duration) error
 }
 
-// Provisioner, kurulum isleri icin worker dongusudur.
+// Provisioner is the worker loop for provisioning jobs.
 type Provisioner struct {
 	cfg     Config
 	store   Store
 	handler Handler
 	log     *logger.Logger
 
-	// slots, toplam eszamanlilik sinirini uygular.
+	// slots enforces the total concurrency limit.
 	slots chan struct{}
 
-	// tenantGate, tenant basina eszamanlilik sinirini uygular.
+	// tenantGate enforces the per-tenant concurrency limit.
 	tenantMu sync.Mutex
 	tenant   map[string]int
 
 	wg sync.WaitGroup
 }
 
-// New, worker olusturur.
+// New creates a worker.
 func New(cfg Config, store Store, handler Handler, log *logger.Logger) *Provisioner {
 	if cfg.MaxConcurrent <= 0 {
 		cfg.MaxConcurrent = 1
@@ -131,17 +132,17 @@ func New(cfg Config, store Store, handler Handler, log *logger.Logger) *Provisio
 	}
 }
 
-// Run, worker dongusunu calistirir ve ctx iptal edilene kadar surer.
+// Run drives the worker loop until ctx is cancelled.
 //
-// Kapanma sirasi:
-//  1. Yeni is alimi durur (dongu ctx.Done ile cikar).
-//  2. Calisan islere ShutdownGrace kadar sure verilir.
-//  3. Sure dolarsa is context'leri iptal edilir.
-//  4. Tamamlanamayan isler lease suresi dolunca devralinir.
+// Shutdown order:
+//  1. Claiming stops (the loop exits on ctx.Done).
+//  2. Running jobs get ShutdownGrace.
+//  3. If that expires, the job contexts are cancelled.
+//  4. Jobs that could not finish are taken over once their lease expires.
 func (p *Provisioner) Run(ctx context.Context) error {
-	// jobCtx, is context'lerinin ebeveynidir. Run'in ctx'inden AYRI tutulur:
-	// boylece kapanma sinyali geldiginde calisan isleri hemen iptal etmeyip
-	// once nazik sureyi taniyabiliriz.
+	// jobCtx is the parent of the job contexts. It is kept SEPARATE from Run's ctx, so
+	// that when the shutdown signal arrives we can grant the grace period first instead
+	// of cancelling running jobs immediately.
 	jobCtx, cancelJobs := context.WithCancel(context.WithoutCancel(ctx))
 	defer cancelJobs()
 
@@ -150,7 +151,7 @@ func (p *Provisioner) Run(ctx context.Context) error {
 	return p.drain(cancelJobs)
 }
 
-// loop, is bulup calistirmayi tekrarlar.
+// loop repeatedly finds and runs jobs.
 func (p *Provisioner) loop(ctx, jobCtx context.Context) {
 	ticker := time.NewTicker(p.cfg.PollInterval)
 	defer ticker.Stop()
@@ -162,8 +163,8 @@ func (p *Provisioner) loop(ctx, jobCtx context.Context) {
 		default:
 		}
 
-		// Yuva bekle. Yuva yoksa yeni is talep etmeyiz; bos yere claim edip
-		// isi elimizde tutmak, baska bir worker'in alabilecegi isi bloke eder.
+		// Wait for a slot. With no slot we do not claim: holding a job we cannot start
+		// would block another worker that could have run it.
 		select {
 		case <-ctx.Done():
 			return
@@ -180,9 +181,9 @@ func (p *Provisioner) loop(ctx, jobCtx context.Context) {
 		}
 
 		if !p.reserveTenant(job.TenantID) {
-			// Bu tenant'in kotasi dolu. Isi hemen birakiyoruz; lease suresi
-			// dolunca baska bir worker devralabilir. Elimizde tutmak, kotasi
-			// musait olmayan bir isi kuyrukta kilitlerdi.
+			// This tenant is at its quota. We release the job immediately; another worker can
+			// take it once the lease expires. Holding it would lock a job in the queue behind a
+			// quota that is not free.
 			p.releaseJob(jobCtx, job)
 			<-p.slots
 			continue
@@ -193,8 +194,8 @@ func (p *Provisioner) loop(ctx, jobCtx context.Context) {
 	}
 }
 
-// waitBeforeRetry, is bulunamadiginda veya hata alindiginda bekler.
-// Iptal edildiyse true doner.
+// waitBeforeRetry waits after finding no job or hitting an error.
+// It returns true if it was cancelled.
 func (p *Provisioner) waitBeforeRetry(ctx context.Context, ticker *time.Ticker, err error) bool {
 	if !errors.Is(err, oprepo.ErrNoJob) && p.log != nil {
 		p.log.WithFields(logger.Fields{"error": err.Error()}).Warn("could not claim job")
@@ -208,7 +209,7 @@ func (p *Provisioner) waitBeforeRetry(ctx context.Context, ticker *time.Ticker, 
 	}
 }
 
-// execute, tek bir isi yurutur ve sonucu bildirir.
+// execute runs a single job and reports the result.
 func (p *Provisioner) execute(parent context.Context, job *domain.Job) {
 	defer p.wg.Done()
 	defer func() { <-p.slots }()
@@ -217,20 +218,19 @@ func (p *Provisioner) execute(parent context.Context, job *domain.Job) {
 	ctx, cancel := context.WithTimeout(parent, p.cfg.JobTimeout)
 	defer cancel()
 
-	// Lease yenileme, is calisirken arka planda surer. Yenilenmezse uzun
-	// suren bir is, henuz calisiyorken baska bir worker'a devredilirdi.
+	// Lease renewal runs in the background while the job runs. Without it, a
+	// long-running job would be handed to another worker while still executing.
 	stopRenew := p.startLeaseRenewal(ctx, job)
 	defer stopRenew()
 
-	// A panic must not take the worker process down. A job that panics is treated as
-	// a failed job.
-	// ve yeniden denenir.
+	// A panic must not take the worker process down. A job that panics counts as a
+	// failed job and is retried.
 	err := p.runHandler(ctx, job)
 
 	p.report(job, err)
 }
 
-// runHandler, handler'i panik korumasiyla calistirir.
+// runHandler runs the handler with panic protection.
 func (p *Provisioner) runHandler(ctx context.Context, job *domain.Job) (err error) {
 	defer func() {
 		if recovered := recover(); recovered != nil {
@@ -241,12 +241,12 @@ func (p *Provisioner) runHandler(ctx context.Context, job *domain.Job) (err erro
 	return p.handler(ctx, job)
 }
 
-// report, sonucu guncel fence ile bildirir.
+// report records the result with the current fence.
 //
-// Bildirim icin ayri ve iptal edilemeyen bir context kullanilir: isin
-// context'i zaman asimina ugramis olabilir, ama sonucun kaydedilmesi
-// gerekir. Aksi halde is calisti, yan etkisi olustu, ama durumu
-// guncellenmedigi icin bastan calistirilirdi.
+// A separate, non-cancellable context is used for the report: the job's context may
+// have timed out, but the result still has to be recorded. Otherwise the job would
+// have run and produced its side effects, yet be run again from the start because its
+// status was never updated.
 func (p *Provisioner) report(job *domain.Job, runErr error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -272,8 +272,8 @@ func (p *Provisioner) logReportFailure(job *domain.Job, err error) {
 		return
 	}
 
-	// Fence eskimesi beklenen bir durumdur: is baska bir worker'a gecmistir.
-	// Hata degil, bilgi olarak kaydedilir.
+	// A stale fence is expected: the job moved to another worker. It is logged as
+	// information, not as an error.
 	level := p.log.WithFields(logger.Fields{
 		"job_id":       job.ID,
 		"operation_id": job.OperationID,
@@ -289,8 +289,8 @@ func (p *Provisioner) logReportFailure(job *domain.Job, err error) {
 	level.Error("could not report result")
 }
 
-// startLeaseRenewal, arka planda lease yenilemeyi baslatir ve durdurma
-// fonksiyonu dondurur.
+// startLeaseRenewal begins renewing the lease in the background and returns the
+// function that stops it.
 func (p *Provisioner) startLeaseRenewal(ctx context.Context, job *domain.Job) func() {
 	renewCtx, cancel := context.WithCancel(ctx)
 
@@ -317,7 +317,7 @@ func (p *Provisioner) startLeaseRenewal(ctx context.Context, job *domain.Job) fu
 	return cancel
 }
 
-// releaseJob, sahiplenilen ama calistirilamayan isi geri birakir.
+// releaseJob puts back a job that was claimed but could not be started.
 func (p *Provisioner) releaseJob(ctx context.Context, job *domain.Job) {
 	err := p.store.CompleteFailure(ctx, job.ID, p.cfg.ID, job.Fence,
 		"tenant_capacity", "per-tenant concurrency limit reached", p.cfg.PollInterval)
@@ -329,8 +329,8 @@ func (p *Provisioner) releaseJob(ctx context.Context, job *domain.Job) {
 	}
 }
 
-// reserveTenant, tenant kotasindan bir yuva ayirir.
-// Karmasiklik: O(1).
+// reserveTenant takes a slot from the tenant's quota.
+// Complexity: O(1).
 func (p *Provisioner) reserveTenant(tenantID string) bool {
 	p.tenantMu.Lock()
 	defer p.tenantMu.Unlock()
@@ -343,19 +343,19 @@ func (p *Provisioner) reserveTenant(tenantID string) bool {
 	return true
 }
 
-// releaseTenant, tenant kotasindaki yuvayi birakir.
+// releaseTenant returns the slot to the tenant's quota.
 func (p *Provisioner) releaseTenant(tenantID string) {
 	p.tenantMu.Lock()
 	defer p.tenantMu.Unlock()
 
 	p.tenant[tenantID]--
 	if p.tenant[tenantID] <= 0 {
-		// Haritanin sinirsiz buyumesini engelle.
+		// Keep the map from growing without bound.
 		delete(p.tenant, tenantID)
 	}
 }
 
-// drain, calisan islerin bitmesini bekler; sure dolunca iptal eder.
+// drain waits for running jobs to finish, cancelling them when the grace expires.
 func (p *Provisioner) drain(cancelJobs context.CancelFunc) error {
 	done := make(chan struct{})
 	go func() {
@@ -372,7 +372,7 @@ func (p *Provisioner) drain(cancelJobs context.CancelFunc) error {
 
 	<-done
 
-	// Iptal edilen isler tamamlanmis sayilmaz. Lease sureleri dolunca baska
-	// bir worker tarafindan devralinirlar.
+	// Cancelled jobs do not count as finished. They are taken over by another worker
+	// once their leases expire.
 	return fmt.Errorf("shutdown grace period expired, running jobs were cancelled")
 }

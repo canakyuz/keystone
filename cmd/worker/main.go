@@ -1,18 +1,17 @@
-// Command worker, kurulum islerini yuruten ayri surectir.
+// Command worker is the separate process that runs provisioning jobs.
 //
-// NEDEN Control API'den ayri bir surec:
+// WHY a separate process from the Control API:
 //
-//   - Kurulum isleri uzun surer. API surecinde calistirmak, istek isleme
-//     kapasitesini kurulum yuku ile paylastirirdi.
-//   - Farkli veritabani yetkileri gerektirir. Worker sema olusturur; API
-//     olusturmaz. Ayri surec, yetkilerin ayrilmasini mumkun kilar.
-//     (Bu ayrim henuz yapilmadi, bkz. docs/decisions/0001.)
-//   - Kullanici isteklerinden bagimsiz bir eszamanlilik sinirina ihtiyac
-//     duyar. Ayni surecte olsalardi iki sinir birbirine karisirdi.
+//   - Provisioning takes a long time. Running it in the API process would make
+//     request-serving capacity compete with provisioning load.
+//   - It needs different database privileges. The worker creates schemas; the API
+//     does not. A separate process makes splitting those privileges possible.
+//     (That split has not been done yet, see docs/decisions/0001.)
+//   - It needs a concurrency limit independent of user requests. In one process the
+//     two limits would interfere.
 //
-// Olceklendirme: birden fazla worker ornegi ayni anda calisabilir. Is
-// sahiplenme FOR UPDATE SKIP LOCKED ile yapildigi icin ayni is iki kez
-// alinmaz (bkz. docs/decisions/0002).
+// Scaling: several worker instances can run at once. Because claiming uses FOR
+// UPDATE SKIP LOCKED, the same job is never taken twice (see docs/decisions/0002).
 package main
 
 import (
@@ -58,8 +57,8 @@ func run() error {
 	}
 	defer db.Close()
 
-	// Worker kimligi lease sahipligine yazilir. Hostname kullanilir ki
-	// birden fazla ornek calistiginda hangi isin nerede oldugu gorulebilsin.
+	// The worker identity is recorded as the lease owner. The hostname is used so that
+	// with several instances running it is visible which job is where.
 	workerID := workerIdentity()
 
 	operations := operationRepo.New(db)
@@ -82,17 +81,17 @@ func run() error {
 		"shutdown_grace": cfgWorker.ShutdownGrace.String(),
 	}).Info("worker started")
 
-	// Run, ctx iptal edilene kadar surer. Kapanma sirasi:
-	// yeni is alimi durur, calisanlara sinirli sure verilir, sure dolunca
-	// iptal edilir. Tamamlanamayan isler lease suresi dolunca devralinir.
+	// Run continues until ctx is cancelled. Shutdown order: claiming stops, running
+	// jobs get a bounded grace period, and are cancelled when it expires. Jobs that
+	// cannot finish are taken over once their lease expires.
 	err = provisionerWorker.Run(ctx)
 
-	log.Info("Worker durdu")
+	log.Info("worker stopped")
 
 	return err
 }
 
-// workerIdentity, bu ornegin kimligini uretir.
+// workerIdentity builds this instance's identity.
 func workerIdentity() string {
 	host, err := os.Hostname()
 	if err != nil || host == "" {

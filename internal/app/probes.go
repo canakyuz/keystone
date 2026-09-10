@@ -11,29 +11,29 @@ import (
 	"github.com/canakyuz/keystone/internal/config"
 )
 
-// probeTimeout, bagimlilik yoklamalarinin ust sinirini belirler.
+// probeTimeout caps how long a dependency probe may take.
 //
-// Kisa tutulur: yoklama, load balancer'in yoklama araligindan uzun surerse
-// istekler birikir ve saglik kontrolunun kendisi bir yuk kaynagina donusur.
+// It is kept short: if a probe outlasts the load balancer's probe interval, requests
+// pile up and the health check itself becomes a source of load.
 const probeTimeout = 2 * time.Second
 
-// registerProbes, canlilik ve hazir olma uclarini kaydeder.
+// registerProbes registers the liveness and readiness endpoints.
 //
-// Ikisi ayri uclardir cunku farkli sorulari yanitlarlar ve orkestratorde
-// farkli sonuclari vardir:
+// They are separate endpoints because they answer different questions and have
+// different consequences in the orchestrator:
 //
-//   - /health (liveness): surec ayakta mi? Basarisiz olursa container
-//     yeniden baslatilir. Bagimliliklara BAKMAZ. Veritabani gecici olarak
-//     dustugunde saglikli surecleri yeniden baslatmak, kurtarma sirasinda
-//     baglanti firtinasi yaratir ve durumu kotuyestirir.
+//   - /health (liveness): is the process alive? On failure the container is
+//     restarted. It does NOT touch dependencies. Restarting healthy processes because
+//     the database blipped creates a connection storm during recovery and makes the
+//     situation worse.
 //
-//   - /ready (readiness): bu surec simdi istek karsilayabilir mi?
-//     Basarisiz olursa load balancer trafigi keser ama surec yasamaya
-//     devam eder. Bagimliliklara BAKAR.
+//   - /ready (readiness): can this process serve requests right now? On failure the
+//     load balancer drains traffic, but the process keeps living. It DOES check
+//     dependencies.
 //
-// Onceki uygulamada yalnizca /health vardi ve sabit bir JSON donduruyordu.
-// Veritabani erisilemez oldugunda bile "ok" yanitladigi icin load balancer
-// istek gondermeye devam ediyordu.
+// The previous implementation had only /health and returned a constant JSON body.
+// Because it answered "ok" even when the database was unreachable, the load balancer
+// kept sending it requests.
 func registerProbes(app *fiber.App, cfg *config.Config, db *sql.DB, rdb *redis.Client) {
 	app.Get("/health", func(c *fiber.Ctx) error {
 		return c.JSON(fiber.Map{
@@ -60,7 +60,7 @@ func registerProbes(app *fiber.App, cfg *config.Config, db *sql.DB, rdb *redis.C
 	})
 }
 
-// probeDatabase, veritabani baglantisini yoklar.
+// probeDatabase probes the database connection.
 func probeDatabase(ctx context.Context, db *sql.DB) string {
 	if db == nil {
 		return "not configured"
@@ -72,7 +72,7 @@ func probeDatabase(ctx context.Context, db *sql.DB) string {
 	return "ok"
 }
 
-// probeRedis, Redis baglantisini yoklar.
+// probeRedis probes the Redis connection.
 func probeRedis(ctx context.Context, rdb *redis.Client) string {
 	if rdb == nil {
 		return "not configured"
@@ -84,11 +84,11 @@ func probeRedis(ctx context.Context, rdb *redis.Client) string {
 	return "ok"
 }
 
-// ready, servisin trafik alabilecek durumda olup olmadigini soyler.
+// ready says whether the service is in a state to take traffic.
 //
-// Veritabani zorunludur. Redis degildir: onbellek ve limitleyici Redis
-// olmadan da surec ici yollarina duserek calisir, dolayisiyla Redis'in
-// dusmesi bu instance'i havuzdan cikarmayi gerektirmez.
+// The database is required. Redis is not: the cache and the limiter fall back to
+// their in-process paths without it, so Redis being down is no reason to pull this
+// instance out of the pool.
 func ready(checks map[string]string) bool {
 	return checks["database"] == "ok"
 }

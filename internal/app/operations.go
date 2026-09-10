@@ -7,21 +7,22 @@ import (
 	"github.com/canakyuz/keystone/internal/middleware"
 )
 
-// registerOperationRoutes, tenant kurulumu ve operasyon sorgulama uclarini kaydeder.
+// registerOperationRoutes registers the tenant provisioning and operation lookup
+// endpoints.
 //
-// NEDEN setupRoutes icinde degil: o fonksiyonun parametre listesi zaten yirmi
-// ustunde. Yeni bir bagimlilik eklemek listeyi daha da buyuturdu. Bu uclar
-// kendi bagimliliklarini tasiyan ayri bir fonksiyonda duruyor.
+// WHY not inside setupRoutes: that function's parameter list is already past twenty.
+// Adding another dependency would make it longer still. These endpoints live in a
+// separate function carrying their own dependencies.
 //
-// TENANT CONTEXT YOK
-// POST /tenants, tenantContextMiddleware kullanmaz. Gerekce: tenant henuz
-// olusmamistir. Middleware var olmayan bir tenant'in semasini cozmeye calisir
-// ve istek 404 ile duserdi.
+// NO TENANT CONTEXT
+// POST /tenants does not use tenantContextMiddleware, because the tenant does not
+// exist yet. The middleware would try to resolve the schema of a tenant that is not
+// there and the request would fail with a 404.
 //
-// Bu ucun yetkilendirmesi bu yuzden farkli calisir: kimlik dogrulanir, ama
-// tenant uyeligi aranmaz. Yeni tenant olusturma yetkisi platform seviyesinde
-// bir karardir; su an yalnizca kimlik dogrulamasi ile korunuyor ve bu bir
-// eksiklik olarak INVARIANTS.md'de kayitli.
+// Authorization on this endpoint therefore works differently: the caller is
+// authenticated, but no tenant membership is checked. Creating a tenant should be a
+// platform-level permission; right now it is protected by authentication alone, and
+// that gap is recorded in INVARIANTS.md.
 func registerOperationRoutes(app *fiber.App, jwtSecret string, h *operationHandler.Handler) {
 	auth := middleware.AuthMiddleware(jwtSecret)
 

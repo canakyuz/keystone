@@ -10,49 +10,49 @@ import (
 	"github.com/canakyuz/keystone/pkg/logger"
 )
 
-// TenantLoader, isin ait oldugu tenant'i getirir.
-// Arayuz tuketen tarafta tanimlanir: worker yalnizca ihtiyac duydugu tek
-// davranisi bilir, tenant repository'sinin tamamini degil.
+// TenantLoader fetches the tenant a job belongs to.
+// The interface is declared on the consumer side: the worker knows only the single
+// behaviour it needs, not the whole tenant repository.
 type TenantLoader interface {
 	GetByID(ctx context.Context, id string) (*tenant.Tenant, error)
 }
 
-// SchemaProvisioner, tenant'in calisma alanini hazirlar.
+// SchemaProvisioner prepares the tenant's workspace.
 type SchemaProvisioner interface {
 	ProvisionTenantSchema(ctx context.Context, t *tenant.Tenant) error
 }
 
-// StatusSetter, tenant yasam dongusu durumunu gunceller.
+// StatusSetter updates the tenant lifecycle state.
 //
-// Metotlar bilincli olarak dar: "herhangi bir duruma gec" degil, "su gecisi
-// yap". Gerekce, ADR-0003'te yazili sinirla ilgili. Fencing yalnizca is
-// tablosundaki metadata guncellemesini korur; buradaki tenant yazimi o
-// korumanin disindadir. Lease'ini kaybetmis eski bir worker bu cagriyi
-// yapabilir.
+// The methods are deliberately narrow: not "move to any state" but "make this
+// transition". The reasoning relates to the limit written down in ADR-0003. Fencing
+// only protects the metadata update in the job table; the tenant write here falls
+// outside that protection. A worker that has lost its lease can still make this
+// call.
 //
-// Bu yuzden gecisler kaynak duruma kosulludur. Aktif bir tenant'i geri
-// 'provisioning' durumuna cekmek mumkun degildir; eski worker'in gecikmis
-// cagrisi sessizce etkisiz kalir.
+// The transitions are therefore conditional on the source state. Pulling an active
+// tenant back to 'provisioning' is impossible; a late call from an old worker
+// quietly has no effect.
 type StatusSetter interface {
-	// MarkProvisioning, tenant'i 'provisioning' durumuna alir.
-	// Tenant zaten 'active' ise hicbir sey yapmaz.
+	// MarkProvisioning moves the tenant to 'provisioning'.
+	// It does nothing if the tenant is already 'active'.
 	MarkProvisioning(ctx context.Context, tenantID string) error
 
-	// MarkFailed, tenant'i 'failed' durumuna alir.
-	// Tenant zaten 'active' ise hicbir sey yapmaz.
+	// MarkFailed moves the tenant to 'failed'.
+	// It does nothing if the tenant is already 'active'.
 	MarkFailed(ctx context.Context, tenantID string) error
 }
 
-// ProvisionHandler, kurulum isini yurutur.
+// ProvisionHandler runs the provisioning job.
 //
-// TEKRARLANABILIRLIK
-// Bu handler birden fazla kez calisabilir ve calismalidir. Lease suresi dolan
-// a job moves to another worker and the steps run again from the start. The failure
-// matrisinde bu satir soyle: "Sema olusturuldu, sonuc kaydedilmedi -> yeni
-// deneme mevcut semayi dogrulayarak ilerler."
+// REPEATABILITY
+// This handler can and must be able to run more than once. When a lease expires, the
+// job moves to another worker and the steps run again from the start. In the failure
+// matrix this row reads: "schema created, result not recorded -> a new attempt
+// proceeds by verifying the existing schema."
 //
-// Adimlarin her biri bu yuzden ya idempotent, ya da mevcut durumu dogrulayip
-// gecen bicimde yazilmistir.
+// Every step is therefore written to be either idempotent, or to verify the current
+// state and move past it.
 type ProvisionHandler struct {
 	tenants     TenantLoader
 	status      StatusSetter
@@ -60,26 +60,25 @@ type ProvisionHandler struct {
 	log         *logger.Logger
 }
 
-// NewProvisionHandler, handler olusturur.
+// NewProvisionHandler creates the handler.
 func NewProvisionHandler(
 	tenants TenantLoader, status StatusSetter, provisioner SchemaProvisioner, log *logger.Logger,
 ) *ProvisionHandler {
 	return &ProvisionHandler{tenants: tenants, status: status, provisioner: provisioner, log: log}
 }
 
-// Handle, tek bir kurulum isini yurutur.
+// Handle runs a single provisioning job.
 //
-// Adimlar:
-//  1. Tenant kaydini yukle.
-//  2. Zaten aktifse hicbir sey yapma (onceki denemenin sonucu kaydedilmemis).
-//  3. Durumu 'provisioning' yap.
-//  4. Semayi olustur ve migration'lari uygula.
+// Steps:
+//  1. Load the tenant record.
+//  2. If it is already active, do nothing (a previous attempt's result went unrecorded).
+//  3. Move the status to 'provisioning'.
+//  4. Create the schema and apply the migrations.
 //
-// Tenant'i 'active' yapmak bu handler'in isi DEGILDIR. Aktiflestirme, isin
-// tamamlandi olarak isaretlenmesiyle ayni transaction icinde yapilir
-// (bkz. Repository.CompleteSuccess). Burada yapilsaydi, aktiflestirme ile
-// operasyon kapatma arasinda surec kapandiginda kullaniciya "islemde" gorunen
-// ama fiilen kullanilabilir bir tenant kalirdi.
+// Making the tenant 'active' is NOT this handler's job. Activation happens in the
+// same transaction that marks the job done (see Repository.CompleteSuccess). Done
+// here, a crash between activation and closing the operation would leave a tenant
+// that looks "in progress" to the user while actually being usable.
 func (h *ProvisionHandler) Handle(ctx context.Context, job *domain.Job) error {
 	t, err := h.tenants.GetByID(ctx, job.TenantID)
 	if err != nil {
@@ -89,8 +88,8 @@ func (h *ProvisionHandler) Handle(ctx context.Context, job *domain.Job) error {
 		return errors.New("tenant not found")
 	}
 
-	// Onceki deneme isi bitirmis ama sonucunu kaydedememis olabilir.
-	// Bu durumda adimlari tekrar calistirmaya gerek yok.
+	// A previous attempt may have finished the work but failed to record the result.
+	// In that case there is no need to run the steps again.
 	if t.Status == tenant.TenantStatusActive {
 		h.logStep(job, "tenant already active, provisioning skipped")
 		return nil
@@ -102,9 +101,9 @@ func (h *ProvisionHandler) Handle(ctx context.Context, job *domain.Job) error {
 
 	h.logStep(job, "preparing schema")
 
-	// ProvisionTenantSchema, CREATE SCHEMA IF NOT EXISTS kullanir ve
-	// migration'lari kendi transaction'inda uygular. Yarida kesilirse
-	// transaction geri alinir; yeni deneme temiz bir noktadan baslar.
+	// ProvisionTenantSchema uses CREATE SCHEMA IF NOT EXISTS and applies the migrations
+	// in its own transaction. Interrupted halfway, that transaction rolls back and a new
+	// attempt starts from a clean point.
 	if err := h.provisioner.ProvisionTenantSchema(ctx, t); err != nil {
 		return fmt.Errorf("could not prepare schema: %w", err)
 	}
@@ -114,20 +113,20 @@ func (h *ProvisionHandler) Handle(ctx context.Context, job *domain.Job) error {
 	return nil
 }
 
-// MarkFailed, deneme hakki tukendiginde tenant'i 'failed' isaretler.
+// MarkFailed marks the tenant 'failed' once the attempts are exhausted.
 //
-// Ayri bir metot olmasinin nedeni: her basarisiz deneme tenant'i 'failed'
-// yapmamali. Yeniden denenecek bir is icin tenant 'provisioning' kalir.
-// Yalnizca hak tukendiginde son duruma gecilir.
+// Why it is a separate method: not every failed attempt should make the tenant
+// 'failed'. While a job will be retried, the tenant stays 'provisioning'. Only when
+// the attempts run out does it reach a terminal state.
 func (h *ProvisionHandler) MarkFailed(ctx context.Context, tenantID string) error {
 	return h.status.MarkFailed(ctx, tenantID)
 }
 
-// logStep, teshis zincirini tasir.
+// logStep carries the diagnostic chain.
 //
-// Belgedeki zincir: request_id -> operation_id -> job_id -> attempt ->
-// worker -> migration adimi. Burada operation_id, job_id ve attempt yazilir;
-// request_id henuz HTTP katmanindan tasinmiyor.
+// The chain: request_id -> operation_id -> job_id -> attempt -> worker -> migration
+// step. operation_id, job_id and attempt are written here; request_id is not yet
+// carried over from the HTTP layer.
 func (h *ProvisionHandler) logStep(job *domain.Job, step string) {
 	if h.log == nil {
 		return

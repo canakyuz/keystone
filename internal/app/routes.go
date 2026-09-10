@@ -3,16 +3,10 @@ package app
 import (
 	"github.com/canakyuz/keystone/internal/config"
 	authHandler "github.com/canakyuz/keystone/internal/handler/auth"
-	blogHandler "github.com/canakyuz/keystone/internal/handler/blog"
-	bookingHandler "github.com/canakyuz/keystone/internal/handler/booking"
-	lessonHandler "github.com/canakyuz/keystone/internal/handler/lesson"
-	paymentHandler "github.com/canakyuz/keystone/internal/handler/payment"
 	registryHandler "github.com/canakyuz/keystone/internal/handler/registry"
-	serviceHandler "github.com/canakyuz/keystone/internal/handler/service"
 	tenantHandler "github.com/canakyuz/keystone/internal/handler/tenant"
 	uploadHandler "github.com/canakyuz/keystone/internal/handler/upload"
 	userHandler "github.com/canakyuz/keystone/internal/handler/user"
-	websiteHandler "github.com/canakyuz/keystone/internal/handler/website"
 	"github.com/canakyuz/keystone/internal/middleware"
 	"github.com/gofiber/fiber/v2"
 )
@@ -26,17 +20,6 @@ func setupRoutes(
 	tenantH *tenantHandler.Handler,
 	userH *userHandler.Handler,
 	uploadH *uploadHandler.Handler,
-	websiteH *websiteHandler.Handler,
-	studentH *lessonHandler.StudentHandler,
-	lessonH *lessonHandler.LessonHandler,
-	assignmentH *lessonHandler.AssignmentHandler,
-	availabilityH *bookingHandler.AvailabilityHandler,
-	appointmentH *bookingHandler.AppointmentHandler,
-	serviceH *serviceHandler.ServiceHandler,
-	postH *blogHandler.PostHandler,
-	categoryH *blogHandler.CategoryHandler,
-	paymentH *paymentHandler.Handler,
-	webhookH *paymentHandler.WebhookHandler,
 	moduleCatalogH *registryHandler.ModuleCatalogHandler,
 	toolCatalogH *registryHandler.ToolCatalogHandler,
 	activationH *registryHandler.ActivationHandler,
@@ -70,10 +53,6 @@ func setupRoutes(
 
 	// /api/v1 is the root group for version 1 of the API.
 	v1 := app.Group("/api/v1")
-
-	// Public routes; no authentication required.
-	public := v1.Group("/public")
-	public.Get("/websites/slug/:slug", websiteH.GetBySlug)
 
 	// Authentication routes: login and registration. Public.
 	auth := v1.Group("/auth")
@@ -134,132 +113,9 @@ func setupRoutes(
 	users.Post("/:id/verify-email", userH.VerifyEmail)
 	users.Delete("/:id", userH.Delete)
 
-	// Website routes; tenant-scoped.
-	websites := v1.Group("/websites", chain(authenticated, tenantContextMiddleware, tenantScope)...)
-	websites.Get("/", websiteH.List)
-	websites.Post("/", websiteH.Create)
-	websites.Get("/:id", websiteH.GetByID)
-	websites.Patch("/:id", websiteH.Update)
-	websites.Delete("/:id", websiteH.Delete)
-	websites.Post("/:id/publish", websiteH.Publish)
-	websites.Post("/:id/archive", websiteH.Archive)
-
-	// Student routes; part of the lessons module, tenant-scoped.
-	students := v1.Group("/students", chain(authenticated, tenantScope)...)
-	students.Post("/", studentH.Create)
-	students.Get("/stats", studentH.GetStats)
-	students.Get("/email", studentH.GetByEmail)
-	students.Get("/:id", studentH.GetByID)
-	students.Get("/", studentH.List)
-	students.Put("/:id", studentH.Update)
-	students.Delete("/:id", studentH.Delete)
-
-	// Lesson routes; part of the lessons module, tenant-scoped.
-	lessons := v1.Group("/lessons", chain(authenticated, tenantScope)...)
-	lessons.Post("/", lessonH.Create)
-	lessons.Get("/stats", lessonH.GetStats)
-	lessons.Get("/upcoming", lessonH.GetUpcoming)
-	lessons.Get("/:id", lessonH.GetByID)
-	lessons.Get("/", lessonH.List)
-	lessons.Put("/:id", lessonH.Update)
-	lessons.Delete("/:id", lessonH.Delete)
-
-	// Per-student lesson routes.
-	students.Get("/:student_id/lessons", lessonH.GetByStudent)
-
-	// Assignment routes; part of the lessons module, tenant-scoped.
-	assignments := v1.Group("/assignments", chain(authenticated, tenantScope)...)
-	assignments.Post("/", assignmentH.Create)
-	assignments.Get("/stats", assignmentH.GetStats)
-	assignments.Get("/overdue", assignmentH.GetOverdue)
-	assignments.Get("/:id", assignmentH.GetByID)
-	assignments.Get("/", assignmentH.List)
-	assignments.Put("/:id", assignmentH.Update)
-	assignments.Delete("/:id", assignmentH.Delete)
-
-	// Per-student assignment routes.
-	students.Get("/:student_id/assignments", assignmentH.GetByStudent)
-
-	// Availability routes; part of the booking module, tenant-scoped.
-	availabilities := v1.Group("/availabilities", chain(authenticated, tenantScope)...)
-	availabilities.Post("/", availabilityH.Create)
-	availabilities.Get("/stats", availabilityH.GetStats)
-	availabilities.Get("/date-range", availabilityH.GetByDateRange)
-	availabilities.Get("/:id", availabilityH.GetByID)
-	availabilities.Get("/", availabilityH.List)
-	availabilities.Put("/:id", availabilityH.Update)
-	availabilities.Delete("/:id", availabilityH.Delete)
-
-	// Per-user availability routes.
-	availabilities.Get("/user/:user_id", availabilityH.GetByUser)
-
-	// Appointment routes; part of the booking module, tenant-scoped.
-	appointments := v1.Group("/appointments", chain(authenticated, tenantScope)...)
-	appointments.Post("/", appointmentH.Create)
-	appointments.Get("/stats", appointmentH.GetStats)
-	appointments.Get("/upcoming", appointmentH.GetUpcoming)
-	appointments.Get("/date-range", appointmentH.GetByDateRange)
-	appointments.Get("/client", appointmentH.GetByClient)
-	appointments.Get("/:id", appointmentH.GetByID)
-	appointments.Get("/", appointmentH.List)
-	appointments.Put("/:id", appointmentH.Update)
-	appointments.Post("/:id/confirm", appointmentH.Confirm)
-	appointments.Post("/:id/cancel", appointmentH.Cancel)
-	appointments.Post("/:id/complete", appointmentH.Complete)
-	appointments.Delete("/:id", appointmentH.Delete)
-
-	// Per-user appointment routes.
-	appointments.Get("/user/:user_id", appointmentH.GetByUser)
-
-	// Service routes; tenant-scoped.
-	services := v1.Group("/services", chain(authenticated, tenantScope)...)
-	services.Post("/", serviceH.Create)
-	services.Get("/stats", serviceH.GetStats)
-	services.Get("/featured", serviceH.GetFeatured)
-	services.Get("/slug/:slug", serviceH.GetBySlug)
-	services.Get("/:id", serviceH.GetByID)
-	services.Get("/", serviceH.List)
-	services.Put("/:id", serviceH.Update)
-	services.Delete("/:id", serviceH.Delete)
-
-	// Blog category routes; tenant-scoped.
-	categories := v1.Group("/blog/categories", chain(authenticated, tenantScope)...)
-	categories.Post("/", categoryH.Create)
-	categories.Get("/slug/:slug", categoryH.GetBySlug)
-	categories.Get("/:id", categoryH.GetByID)
-	categories.Get("/", categoryH.List)
-	categories.Put("/:id", categoryH.Update)
-	categories.Delete("/:id", categoryH.Delete)
-
-	// Blog post routes; tenant-scoped.
-	posts := v1.Group("/blog/posts", chain(authenticated, tenantScope)...)
-	posts.Post("/", postH.Create)
-	posts.Get("/featured", postH.GetFeatured)
-	posts.Get("/slug/:slug", postH.GetBySlug)
-	posts.Get("/tag/:tag", postH.GetByTag)
-	posts.Get("/:id", postH.GetByID)
-	posts.Get("/", postH.List)
-	posts.Put("/:id", postH.Update)
-	posts.Post("/:id/publish", postH.Publish)
-	posts.Post("/:id/archive", postH.Archive)
-	posts.Delete("/:id", postH.Delete)
-
-	// Per-category post routes.
-	categories.Get("/:category_id/posts", postH.GetByCategoryID)
-
-	// Payment routes; tenant-scoped and authenticated.
-	payments := v1.Group("/payments", chain(authenticated, tenantScope)...)
-	payments.Post("/", paymentH.CreatePayment)
-	payments.Post("/complete-3ds", paymentH.Complete3DSPayment)
-	payments.Get("/:id", paymentH.GetPayment)
-	payments.Get("/", paymentH.ListPayments)
-	payments.Post("/:id/refund", paymentH.CreateRefund)
-
-	// Webhook routes handle callbacks from the payment providers. Public.
-	webhooks := v1.Group("/webhooks/payment")
-	webhooks.Post("/:provider", webhookH.HandleWebhook)
-	webhooks.Post("/iyzico/:tenant_id", webhookH.HandleIyzicoWebhook)
-	webhooks.Post("/checkout/:tenant_id", webhookH.HandleCheckoutWebhook)
+	// The example business modules mount their own routes; see examples/verticals.
+	// They are registered from cmd/server, after this function returns, because the
+	// control plane does not import them.
 
 	// Registry routes: the module and tool marketplace.
 	registry := v1.Group("/registry")

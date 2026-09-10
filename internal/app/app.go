@@ -19,39 +19,20 @@ import (
 	"github.com/canakyuz/keystone/internal/config"
 	keystonegrpc "github.com/canakyuz/keystone/internal/grpc"
 	authHandler "github.com/canakyuz/keystone/internal/handler/auth"
-	blogHandler "github.com/canakyuz/keystone/internal/handler/blog"
-	bookingHandler "github.com/canakyuz/keystone/internal/handler/booking"
-	lessonHandler "github.com/canakyuz/keystone/internal/handler/lesson"
 	operationHandler "github.com/canakyuz/keystone/internal/handler/operation"
-	paymentHandler "github.com/canakyuz/keystone/internal/handler/payment"
 	registryHandler "github.com/canakyuz/keystone/internal/handler/registry"
-	serviceHandler "github.com/canakyuz/keystone/internal/handler/service"
 	tenantHandler "github.com/canakyuz/keystone/internal/handler/tenant"
 	uploadHandler "github.com/canakyuz/keystone/internal/handler/upload"
 	userHandler "github.com/canakyuz/keystone/internal/handler/user"
-	websiteHandler "github.com/canakyuz/keystone/internal/handler/website"
 	"github.com/canakyuz/keystone/internal/middleware"
-	providerPayment "github.com/canakyuz/keystone/internal/provider/payment"
-	blogRepo "github.com/canakyuz/keystone/internal/repository/blog"
-	bookingRepo "github.com/canakyuz/keystone/internal/repository/booking"
-	lessonRepo "github.com/canakyuz/keystone/internal/repository/lesson"
 	operationRepo "github.com/canakyuz/keystone/internal/repository/operation"
-	paymentRepo "github.com/canakyuz/keystone/internal/repository/payment"
 	registryRepo "github.com/canakyuz/keystone/internal/repository/registry"
-	serviceRepo "github.com/canakyuz/keystone/internal/repository/service"
 	templateRepo "github.com/canakyuz/keystone/internal/repository/template"
 	tenantRepo "github.com/canakyuz/keystone/internal/repository/tenant"
 	userRepo "github.com/canakyuz/keystone/internal/repository/user"
-	websiteRepo "github.com/canakyuz/keystone/internal/repository/website"
 	registryService "github.com/canakyuz/keystone/internal/service/registry"
-	blogUsecase "github.com/canakyuz/keystone/internal/usecase/blog"
-	bookingUsecase "github.com/canakyuz/keystone/internal/usecase/booking"
-	lessonUsecase "github.com/canakyuz/keystone/internal/usecase/lesson"
-	paymentUsecase "github.com/canakyuz/keystone/internal/usecase/payment"
-	serviceUsecase "github.com/canakyuz/keystone/internal/usecase/service"
 	tenantUsecase "github.com/canakyuz/keystone/internal/usecase/tenant"
 	userUsecase "github.com/canakyuz/keystone/internal/usecase/user"
-	websiteUsecase "github.com/canakyuz/keystone/internal/usecase/website"
 	"github.com/canakyuz/keystone/pkg/database"
 	pkgLogger "github.com/canakyuz/keystone/pkg/logger"
 	"github.com/canakyuz/keystone/pkg/metrics"
@@ -60,12 +41,50 @@ import (
 	"github.com/canakyuz/keystone/pkg/validator"
 )
 
+// Extension is what the control plane exposes to code built on top of it.
+//
+// The example modules in examples/verticals mount their routes through this. It exists so
+// that the dependency runs one way: they import the control plane, the control plane
+// knows nothing about them, and "the core runs without the verticals" is enforced by the
+// compiler rather than asserted in a document.
+//
+// The middleware slices are handed over rather than rebuilt, because an extension that
+// assembled its own chain could get the order wrong — authentication after the tenant
+// context, say — and reintroduce exactly the escalation this repository already closed.
+type Extension struct {
+	// App is the running Fiber application.
+	App *fiber.App
+
+	// DB is the shared connection pool.
+	DB *sql.DB
+
+	// Logger is the application logger.
+	Logger *pkgLogger.Logger
+
+	// Authenticated is the base chain: authentication, then the plan rate limit.
+	Authenticated []fiber.Handler
+
+	// TenantContext resolves the tenant schema onto the request context.
+	TenantContext fiber.Handler
+
+	// TenantScope pins the database session to the tenant schema.
+	TenantScope fiber.Handler
+}
+
+// Extension returns the surface an extension needs.
+func (a *Application) Extension() Extension {
+	return a.extension
+}
+
 // Application holds the core dependencies: configuration, the database connection
 // and the web framework.
 type Application struct {
 	config *config.Config
 	db     *sql.DB
 	app    *fiber.App
+
+	// extension is handed to code built on top of the control plane.
+	extension Extension
 
 	// grpcServer is nil when no address is configured.
 	grpcServer *keystonegrpc.Server
@@ -229,26 +248,8 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 	tenantSchemaCache := middleware.NewTenantSchemaCache(redisClient, db, appLogger, metricsRegistry)
 
 	userRepository := userRepo.NewPostgresRepository(db, tenantConnectionManager)
-	websiteRepository := websiteRepo.NewPostgresRepository(db)
-
-	// Repositories for the lessons module.
-	studentRepository := lessonRepo.NewStudentPostgresRepository(db)
-	lessonRepository := lessonRepo.NewLessonPostgresRepository(db)
-	assignmentRepository := lessonRepo.NewAssignmentPostgresRepository(db)
-
-	// Repositories for the booking module.
-	availabilityRepository := bookingRepo.NewAvailabilityPostgresRepository(db)
-	appointmentRepository := bookingRepo.NewAppointmentPostgresRepository(db)
-
-	// Repositories for the services module.
-	serviceRepository := serviceRepo.NewServicePostgresRepository(db)
-
-	// Repositories for the blog module.
-	postRepository := blogRepo.NewPostRepository(db)
-	categoryRepository := blogRepo.NewCategoryRepository(db)
 
 	// Repository for the payment module.
-	paymentRepository := paymentRepo.NewPostgresRepository(db)
 
 	// Repositories for the registry module.
 	moduleRepository := registryRepo.NewModuleRepository(db)
@@ -256,44 +257,11 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 	tenantModuleRepository := registryRepo.NewTenantModuleRepository(db)
 	tenantToolRepository := registryRepo.NewTenantToolRepository(db)
 
-	// The payment orchestrator, which fronts several providers (Iyzico, Checkout.com).
-	paymentOrchestrator := providerPayment.NewOrchestrator(&cfg.Payment)
-
-	// Register the payment providers enabled in the configuration.
-	if cfg.Payment.Iyzico.Enabled {
-		iyzicoProvider := providerPayment.NewIyzicoProvider(&cfg.Payment.Iyzico)
-		paymentOrchestrator.RegisterProvider("iyzico", iyzicoProvider)
-	}
-	if cfg.Payment.Checkout.Enabled {
-		checkoutProvider := providerPayment.NewCheckoutProvider(&cfg.Payment.Checkout)
-		paymentOrchestrator.RegisterProvider("checkout", checkoutProvider)
-	}
-
 	// The usecase layer, holding the business rules.
 	schemaTemplateRepository := templateRepo.NewFileSystemRepository("templates/tenants")
 	tenantProvisioningService := tenantUsecase.NewProvisioningService(db, schemaTemplateRepository, appLogger)
 	tenantService := tenantUsecase.NewService(tenantRepository, appValidator, appLogger, tenantProvisioningService)
 	userService := userUsecase.NewService(userRepository, appValidator, appLogger, cfg.Auth.JWTSecret)
-	websiteService := websiteUsecase.NewService(websiteRepository)
-
-	// Services for the lessons module.
-	studentService := lessonUsecase.NewStudentService(studentRepository, *appLogger)
-	lessonService := lessonUsecase.NewLessonService(lessonRepository, *appLogger)
-	assignmentService := lessonUsecase.NewAssignmentService(assignmentRepository, *appLogger)
-
-	// Services for the booking module.
-	availabilityService := bookingUsecase.NewAvailabilityService(availabilityRepository, *appLogger)
-	appointmentService := bookingUsecase.NewAppointmentService(appointmentRepository, *appLogger)
-
-	// Services for the services module.
-	serviceService := serviceUsecase.NewServiceService(serviceRepository, *appLogger)
-
-	// Services for the blog module.
-	postService := blogUsecase.NewPostService(postRepository, *appLogger)
-	categoryService := blogUsecase.NewCategoryService(categoryRepository, *appLogger)
-
-	// Payment service.
-	paymentService := paymentUsecase.NewService(paymentRepository, paymentOrchestrator)
 
 	// Registry services.
 	moduleCatalogService := registryService.NewModuleCatalogService(moduleRepository)
@@ -324,30 +292,8 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 	authHTTPHandler := authHandler.NewHandler(userService)
 	tenantHTTPHandler := tenantHandler.NewHandler(tenantService)
 	userHTTPHandler := userHandler.NewHandler(userService)
-	websiteHTTPHandler := websiteHandler.NewHandler(websiteService)
 
-	// Handlers for the lessons module.
-	studentHTTPHandler := lessonHandler.NewStudentHandler(studentService)
-	lessonHTTPHandler := lessonHandler.NewLessonHandler(lessonService)
-	assignmentHTTPHandler := lessonHandler.NewAssignmentHandler(assignmentService)
-
-	// Handlers for the booking module.
-	availabilityHTTPHandler := bookingHandler.NewAvailabilityHandler(availabilityService)
-	appointmentHTTPHandler := bookingHandler.NewAppointmentHandler(appointmentService)
-
-	// Handlers for the services module.
-	serviceHTTPHandler := serviceHandler.NewServiceHandler(serviceService)
-
-	// Handlers for the blog module.
-	postHTTPHandler := blogHandler.NewPostHandler(postService, *appLogger)
-	categoryHTTPHandler := blogHandler.NewCategoryHandler(categoryService, *appLogger)
-
-	// Upload handler.
 	uploadHTTPHandler := uploadHandler.NewHandler(appLogger)
-
-	// Payment handlers.
-	paymentHTTPHandler := paymentHandler.NewHandler(paymentService)
-	webhookHTTPHandler := paymentHandler.NewWebhookHandler(paymentService)
 
 	// Registry handlers.
 	moduleCatalogHTTPHandler := registryHandler.NewModuleCatalogHandler(moduleCatalogService)
@@ -355,12 +301,7 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 	activationHTTPHandler := registryHandler.NewActivationHandler(tenantActivationService, dependencyCheckerService)
 
 	// Wire the routes.
-	setupRoutes(app, cfg, authHTTPHandler, tenantHTTPHandler, userHTTPHandler, uploadHTTPHandler, websiteHTTPHandler,
-		studentHTTPHandler, lessonHTTPHandler, assignmentHTTPHandler,
-		availabilityHTTPHandler, appointmentHTTPHandler,
-		serviceHTTPHandler,
-		postHTTPHandler, categoryHTTPHandler,
-		paymentHTTPHandler, webhookHTTPHandler,
+	setupRoutes(app, cfg, authHTTPHandler, tenantHTTPHandler, userHTTPHandler, uploadHTTPHandler,
 		moduleCatalogHTTPHandler, toolCatalogHTTPHandler, activationHTTPHandler,
 		tenantContextMiddleware, tenantScopeMiddleware, planRateLimit)
 
@@ -385,6 +326,14 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 
 	// Return the assembled application.
 	return &Application{
+		extension: Extension{
+			App:           app,
+			DB:            db,
+			Logger:        appLogger,
+			Authenticated: []fiber.Handler{middleware.AuthMiddleware(cfg.Auth.JWTSecret), planRateLimit},
+			TenantContext: tenantContextMiddleware,
+			TenantScope:   tenantScopeMiddleware,
+		},
 		grpcServer:      grpcServer,
 		shutdownTracing: shutdownTracing,
 		config:          cfg,

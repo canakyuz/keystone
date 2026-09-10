@@ -12,6 +12,7 @@ import (
 
 	"github.com/canakyuz/keystone/pkg/cache"
 	"github.com/canakyuz/keystone/pkg/logger"
+	"github.com/canakyuz/keystone/pkg/metrics"
 	"github.com/canakyuz/keystone/pkg/ratelimit"
 )
 
@@ -43,6 +44,9 @@ type RateLimitConfig struct {
 	// authenticated request is limited by fallbackQuota.
 	Plans *TenantPlanCache
 
+	// Metrics records each decision. It may be nil.
+	Metrics *metrics.Registry
+
 	// SkipPaths are the paths exempt from limiting.
 	// The health endpoints must be exempt: if a load balancer probe is rejected for
 	// hitting the limit, a healthy instance is pulled out of the pool.
@@ -67,7 +71,7 @@ func RateLimit(cfg RateLimitConfig) fiber.Handler {
 			return c.Next()
 		}
 
-		key, quota := resolveKeyAndQuota(c, cfg)
+		key, quota, plan := resolveKeyAndQuota(c, cfg)
 
 		result, err := cfg.Limiter.Allow(c.Context(), key, quota)
 		if err != nil && cfg.Logger != nil {
@@ -79,6 +83,10 @@ func RateLimit(cfg RateLimitConfig) fiber.Handler {
 
 		writeRateLimitHeaders(c, result)
 
+		if cfg.Metrics != nil {
+			cfg.Metrics.RateLimitDecision(plan, result.Allowed)
+		}
+
 		if !result.Allowed {
 			return tooManyRequests(c, result)
 		}
@@ -87,32 +95,43 @@ func RateLimit(cfg RateLimitConfig) fiber.Handler {
 	}
 }
 
-// resolveKeyAndQuota decides which key and quota limit a request.
-func resolveKeyAndQuota(c *fiber.Ctx, cfg RateLimitConfig) (string, ratelimit.Quota) {
+// resolveKeyAndQuota decides which key and quota limit a request, and names the plan
+// it resolved.
+//
+// The plan name is returned for the metric label. It is bounded — there are five of
+// them plus two fallbacks — so it answers "which tier is being throttled?" without the
+// unbounded cardinality of a tenant id.
+func resolveKeyAndQuota(c *fiber.Ctx, cfg RateLimitConfig) (string, ratelimit.Quota, string) {
 	tenantID, ok := c.Locals("tenant_id").(string)
 	if !ok || tenantID == "" {
-		return "ip:" + c.IP(), anonymousQuota
+		return "ip:" + c.IP(), anonymousQuota, "anonymous"
 	}
 
-	return "tenant:" + tenantID, quotaForTenant(c.Context(), cfg, tenantID)
+	quota, plan := quotaForTenant(c.Context(), cfg, tenantID)
+
+	return "tenant:" + tenantID, quota, plan
 }
 
-// quotaForTenant returns the quota matching the tenant's plan.
-func quotaForTenant(ctx context.Context, cfg RateLimitConfig, tenantID string) ratelimit.Quota {
+// quotaForTenant returns the quota matching the tenant's plan, and the plan name.
+//
+// An unresolvable plan is reported as "unknown" rather than folded into the real plan
+// names. A rise in that series means plan resolution is failing, and silently serving
+// those requests the fallback quota would hide it.
+func quotaForTenant(ctx context.Context, cfg RateLimitConfig, tenantID string) (ratelimit.Quota, string) {
 	if cfg.Plans == nil {
-		return fallbackQuota
+		return fallbackQuota, "unknown"
 	}
 
 	plan, err := cfg.Plans.GetPlan(ctx, tenantID)
 	if err != nil {
-		return fallbackQuota
+		return fallbackQuota, "unknown"
 	}
 
 	if quota, ok := planQuotas[plan]; ok {
-		return quota
+		return quota, plan
 	}
 
-	return fallbackQuota
+	return fallbackQuota, "unknown"
 }
 
 // writeRateLimitHeaders reports the state so clients can pace themselves. Without

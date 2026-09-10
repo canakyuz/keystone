@@ -31,6 +31,7 @@ import (
 	"github.com/canakyuz/keystone/internal/worker"
 	"github.com/canakyuz/keystone/pkg/database"
 	"github.com/canakyuz/keystone/pkg/logger"
+	"github.com/canakyuz/keystone/pkg/metrics"
 )
 
 func main() {
@@ -67,7 +68,16 @@ func run() error {
 
 	handler := worker.NewProvisionHandler(tenants, tenants, provisioner, log)
 
+	// The worker publishes its own metrics on its own listener. It is a separate
+	// process from the API, so it needs a separate scrape target; sharing the API's
+	// endpoint would attribute the worker's numbers to the API and would stop working
+	// the moment the two are scaled independently, which is the point of splitting them.
+	metricsRegistry := metrics.New()
+	stopMetrics := serveMetrics(cfg.Server.MetricsAddr, metricsRegistry, log)
+	defer stopMetrics()
+
 	cfgWorker := worker.DefaultConfig(workerID)
+	cfgWorker.Metrics = metricsRegistry
 	provisionerWorker := worker.New(cfgWorker, operations, handler.Handle, log)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)

@@ -307,3 +307,40 @@ func requireOneRow(result sql.Result, onMismatch error) error {
 
 	return nil
 }
+
+// QueueDepth counts jobs by status.
+//
+// This is the number an on-call engineer actually looks at. The counters answer "how
+// much work happened"; only a depth answers "are the workers keeping up", which is the
+// question during an incident.
+//
+// Complexity: an aggregate over the partial index, so completed jobs are not scanned
+// and the cost stays flat as the table grows.
+func (r *Repository) QueueDepth(ctx context.Context) (map[string]int, error) {
+	rows, err := r.db.QueryContext(ctx, `
+		SELECT status, count(*)
+		FROM provisioning_jobs
+		WHERE status IN ('pending', 'running')
+		GROUP BY status
+	`)
+	if err != nil {
+		return nil, fmt.Errorf("could not read queue depth: %w", err)
+	}
+	defer rows.Close()
+
+	// Both statuses are reported even when empty. A gauge that simply stops being
+	// published is indistinguishable from a scrape failure, and an alert on a missing
+	// series is far noisier than one on a zero.
+	depth := map[string]int{"pending": 0, "running": 0}
+
+	for rows.Next() {
+		var status string
+		var count int
+		if err := rows.Scan(&status, &count); err != nil {
+			return nil, fmt.Errorf("could not scan queue depth: %w", err)
+		}
+		depth[status] = count
+	}
+
+	return depth, rows.Err()
+}

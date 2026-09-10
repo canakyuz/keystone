@@ -12,7 +12,6 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/fiber/v2/middleware/helmet"
-	"github.com/gofiber/fiber/v2/middleware/logger"
 	"github.com/gofiber/fiber/v2/middleware/recover"
 	"github.com/redis/go-redis/v9"
 
@@ -53,6 +52,7 @@ import (
 	websiteUsecase "github.com/canakyuz/keystone/internal/usecase/website"
 	"github.com/canakyuz/keystone/pkg/database"
 	pkgLogger "github.com/canakyuz/keystone/pkg/logger"
+	"github.com/canakyuz/keystone/pkg/metrics"
 	"github.com/canakyuz/keystone/pkg/ratelimit"
 	"github.com/canakyuz/keystone/pkg/validator"
 )
@@ -118,7 +118,11 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 		rateLimiter = ratelimit.NewRedis(redisClient, "ratelimit:")
 	}
 
+	// The metrics registry is built before anything that records into it.
+	metricsRegistry := metrics.New()
+
 	registerProbes(app, cfg, db, redisClient)
+	registerMetrics(app, metricsRegistry)
 
 	// Tenant provisioning and operation lookup endpoints. These do not use the tenant
 	// context middleware, because the new tenant does not exist yet.
@@ -127,11 +131,18 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 		operationHandler.New(operationRepository, appLogger))
 
 	// Global middleware, run for every incoming request.
+	//
+	// The order matters. Metrics come first so that a request rejected by the rate
+	// limiter is still counted: during an incident, when most requests are being
+	// rejected, is exactly when the dashboards must not disagree with reality.
 	app.Use(recover.New()) // Turns a panic into a 500 instead of a crash.
-	app.Use(helmet.New())  // Baseline security headers.
-	app.Use(logger.New(logger.Config{
-		Format: "[${time}] ${status} - ${latency} ${method} ${path}\n",
-	}))
+	app.Use(middleware.Metrics(metricsRegistry))
+	app.Use(helmet.New()) // Baseline security headers.
+
+	// Structured request logging with a correlation id. The id is taken from the
+	// incoming X-Request-ID when the caller supplies one, so a trace started upstream is
+	// not broken here, and generated otherwise.
+	app.Use(middleware.Logger(appLogger))
 	app.Use(cors.New(cors.Config{
 		AllowOrigins:     cfg.Security.AllowedOrigins,
 		AllowCredentials: cfg.Security.AllowCredentials,
@@ -143,6 +154,7 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 	app.Use(middleware.RateLimit(middleware.RateLimitConfig{
 		Limiter: rateLimiter,
 		Plans:   tenantPlanCache,
+		Metrics: metricsRegistry,
 		SkipPaths: map[string]bool{
 			"/health": true,
 			"/ready":  true,
@@ -169,7 +181,7 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 
 	// Tenant schema cache: Redis with a database fallback.
 	// TTL is 10 minutes: a tenant's schema rarely changes.
-	tenantSchemaCache := middleware.NewTenantSchemaCache(redisClient, db, appLogger)
+	tenantSchemaCache := middleware.NewTenantSchemaCache(redisClient, db, appLogger, metricsRegistry)
 
 	userRepository := userRepo.NewPostgresRepository(db, tenantConnectionManager)
 	websiteRepository := websiteRepo.NewPostgresRepository(db)

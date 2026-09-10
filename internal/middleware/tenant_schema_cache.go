@@ -10,6 +10,7 @@ import (
 
 	"github.com/canakyuz/keystone/pkg/cache"
 	"github.com/canakyuz/keystone/pkg/logger"
+	"github.com/canakyuz/keystone/pkg/metrics"
 )
 
 // ErrTenantNotFound reports that the tenant does not exist.
@@ -62,7 +63,7 @@ type TenantSchemaCache struct {
 
 // NewTenantSchemaCache builds the cache.
 // rdb may be nil, in which case only the in-process tier and the database are used.
-func NewTenantSchemaCache(rdb *redis.Client, db *sql.DB, log *logger.Logger) *TenantSchemaCache {
+func NewTenantSchemaCache(rdb *redis.Client, db *sql.DB, log *logger.Logger, reg *metrics.Registry) *TenantSchemaCache {
 	c := &TenantSchemaCache{db: db, logger: log}
 
 	// Keep a typed nil from being wrapped as a non-nil interface.
@@ -71,9 +72,19 @@ func NewTenantSchemaCache(rdb *redis.Client, db *sql.DB, log *logger.Logger) *Te
 		redisClient = rdb
 	}
 
+	// The cache reports each outcome here rather than importing a metrics registry
+	// itself; see cache.Config.OnEvent. This is what ADR-0006 was missing: Stats()
+	// already counted these, but until they were exported the hit rate could be read in
+	// a debugger and nowhere else.
+	var onEvent func(string)
+	if reg != nil {
+		onEvent = func(event string) { reg.CacheEvent("tenant_schema", event) }
+	}
+
 	c.cache = cache.New(cache.Config{
 		Redis:       redisClient,
 		Loader:      c.loadSchemaFromDB,
+		OnEvent:     onEvent,
 		KeyPrefix:   tenantSchemaKeyPrefix,
 		TTL:         defaultSchemaTTL,
 		L1TTL:       defaultLocalTTL,

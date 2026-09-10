@@ -55,7 +55,7 @@ type Config struct {
 	// Redis may be nil. When it is, only L1 and the loader are used.
 	Redis RedisClient
 
-	// Loader zorunludur.
+	// Loader is required.
 	Loader Loader
 
 	// KeyPrefix is prepended to Redis keys. It prevents namespace collisions in a
@@ -80,6 +80,18 @@ type Config struct {
 	// Jitter is the randomness ratio added to the TTL (0.0 - 1.0). It stops keys
 	// created at the same moment from expiring at the same moment.
 	Jitter float64
+
+	// OnEvent, when set, is called with each lookup outcome: "hit_l1", "hit_l2",
+	// "miss", "negative" or "loader_error".
+	//
+	// WHY a callback rather than a metrics dependency: this package is a leaf utility.
+	// Importing a metrics registry here would make every user of the cache pull in a
+	// monitoring library, and would fix the choice of monitoring system in a package
+	// that has no opinion about it. The caller wires the callback to whatever it uses.
+	//
+	// It runs on the request path, so an implementation must be cheap and must not
+	// block.
+	OnEvent func(event string)
 
 	// MaxL1Entries caps the in-process tier. Zero means 10,000.
 	MaxL1Entries int
@@ -125,6 +137,7 @@ func New(cfg Config) *TwoTier {
 func (c *TwoTier) Get(ctx context.Context, key string) (string, error) {
 	if value, ok := c.l1.get(key); ok {
 		c.l1Hits.Add(1)
+		c.emit("hit_l1")
 		c.countIfNegative(value)
 		return c.interpret(value)
 	}
@@ -145,12 +158,14 @@ func (c *TwoTier) Get(ctx context.Context, key string) (string, error) {
 func (c *TwoTier) loadThroughL2(ctx context.Context, key string) (string, error) {
 	if value, ok := c.readL2(ctx, key); ok {
 		c.l2Hits.Add(1)
+		c.emit("hit_l2")
 		c.countIfNegative(value)
 		c.l1.set(key, value, c.cfg.L1TTL)
 		return value, nil
 	}
 
 	c.misses.Add(1)
+	c.emit("miss")
 
 	value, err := c.cfg.Loader(ctx, key)
 	switch {
@@ -159,6 +174,7 @@ func (c *TwoTier) loadThroughL2(ctx context.Context, key string) (string, error)
 		return negativeSentinel, nil
 	case err != nil:
 		c.loaderErrors.Add(1)
+		c.emit("loader_error")
 		return "", err
 	}
 
@@ -182,6 +198,14 @@ func (c *TwoTier) interpret(value string) (string, error) {
 func (c *TwoTier) countIfNegative(value string) {
 	if value == negativeSentinel {
 		c.negativeHits.Add(1)
+		c.emit("negative")
+	}
+}
+
+// emit reports a lookup outcome to the caller's observer, if one was configured.
+func (c *TwoTier) emit(event string) {
+	if c.cfg.OnEvent != nil {
+		c.cfg.OnEvent(event)
 	}
 }
 

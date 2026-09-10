@@ -248,7 +248,7 @@ func (m *connectionManager) GetConnection(ctx context.Context) (*sql.Conn, error
 
 // validateSchemaName verifies that a schema name is safe to interpolate.
 //
-// Kurallar:
+// Rules:
 //   - must start with 'tenant_'
 //   - lowercase letters, digits and underscore only
 //   - at most 63 characters, PostgreSQL's identifier limit

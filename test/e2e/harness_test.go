@@ -54,7 +54,7 @@ func newHarness(t *testing.T) *harness {
 	middleware.AllowUntrustedTenantSource(false)
 	t.Cleanup(func() { middleware.AllowUntrustedTenantSource(false) })
 
-	schemaCache := middleware.NewTenantSchemaCache(nil, appDB, nil)
+	schemaCache := middleware.NewTenantSchemaCache(nil, appDB, nil, nil)
 	users := userRepo.NewPostgresRepository(appDB, database.NewTenantConnectionManager(appDB, nil))
 
 	app := fiber.New(fiber.Config{DisableStartupMessage: true})

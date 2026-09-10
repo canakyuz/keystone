@@ -25,6 +25,7 @@ import (
 	domain "github.com/canakyuz/keystone/internal/domain/operation"
 	oprepo "github.com/canakyuz/keystone/internal/repository/operation"
 	"github.com/canakyuz/keystone/pkg/logger"
+	"github.com/canakyuz/keystone/pkg/metrics"
 )
 
 // Handler performs the actual work of a job.
@@ -63,6 +64,9 @@ type Config struct {
 	// JobTimeout caps a single job.
 	JobTimeout time.Duration
 
+	// Metrics records claim, outcome and duration. It may be nil.
+	Metrics *metrics.Registry
+
 	// ShutdownGrace is the time running jobs get during shutdown.
 	ShutdownGrace time.Duration
 
@@ -94,6 +98,16 @@ type Store interface {
 	CompleteSuccess(ctx context.Context, jobID, workerID string, fence int64, activateTenant bool) error
 	CompleteFailure(ctx context.Context, jobID, workerID string, fence int64,
 		errCode, errMessage string, retryAfter time.Duration) error
+}
+
+// DepthReporter is an optional capability of a Store.
+//
+// It is a separate interface rather than a fifth method on Store because it is not
+// needed to run jobs: a Store that cannot report depth still works, it just publishes
+// no gauge. Widening Store would force every implementation, including the fake in the
+// tests, to carry a method it has no use for.
+type DepthReporter interface {
+	QueueDepth(ctx context.Context) (map[string]int, error)
 }
 
 // Provisioner is the worker loop for provisioning jobs.
@@ -146,10 +160,65 @@ func (p *Provisioner) Run(ctx context.Context) error {
 	jobCtx, cancelJobs := context.WithCancel(context.WithoutCancel(ctx))
 	defer cancelJobs()
 
+	stopDepth := p.publishQueueDepth(ctx)
+	defer stopDepth()
+
 	p.loop(ctx, jobCtx)
 
 	return p.drain(cancelJobs)
 }
+
+// publishQueueDepth polls the queue depth in the background and returns the function
+// that stops it.
+//
+// WHY a poll rather than counting in the worker: the depth is a property of the queue,
+// not of this process. A worker can only count what it claimed, and with several
+// workers running, none of them knows the total. Reading it back from the database is
+// the only answer that stays correct as workers are added or removed.
+//
+// The interval is deliberately slower than the poll interval. Depth is a trend, not an
+// event, and a count query per claim cycle would put load on the table the claim query
+// needs to stay fast.
+func (p *Provisioner) publishQueueDepth(ctx context.Context) func() {
+	reporter, ok := p.store.(DepthReporter)
+	if !ok || p.cfg.Metrics == nil {
+		return func() {}
+	}
+
+	done := make(chan struct{})
+	var once sync.Once
+
+	go func() {
+		ticker := time.NewTicker(queueDepthInterval)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-done:
+				return
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				depth, err := reporter.QueueDepth(ctx)
+				if err != nil {
+					// A failed gauge read is not worth failing the worker over, and not worth
+					// a log line per tick either. The scrape shows a stale value, which the
+					// staleness of the series itself makes visible.
+					continue
+				}
+
+				for status, count := range depth {
+					p.cfg.Metrics.SetQueueDepth(status, count)
+				}
+			}
+		}
+	}()
+
+	return func() { once.Do(func() { close(done) }) }
+}
+
+// queueDepthInterval is how often the queue depth gauge is refreshed.
+const queueDepthInterval = 15 * time.Second
 
 // loop repeatedly finds and runs jobs.
 func (p *Provisioner) loop(ctx, jobCtx context.Context) {
@@ -215,6 +284,12 @@ func (p *Provisioner) execute(parent context.Context, job *domain.Job) {
 	defer func() { <-p.slots }()
 	defer p.releaseTenant(job.TenantID)
 
+	// The duration measured here is claim to outcome, which includes the retry backoff
+	// of nothing and the handler of everything. It is the number that answers "how long
+	// does provisioning take?", the question the product actually has.
+	started := time.Now()
+	finish := p.observeStart()
+
 	ctx, cancel := context.WithTimeout(parent, p.cfg.JobTimeout)
 	defer cancel()
 
@@ -227,7 +302,34 @@ func (p *Provisioner) execute(parent context.Context, job *domain.Job) {
 	// failed job and is retried.
 	err := p.runHandler(ctx, job)
 
+	finish(outcomeOf(err), time.Since(started))
+
 	p.report(job, err)
+}
+
+// observeStart records a claim and returns the function that records the outcome.
+//
+// It returns a no-op when metrics are not configured, so the call sites stay free of
+// nil checks.
+func (p *Provisioner) observeStart() func(outcome string, elapsed time.Duration) {
+	if p.cfg.Metrics == nil {
+		return func(string, time.Duration) {}
+	}
+
+	return p.cfg.Metrics.JobClaimed(string(domain.KindTenantProvision))
+}
+
+// outcomeOf reduces an error to a bounded label.
+//
+// The error text is deliberately not used: it can contain a tenant name, a schema name
+// or a database message, and any of those as a label would make the series count grow
+// without limit.
+func outcomeOf(err error) string {
+	if err == nil {
+		return "succeeded"
+	}
+
+	return "failed"
 }
 
 // runHandler runs the handler with panic protection.

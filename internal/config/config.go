@@ -25,6 +25,16 @@ type ServerConfig struct {
 	ReadTimeout  time.Duration
 	WriteTimeout time.Duration
 	IdleTimeout  time.Duration
+
+	// MetricsAddr is where the worker publishes its Prometheus metrics.
+	//
+	// The API serves /metrics on its own port, alongside the API itself. The worker has
+	// no HTTP server of its own, so it needs an address to bind one. Empty disables the
+	// listener entirely, which is what the tests want.
+	//
+	// It defaults to a loopback address rather than 0.0.0.0: metrics are unauthenticated
+	// by convention, so the default should not be reachable from outside the host.
+	MetricsAddr string
 }
 
 // DatabaseConfig holds database configuration
@@ -124,6 +134,7 @@ func Load() (*Config, error) {
 			ReadTimeout:  parseDuration(getEnv("SERVER_READ_TIMEOUT", "30s")),
 			WriteTimeout: parseDuration(getEnv("SERVER_WRITE_TIMEOUT", "30s")),
 			IdleTimeout:  parseDuration(getEnv("SERVER_IDLE_TIMEOUT", "120s")),
+			MetricsAddr:  getEnv("WORKER_METRICS_ADDR", "127.0.0.1:9091"),
 		},
 		Database: DatabaseConfig{
 			Host:            getEnv("DB_HOST", "localhost"),

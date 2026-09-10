@@ -103,7 +103,7 @@ to run the existing profile somewhere the two are separated and record the numbe
 
 ---
 
-## Phase 1b: Tracing
+## Done: Tracing
 
 **Effort:** 3-5 days
 **Why:** "P95 under 200ms" is currently an unmeasured claim. A concrete number

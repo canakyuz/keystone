@@ -203,6 +203,43 @@ labels here are bounded by construction: route templates rather than paths, stat
 classes rather than codes, plan names rather than tenant ids. `pkg/metrics` carries the
 reasoning, and a test asserts the property rather than trusting review to catch it.
 
+## Tracing
+
+Metrics answer "how often, how fast, how many". They cannot answer "what happened to
+this one request", and provisioning is asynchronous, so the failures worth investigating
+are the ones that span two processes and several minutes.
+
+Tracing is off unless `OTEL_EXPORTER_OTLP_ENDPOINT` is set. Off means a no-op tracer
+rather than a branch at every call site, so the traced and untraced builds run the same
+code. The propagator is installed either way: an untraced deployment still forwards a
+caller's trace context instead of breaking someone else's trace.
+
+### The interesting part: the hop with no headers
+
+The HTTP hop carries trace context in a header. The provisioning hop does not — the API
+writes a database row and a worker reads it back, in another process, minutes later and
+possibly several times. So the W3C traceparent travels on that row (migration 034).
+
+The worker turns it into a **link**, not a parent:
+
+```
+request trace                    worker trace
+┌────────────────────┐           ┌────────────────────┐
+│ POST /v1/tenants   │◀─ link ───│ provision <tenant> │
+│ (ends in ~5ms)     │           │ (runs for seconds, │
+└────────────────────┘           │  maybe retried)    │
+                                 └────────────────────┘
+```
+
+Parenting would be the obvious choice and the wrong one. A trace only completes when all
+its spans do, so a job that keeps failing would leave the request's trace open forever,
+and every retry would hang off a request that ended hours earlier. A link says "this was
+caused by that" without claiming the two are one operation, which is what the
+OpenTelemetry conventions call for when producer and consumer are decoupled in time.
+
+`X-Trace-ID` comes back on every response, so "this request was slow" turns into a trace
+lookup rather than a guess.
+
 ## Health endpoints
 
 Two endpoints, two different questions.

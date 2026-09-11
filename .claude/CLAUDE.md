@@ -213,6 +213,7 @@ keystone/
 │   ├── middleware/      # auth, tenant context, rate limit
 │   └── worker/          # job claiming, leases, shutdown
 ├── pkg/                 # cache, ratelimit, database, tenantctx
+├── console/             # web console (Next.js); reads only through the API
 ├── migrations/          # the single source of truth for the schema
 ├── docs/decisions/      # architecture decision records
 └── scripts/seed/        # development seed data only

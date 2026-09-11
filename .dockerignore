@@ -1,0 +1,5 @@
+# The console is a separate Node application. The Go image builds from the module and
+# ships only the binary, migrations, api/ and web/, so none of console/ belongs in its
+# build context, least of all node_modules.
+console
+.git

@@ -329,6 +329,7 @@ internal/          the control plane          98 Go files
   grpc/            the typed surface
 pkg/               cache, ratelimit, database, metrics, tracing, authn, tenantctx
 examples/verticals/ a reference application  77 Go files
+console/           the web console            Next.js, reads only through the API
   blog, booking, lessons, payments, projects, services, websites
 ```
 
@@ -348,6 +349,17 @@ direct one — and fails the build if the arrow ever points the wrong way.
 ```bash
 go test ./test/architecture/
 ```
+
+## Console
+
+`console/` is a web interface to the same API: sign in, see the tenant as its own record
+describes it, manage its members, and create a tenant while watching the worker provision
+it. It is set in the visual language of [canakyuz.co](https://canakyuz.co).
+
+It holds no rules of its own. Every page reads through the API a client would use and meets
+the same checks, so a refusal on screen is the API's refusal, in the API's words. The access
+token stays in an httpOnly cookie on the Next.js server and never reaches the browser's
+scripts. Details are in [console/README.md](console/README.md).
 
 ## Architecture
 
@@ -422,6 +434,8 @@ cp .env.example .env
 docker compose up -d postgres
 go run ./cmd/server      # API
 go run ./cmd/worker      # provisioning worker, separate process
+
+cd console && bun install && bun run dev   # web console, needs the API
 ```
 
 Health check:

@@ -235,8 +235,10 @@ These are deliberately not being done.
   worker is not. Low signal value.
 - **Multi-region deployment.** Solving a scale problem that does not exist is
   YAGNI.
-- **An admin interface.** This is a backend portfolio. Adding a frontend splits
-  the focus.
+- **An admin interface.** Left out while the backend was the whole point. It has since
+  been added as `console/`, on the condition that kept the reason for leaving it out
+  intact: the console holds no rules. Every check stays in the API, and the console only
+  shows what the API decided.
 - **New vertical modules.** There are already 13 and they are the problem itself.
 
 ---

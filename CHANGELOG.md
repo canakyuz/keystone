@@ -10,6 +10,12 @@ the entry says so under **Changed**.
 
 ## [Unreleased]
 
+### Added
+
+- `console/`, a web console over the API: sign-in, the tenant's record, member management,
+  and tenant provisioning with a live view of the operation. It keeps the token in an
+  httpOnly cookie on its server and holds no authorization rules of its own.
+
 ### Fixed
 
 - `GET /api/v1/auth/me` answered 404 to every caller: it read the user without the tenant

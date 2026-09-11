@@ -3,7 +3,7 @@ APP_ENV ?= development
 .DEFAULT_GOAL := help
 .SILENT:
 .PHONY: help dev build run up down restart rebuild logs ps shell db-shell \
-        migrate-up migrate-down migrate-status migrate-bootstrap test fmt lint vet check clean-all
+        migrate-up migrate-down migrate-status migrate-bootstrap test fmt lint vet check clean-all console
 
 # ==============================================================================
 # Help
@@ -24,6 +24,9 @@ build: ## Build both binaries
 
 worker: ## Run the provisioning worker
 	go run cmd/worker/main.go
+
+console: ## Run the web console against a running API
+	cd console && bun install && bun run dev
 
 run: build ## Run the binary
 	./bin/keystone

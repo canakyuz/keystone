@@ -15,7 +15,7 @@ records under [decisions/](decisions/).
 
 ## 1. Authorization rests on a verified subject and tenant membership
 
-**Status:** Partial
+**Status:** Enforced
 
 Whichever tenant a request is made on behalf of, that fact is read only from a
 verified JWT claim. The `X-Tenant-ID` header and the `tenant_id` query parameter
@@ -30,15 +30,34 @@ key; `AuthMiddleware` never writes such a key. The JWT path never ran, and every
 request silently fell through to the header. Any user carrying a valid token
 could read another tenant's data.
 
-**Gap:** There is no membership table yet. The tenant identity comes from the
-JWT, but the question "is this subject a member of this tenant" is not verified
-against a separate record. The same person being an administrator in one tenant
-and a viewer in another cannot be represented until that table exists.
+A verified token is not enough on its own. It records what the subject was when it
+logged in, and it stays valid for a day. On every authenticated request, on both
+transports, the subject is looked up in the tenant's own record: it must exist in
+that tenant, must not be deleted, and must be active. The role every guard checks is
+the one that record holds, not the token's claim.
 
-**Gap:** `POST /api/v1/tenants` is protected by authentication alone. Creating a
-tenant should be a platform-level permission, but no such permission model
-exists yet. This endpoint does not look up tenant membership, and cannot: the
-tenant does not exist yet.
+- Code: `internal/authz`, `VerifyMember`; `internal/middleware/authorization.go`;
+  `internal/grpc/interceptors.go`, `authInterceptor`
+- Test: `internal/app/authorization_test.go`, which drives the production route
+  table over the non-superuser role; `test/e2e/grpc_isolation_test.go`,
+  `TestGRPC_NonMember_IsRefused`
+
+This part was violated in four ways at once. Tests written before the fix showed the
+first three:
+
+- The tenant endpoints took the tenant id from the path and never compared it with
+  the caller's. The owner of one tenant could read another, and suspend it.
+- No route checked a role. A viewer made another user an administrator.
+- A suspended user kept full access until the token expired.
+- Listing every tenant, counting them, and changing any tenant's plan or status had
+  no guard at all in the route table.
+
+**What this does not cover:** there is no platform permission model. The routes that
+act across tenants are closed to everyone (`middleware.PlatformOnly`) rather than
+granted to an operator, and `POST /api/v1/tenants` requires only an active membership
+in some tenant. A membership is one user row per tenant, so the same person in two
+tenants is two rows with two passwords. See
+[decisions/0008-membership-is-the-tenant-user-record.md](decisions/0008-membership-is-the-tenant-user-record.md).
 
 ---
 

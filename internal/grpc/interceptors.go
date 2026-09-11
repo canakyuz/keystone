@@ -8,6 +8,7 @@ package grpc
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"google.golang.org/grpc"
@@ -15,6 +16,7 @@ import (
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 
+	"github.com/canakyuz/keystone/internal/authz"
 	"github.com/canakyuz/keystone/internal/middleware"
 	"github.com/canakyuz/keystone/pkg/authn"
 	"github.com/canakyuz/keystone/pkg/logger"
@@ -64,7 +66,9 @@ func recoveryInterceptor(log *logger.Logger) grpc.UnaryServerInterceptor {
 // itself lives in pkg/authn so the two cannot drift. The tenant is read from the verified
 // claim and from nowhere else: gRPC metadata is caller-controlled, so a tenant header
 // here would be exactly the escalation the HTTP side already closed once.
-func authInterceptor(jwtSecret string, schemaCache *middleware.TenantSchemaCache) grpc.UnaryServerInterceptor {
+func authInterceptor(
+	jwtSecret string, schemaCache *middleware.TenantSchemaCache, members authz.MemberLookup,
+) grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
 		if publicMethods[info.FullMethod] {
 			return handler(ctx, req)
@@ -86,6 +90,16 @@ func authInterceptor(jwtSecret string, schemaCache *middleware.TenantSchemaCache
 		schema, err := schemaCache.GetTenantSchema(ctx, claims.TenantID)
 		if err != nil {
 			return nil, status.Error(codes.NotFound, "tenant not found")
+		}
+
+		// Membership, read from the tenant's record rather than the token, for the reason
+		// the HTTP side reads it: a token outlives the membership it was issued for.
+		if _, err := authz.VerifyMember(ctx, members, claims.TenantID, claims.UserID); err != nil {
+			if errors.Is(err, authz.ErrNotMember) {
+				return nil, status.Error(codes.PermissionDenied, "permission denied")
+			}
+
+			return nil, status.Error(codes.Internal, "could not verify membership")
 		}
 
 		ctx = tenantctx.WithID(ctx, claims.TenantID)

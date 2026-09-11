@@ -417,14 +417,16 @@ PostgreSQL, superusers bypass RLS under all circumstances. Details:
 ## Status
 
 The control plane works: tenant provisioning with durable operations, leases and fencing,
-RLS enforcement verified end to end, a REST and a gRPC surface over the same
+RLS enforcement verified end to end, membership and roles checked against the tenant's own
+record on every request, an audit trail and a transactional outbox written in the same
+transaction as the change they describe, a REST and a gRPC surface over the same
 repositories, metrics, tracing, and a migration runner. The vertical modules sit in
 `examples/verticals` as a reference application.
 
-Open: the transactional outbox and webhook delivery — rules 7 and 8 in
-[docs/INVARIANTS.md](docs/INVARIANTS.md) are still marked "not yet" — a tenant membership
-model, and a load measurement taken somewhere the load generator is not sharing a machine
-with the service. See [docs/ROADMAP.md](docs/ROADMAP.md).
+Open: a separate, narrowly privileged database role for the worker (the closing condition
+of ADR-0001), a platform permission model for the routes that act across tenants, and a
+load measurement taken somewhere the load generator is not sharing a machine with the
+service. See [docs/ROADMAP.md](docs/ROADMAP.md).
 
 ## License
 

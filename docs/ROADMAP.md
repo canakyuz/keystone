@@ -183,19 +183,20 @@ been separated by duplicating the control plane instead of depending on it.
 ## Phase 4: Remaining invariants
 
 **Effort:** 1 week
-**Why:** Rules 7 and 8 in [INVARIANTS.md](INVARIANTS.md) are still marked "not
-yet". A document that names its own gaps is good; leaving them open forever is
-not.
+**Why:** Rules 7 and 8 in [INVARIANTS.md](INVARIANTS.md) were marked "not yet",
+and rule 1 "partial". A document that names its own gaps is good; leaving them open
+forever is not.
 
 **Work**
 
-1. Audit table, written in the same transaction as the job status (rule 7).
+1. Audit table, written in the same transaction as the job status (rule 7). **Done.**
 2. Transactional outbox and webhook delivery (rule 8). The event is written in
    the same transaction as the business data; delivery is a separate, retryable
    step with exponential backoff and full jitter, and a dead-letter state after
-   the maximum number of attempts.
-3. A membership table, so that "is this subject a member of this tenant" becomes
-   a real check (the gap in rule 1).
+   the maximum number of attempts. **Done.**
+3. A membership check, so that "is this subject a member of this tenant" becomes
+   a real check (the gap in rule 1). **Done**, against the existing user record
+   rather than a new table; see [ADR-0008](decisions/0008-membership-is-the-tenant-user-record.md).
 4. A separate, narrowly privileged database role for the worker — the closing
    condition of ADR-0001.
 

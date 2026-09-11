@@ -97,6 +97,10 @@ relevant migration files.
 | The provisioning endpoints were registered ahead of the global middleware | In Fiber that means the middleware never runs for them, so the endpoint that creates tenants had no rate limit, no metrics and no request log | `internal/app` |
 | Webhook delivery connected to any address a tenant supplied | Server-side request forgery: a registered destination of `http://169.254.169.254/` reaches the cloud metadata credentials, and any internal service is reachable from inside the perimeter. Not exploitable at the time it was found — there is no endpoint for registering a destination yet — but the delivery code that will serve one was unguarded | `pkg/outbound` |
 | Provisioning wrote to `operations` without tenant context, and the status lookup read it without any | Under the non-superuser role this file requires, the tenant policy refused the insert, so `POST /tenants` failed on every request, and every status poll and idempotent retry answered 404. Development connected as a superuser and saw neither. The lookup is now visible to the subject that created the operation and to no one else | `038` |
+| The tenant endpoints acted on the tenant id in the path | The owner of any tenant could read, change or delete any other tenant, and suspend it, by putting its id in the URL | `internal/middleware`, `SameTenant` |
+| No route checked a role | A viewer could grant roles, including owner, and create or delete users in its tenant | `internal/app/routes.go` |
+| The token was trusted after the membership behind it ended | A suspended or deleted user kept access for the rest of the token's lifetime, up to 24 hours, and a demoted administrator kept administering | `internal/authz` |
+| Routes that act across tenants had no guard | Any authenticated caller could list every tenant, read counts across all of them, and change any tenant's plan or status | `internal/middleware`, `PlatformOnly` |
 
 ## Testing it
 

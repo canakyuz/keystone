@@ -141,6 +141,9 @@ paths:
     get:
       tags: [Tenant]
       summary: List tenants
+      description: >-
+        Closed. This acts across tenants and needs a platform permission, which does
+        not exist yet, so every caller receives 403. See docs/INVARIANTS.md, rule 1.
       parameters:
         - name: page
           in: query
@@ -214,6 +217,9 @@ paths:
     get:
       tags: [Tenant]
       summary: Tenant statistics
+      description: >-
+        Closed. This acts across tenants and needs a platform permission, which does
+        not exist yet, so every caller receives 403. See docs/INVARIANTS.md, rule 1.
       responses:
         '200':
           description: Aggregated tenant statistics
@@ -225,6 +231,9 @@ paths:
     get:
       tags: [Tenant]
       summary: Get tenant by slug
+      description: >-
+        Closed. This acts across tenants and needs a platform permission, which does
+        not exist yet, so every caller receives 403. See docs/INVARIANTS.md, rule 1.
       parameters:
         - name: slug
           in: path
@@ -311,6 +320,9 @@ paths:
     post:
       tags: [Tenant]
       summary: Suspend tenant
+      description: >-
+        Closed. This acts across tenants and needs a platform permission, which does
+        not exist yet, so every caller receives 403. See docs/INVARIANTS.md, rule 1.
       parameters:
         - name: id
           in: path
@@ -334,6 +346,9 @@ paths:
     post:
       tags: [Tenant]
       summary: Activate tenant
+      description: >-
+        Closed. This acts across tenants and needs a platform permission, which does
+        not exist yet, so every caller receives 403. See docs/INVARIANTS.md, rule 1.
       parameters:
         - name: id
           in: path
@@ -351,6 +366,9 @@ paths:
     post:
       tags: [Tenant]
       summary: Upgrade tenant plan
+      description: >-
+        Closed. This acts across tenants and needs a platform permission, which does
+        not exist yet, so every caller receives 403. See docs/INVARIANTS.md, rule 1.
       parameters:
         - name: id
           in: path

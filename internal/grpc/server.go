@@ -10,6 +10,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 
+	"github.com/canakyuz/keystone/internal/authz"
 	keystonev1 "github.com/canakyuz/keystone/internal/grpc/keystone/v1"
 	"github.com/canakyuz/keystone/internal/middleware"
 	"github.com/canakyuz/keystone/pkg/logger"
@@ -52,6 +53,7 @@ type Server struct {
 func New(
 	cfg Config,
 	schemaCache *middleware.TenantSchemaCache,
+	members authz.MemberLookup,
 	operations *OperationService,
 	users *UserService,
 	reg *metrics.Registry,
@@ -61,7 +63,7 @@ func New(
 		grpc.ChainUnaryInterceptor(
 			recoveryInterceptor(log),
 			observabilityInterceptor(reg, log),
-			authInterceptor(cfg.JWTSecret, schemaCache),
+			authInterceptor(cfg.JWTSecret, schemaCache, members),
 		),
 	)
 

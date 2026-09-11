@@ -167,3 +167,23 @@ func createTenant(t *testing.T, h *harness, slug string) string {
 
 	return helpers.CreateTestTenant(t, h.admin, slug).ID
 }
+
+// signTokenAs issues a valid token for a specific subject and role.
+func signTokenAs(t *testing.T, tenantID, userID, role string) string {
+	t.Helper()
+
+	claims := middleware.JWTClaims{
+		UserID:   userID,
+		TenantID: tenantID,
+		Email:    userID + "@example.com",
+		Role:     role,
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Hour)),
+		},
+	}
+
+	signed, err := jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString([]byte(testJWTSecret))
+	require.NoError(t, err)
+
+	return signed
+}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -589,4 +590,42 @@ func buildWhereClause(tenantID string, filters ListFilters) (string, []interface
 	}
 
 	return strings.Join(conditions, " AND "), args
+}
+
+// GetMembership reads the role and status the tenant's record holds for a subject.
+//
+// It runs on every authenticated request, so it reads two columns rather than the row and
+// needs no tenant schema: users lives in public, and only the RLS tenant context is
+// required. That context is set with set_config(..., true) inside a read-only transaction,
+// so it ends with the transaction and never reaches a pooled connection.
+//
+// Complexity: O(log n) on the primary key.
+func (r *PostgresRepository) GetMembership(ctx context.Context, tenantID, userID string) (*user.Membership, error) {
+	tx, err := r.db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	if err != nil {
+		return nil, fmt.Errorf("failed to begin membership lookup: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	if _, err := tx.ExecContext(ctx, `SELECT set_config('app.current_tenant', $1, true)`, tenantID); err != nil {
+		return nil, fmt.Errorf("failed to scope membership lookup: %w", err)
+	}
+
+	membership := &user.Membership{}
+
+	err = tx.QueryRowContext(ctx, `
+		SELECT role, status
+		FROM public.users
+		WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL`,
+		userID, tenantID,
+	).Scan(&membership.Role, &membership.Status)
+
+	switch {
+	case errors.Is(err, sql.ErrNoRows):
+		return nil, user.ErrUserNotFound
+	case err != nil:
+		return nil, fmt.Errorf("failed to read membership: %w", err)
+	}
+
+	return membership, nil
 }

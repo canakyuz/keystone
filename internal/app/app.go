@@ -218,21 +218,6 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 		Logger:  appLogger,
 	})
 
-	// Tenant provisioning and operation lookup endpoints.
-	//
-	// Registered here, after the global middleware, so they are traced, counted, logged
-	// and rate limited like everything else. They used to be registered before it, which
-	// in Fiber means the middleware never runs for them: the single most important
-	// endpoint in a control plane was the one with no observability and no rate limit,
-	// and the operation rows it created carried neither a request id nor a trace context.
-	//
-	// What they still do not use is tenantContextMiddleware, which is applied per group
-	// rather than globally. That exemption is the real constraint — the tenant does not
-	// exist yet, so resolving its schema would fail — and it survives this move.
-	operationRepository := operationRepo.New(db)
-	registerOperationRoutes(app, cfg.Auth.JWTSecret,
-		operationHandler.New(operationRepository, appLogger))
-
 	// Note: tenantContextMiddleware is added after authentication, because extracting
 	// tenant_id from the JWT requires the auth middleware to have run first.
 
@@ -248,6 +233,25 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 	tenantSchemaCache := middleware.NewTenantSchemaCache(redisClient, db, appLogger, metricsRegistry)
 
 	userRepository := userRepo.NewPostgresRepository(db, tenantConnectionManager)
+
+	// Membership is checked against the tenant's own record on every authenticated
+	// request, on both transports; see internal/authz.
+	membership := middleware.Membership(userRepository)
+
+	// Tenant provisioning and operation lookup endpoints.
+	//
+	// Registered here, after the global middleware, so they are traced, counted, logged
+	// and rate limited like everything else. They used to be registered before it, which
+	// in Fiber means the middleware never runs for them: the single most important
+	// endpoint in a control plane was the one with no observability and no rate limit,
+	// and the operation rows it created carried neither a request id nor a trace context.
+	//
+	// What they still do not use is tenantContextMiddleware, which is applied per group
+	// rather than globally. That exemption is the real constraint — the tenant does not
+	// exist yet, so resolving its schema would fail — and it survives this move.
+	operationRepository := operationRepo.New(db)
+	registerOperationRoutes(app, cfg.Auth.JWTSecret, membership,
+		operationHandler.New(operationRepository, appLogger))
 
 	// Repository for the payment module.
 
@@ -303,7 +307,7 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 	// Wire the routes.
 	setupRoutes(app, cfg, authHTTPHandler, tenantHTTPHandler, userHTTPHandler, uploadHTTPHandler,
 		moduleCatalogHTTPHandler, toolCatalogHTTPHandler, activationHTTPHandler,
-		tenantContextMiddleware, tenantScopeMiddleware, planRateLimit)
+		tenantContextMiddleware, tenantScopeMiddleware, planRateLimit, membership)
 
 	// The typed surface runs in this process, on its own port. It calls the same
 	// repositories as the REST handlers, so the guarantees have one implementation and two
@@ -317,6 +321,7 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 				Reflection: cfg.GRPC.Reflection,
 			},
 			tenantSchemaCache,
+			userRepository,
 			keystonegrpc.NewOperationService(operationRepository),
 			keystonegrpc.NewUserService(userRepository),
 			metricsRegistry,
@@ -330,7 +335,7 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 			App:           app,
 			DB:            db,
 			Logger:        appLogger,
-			Authenticated: []fiber.Handler{middleware.AuthMiddleware(cfg.Auth.JWTSecret), planRateLimit},
+			Authenticated: []fiber.Handler{middleware.AuthMiddleware(cfg.Auth.JWTSecret), membership, planRateLimit},
 			TenantContext: tenantContextMiddleware,
 			TenantScope:   tenantScopeMiddleware,
 		},

@@ -19,15 +19,15 @@ import (
 // exist yet. The middleware would try to resolve the schema of a tenant that is not
 // there and the request would fail with a 404.
 //
-// Authorization on this endpoint therefore works differently: the caller is
-// authenticated, but no tenant membership is checked. Creating a tenant should be a
-// platform-level permission; right now it is protected by authentication alone, and
-// that gap is recorded in INVARIANTS.md.
-func registerOperationRoutes(app *fiber.App, jwtSecret string, h *operationHandler.Handler) {
-	auth := middleware.AuthMiddleware(jwtSecret)
+// Authorization on this endpoint therefore stops short of the new tenant: the caller must
+// be an active member of the tenant its token names, and nothing more. Creating a tenant
+// should be a platform-level permission; no such permission exists yet, and that gap is
+// recorded in INVARIANTS.md.
+func registerOperationRoutes(app *fiber.App, jwtSecret string, membership fiber.Handler, h *operationHandler.Handler) {
+	authenticated := []fiber.Handler{middleware.AuthMiddleware(jwtSecret), membership}
 
 	v1 := app.Group("/api/v1")
 
-	v1.Post("/tenants", auth, h.CreateTenant)
-	v1.Get("/operations/:id", auth, h.GetOperation)
+	v1.Post("/tenants", chain(authenticated, h.CreateTenant)...)
+	v1.Get("/operations/:id", chain(authenticated, h.GetOperation)...)
 }

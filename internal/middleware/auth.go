@@ -1,6 +1,8 @@
 package middleware
 
 import (
+	"slices"
+
 	"github.com/gofiber/fiber/v2"
 
 	"github.com/canakyuz/keystone/pkg/authn"
@@ -62,25 +64,20 @@ func OptionalAuth(jwtSecret string) fiber.Handler {
 	}
 }
 
-// RequireRole middleware checks if user has required role
+// RequireRole admits the request only if the caller holds one of the given roles.
+//
+// It reads the role Membership wrote from the tenant's record. Placed without Membership
+// in front of it, it would be reading the token's claim instead, which is what the subject
+// was when it logged in rather than what it is now.
 func RequireRole(roles ...string) fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		userRole := c.Locals("role")
-		if userRole == nil {
-			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
-				"error": "Access forbidden",
-			})
-		}
-
-		roleStr := userRole.(string)
-		for _, role := range roles {
-			if roleStr == role {
-				return c.Next()
-			}
+		role, _ := c.Locals("role").(string)
+		if role != "" && slices.Contains(roles, role) {
+			return c.Next()
 		}
 
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
-			"error": "Insufficient permissions",
+			"error": "insufficient permissions",
 		})
 	}
 }

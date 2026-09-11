@@ -16,6 +16,7 @@ right forever is not a decision record, it is a defence brief.
 | [0005](0005-schema-per-tenant.md) | Schema-per-tenant, together with RLS | |
 | [0006](0006-two-tier-cache.md) | The cache is two-tier and singleflight-protected | |
 | [0007](0007-rate-limit-fail-open.md) | The rate limit is shared and stays open when Redis is down | Debatable; the reasoning is written out |
+| [0008](0008-membership-is-the-tenant-user-record.md) | Membership is the tenant's user record, read on every request | Chosen over a separate membership table |
 
 ## The order to read these in
 

@@ -3,9 +3,11 @@ package user
 import (
 	"strconv"
 
+	"github.com/gofiber/fiber/v2"
+
+	domainUser "github.com/canakyuz/keystone/internal/domain/user"
 	"github.com/canakyuz/keystone/internal/middleware"
 	"github.com/canakyuz/keystone/internal/usecase/user"
-	"github.com/gofiber/fiber/v2"
 )
 
 // Handler handles user HTTP requests.
@@ -197,6 +199,14 @@ func (h *Handler) UpdateRole(c *fiber.Ctx) error {
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "Invalid request body",
+		})
+	}
+
+	// Only an owner can make an owner. Owners cannot be suspended, demoted or deleted, so an
+	// administrator able to promote itself would put itself beyond every other owner's reach.
+	if req.Role == string(domainUser.RoleOwner) && middleware.GetUserRole(c) != string(domainUser.RoleOwner) {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"error": "only an owner can grant the owner role",
 		})
 	}
 

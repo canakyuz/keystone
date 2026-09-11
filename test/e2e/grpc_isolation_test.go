@@ -20,6 +20,7 @@ import (
 	"github.com/canakyuz/keystone/internal/middleware"
 	userRepo "github.com/canakyuz/keystone/internal/repository/user"
 	"github.com/canakyuz/keystone/pkg/database"
+	"github.com/canakyuz/keystone/test/helpers"
 )
 
 // grpcHarness runs the real gRPC server over an in-memory listener.
@@ -49,6 +50,7 @@ func newGRPCHarness(t *testing.T) *grpcHarness {
 	server := keystonegrpc.New(
 		keystonegrpc.Config{JWTSecret: testJWTSecret},
 		schemaCache,
+		users,
 		keystonegrpc.NewOperationService(nil),
 		keystonegrpc.NewUserService(users),
 		nil,
@@ -76,9 +78,18 @@ func newGRPCHarness(t *testing.T) *grpcHarness {
 func (h *grpcHarness) callAs(t *testing.T, tenantID string) (context.Context, context.CancelFunc) {
 	t.Helper()
 
+	// The interceptor checks membership against the tenant's record, so the token has to
+	// belong to a subject the tenant actually holds.
+	member := helpers.CreateTestUser(t, h.admin, tenantID, "grpc-caller@"+tenantID+".test", "viewer")
+
+	return withToken(signTokenAs(t, tenantID, member.ID, "viewer"))
+}
+
+// withToken returns a context carrying the given bearer token.
+func withToken(token string) (context.Context, context.CancelFunc) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 
-	return metadata.AppendToOutgoingContext(ctx, "authorization", "Bearer "+signToken(t, tenantID)), cancel
+	return metadata.AppendToOutgoingContext(ctx, "authorization", "Bearer "+token), cancel
 }
 
 // TestGRPC_RequestWithoutToken_IsRejected verifies the interceptor refuses an
@@ -117,7 +128,7 @@ func TestGRPC_InvalidToken_IsRejected(t *testing.T) {
 func TestGRPC_UnknownTenant_IsRejected(t *testing.T) {
 	h := newGRPCHarness(t)
 
-	ctx, cancel := h.callAs(t, "00000000-0000-4000-8000-0000deadbeef")
+	ctx, cancel := withToken(signToken(t, "00000000-0000-4000-8000-0000deadbeef"))
 	defer cancel()
 
 	_, err := h.client.ListUsers(ctx, &keystonev1.ListUsersRequest{})
@@ -210,4 +221,32 @@ func TestGRPC_PageSizeIsCapped(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.LessOrEqual(t, len(resp.GetUsers()), 200)
+}
+
+// TestGRPC_NonMember_IsRefused: the interceptor checks membership the way the HTTP
+// middleware does. A genuine token is not enough once the membership behind it is gone.
+func TestGRPC_NonMember_IsRefused(t *testing.T) {
+	h := newGRPCHarness(t)
+
+	tenantID := createTenant(t, h.harness, "e2e-grpc-member")
+	member := helpers.CreateTestUser(t, h.admin, tenantID, "member@grpc-member.test", "admin")
+
+	ctx, cancel := withToken(signTokenAs(t, tenantID, member.ID, "admin"))
+	defer cancel()
+
+	_, err := h.client.ListUsers(ctx, &keystonev1.ListUsersRequest{})
+	require.NoError(t, err, "an active member was refused")
+
+	_, err = h.admin.Exec(`UPDATE users SET status = 'suspended' WHERE id = $1`, member.ID)
+	require.NoError(t, err)
+
+	_, err = h.client.ListUsers(ctx, &keystonev1.ListUsersRequest{})
+	assert.Equal(t, codes.PermissionDenied, status.Code(err), "a suspended member kept access")
+
+	// A well-formed token for a subject this tenant does not hold.
+	strangerCtx, strangerCancel := withToken(signToken(t, tenantID))
+	defer strangerCancel()
+
+	_, err = h.client.ListUsers(strangerCtx, &keystonev1.ListUsersRequest{})
+	assert.Equal(t, codes.PermissionDenied, status.Code(err), "a subject the tenant does not hold was let in")
 }

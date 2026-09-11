@@ -46,6 +46,9 @@ type Repository interface {
 
 	// GetOwner retrieves the tenant owner
 	GetOwner(ctx context.Context, tenantID string) (*user.User, error)
+
+	// GetMembership reads the role and status the tenant's record holds for a subject.
+	GetMembership(ctx context.Context, tenantID, userID string) (*user.Membership, error)
 }
 
 // ListFilters represents filters for listing users

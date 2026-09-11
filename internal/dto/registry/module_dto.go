@@ -1,6 +1,7 @@
 package registry
 
 import (
+	"encoding/json"
 	"time"
 
 	"github.com/canakyuz/keystone/internal/domain/registry"
@@ -50,8 +51,8 @@ type ModuleResponse struct {
 	BasePrice          float64                 `json:"base_price,omitempty"`
 	Currency           string                  `json:"currency,omitempty"`
 	BillingCycle       string                  `json:"billing_cycle,omitempty"`
-	Features           interface{}             `json:"features,omitempty"`
-	Capabilities       interface{}             `json:"capabilities,omitempty"`
+	Features           json.RawMessage         `json:"features,omitempty"`
+	Capabilities       json.RawMessage         `json:"capabilities,omitempty"`
 	Icon               string                  `json:"icon,omitempty"`
 	CoverImage         string                  `json:"cover_image,omitempty"`
 	Screenshots        []string                `json:"screenshots,omitempty"`
@@ -67,15 +68,15 @@ type ModuleResponse struct {
 // ModuleDetailResponse represents detailed module response
 type ModuleDetailResponse struct {
 	ModuleResponse
-	RequiresDatabase    bool        `json:"requires_database"`
-	RequiresStorage     bool        `json:"requires_storage"`
-	RequiresEmail       bool        `json:"requires_email"`
-	DatabaseTables      []string    `json:"database_tables,omitempty"`
-	DefaultLimits       interface{} `json:"default_limits,omitempty"`
-	InstallationNotes   string      `json:"installation_notes,omitempty"`
-	ConfigurationSchema interface{} `json:"configuration_schema,omitempty"`
-	Tags                []string    `json:"tags,omitempty"`
-	Metadata            interface{} `json:"metadata,omitempty"`
+	RequiresDatabase    bool            `json:"requires_database"`
+	RequiresStorage     bool            `json:"requires_storage"`
+	RequiresEmail       bool            `json:"requires_email"`
+	DatabaseTables      []string        `json:"database_tables,omitempty"`
+	DefaultLimits       json.RawMessage `json:"default_limits,omitempty"`
+	InstallationNotes   string          `json:"installation_notes,omitempty"`
+	ConfigurationSchema json.RawMessage `json:"configuration_schema,omitempty"`
+	Tags                []string        `json:"tags,omitempty"`
+	Metadata            json.RawMessage `json:"metadata,omitempty"`
 }
 
 // ModuleListResponse represents paginated module list response

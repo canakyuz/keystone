@@ -281,7 +281,7 @@ func TestPostgresRepository_GetStats(t *testing.T) {
 		require.NoError(t, err)
 
 		assert.NotNil(t, stats)
-		assert.GreaterOrEqual(t, stats["total"].(int64), int64(2))
-		assert.GreaterOrEqual(t, stats["active"].(int64), int64(2))
+		assert.GreaterOrEqual(t, stats["total"], int64(2))
+		assert.GreaterOrEqual(t, stats["active"], int64(2))
 	})
 }

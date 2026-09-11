@@ -10,12 +10,6 @@ import (
 	_ "github.com/lib/pq"
 )
 
-// DB wraps sql.DB with additional functionality
-type DB struct {
-	*sql.DB
-	logger interface{} // Will be *logger.Logger, kept as interface to avoid circular import
-}
-
 // NewPostgresDB creates a new PostgreSQL database connection
 func NewPostgresDB(cfg config.DatabaseConfig) (*sql.DB, error) {
 	db, err := sql.Open("postgres", cfg.DSN())

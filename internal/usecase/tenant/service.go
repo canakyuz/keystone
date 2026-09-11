@@ -432,8 +432,8 @@ func (s *Service) UpdateBranding(ctx context.Context, id string, req *UpdateBran
 }
 
 // GetStats retrieves tenant statistics
-func (s *Service) GetStats(ctx context.Context) (map[string]interface{}, error) {
-	stats := make(map[string]interface{})
+func (s *Service) GetStats(ctx context.Context) (map[string]int64, error) {
+	stats := make(map[string]int64)
 
 	// Count by status
 	for _, status := range []tenant.TenantStatus{

@@ -441,8 +441,8 @@ func (s *Service) Delete(ctx context.Context, tenantID, userID string) error {
 }
 
 // GetStats retrieves user statistics for a tenant
-func (s *Service) GetStats(ctx context.Context, tenantID string) (map[string]interface{}, error) {
-	stats := make(map[string]interface{})
+func (s *Service) GetStats(ctx context.Context, tenantID string) (map[string]int64, error) {
+	stats := make(map[string]int64)
 
 	// Total users
 	total, err := s.repo.CountByTenant(ctx, tenantID)

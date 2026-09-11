@@ -1,6 +1,7 @@
 package registry
 
 import (
+	"encoding/json"
 	"time"
 
 	"github.com/canakyuz/keystone/internal/domain/registry"
@@ -55,8 +56,8 @@ type ToolResponse struct {
 	BillingCycle             string                   `json:"billing_cycle,omitempty"`
 	TransactionFeePercentage float64                  `json:"transaction_fee_percentage,omitempty"`
 	TransactionFeeFixed      float64                  `json:"transaction_fee_fixed,omitempty"`
-	Features                 interface{}              `json:"features,omitempty"`
-	Capabilities             interface{}              `json:"capabilities,omitempty"`
+	Features                 json.RawMessage          `json:"features,omitempty"`
+	Capabilities             json.RawMessage          `json:"capabilities,omitempty"`
 	Icon                     string                   `json:"icon,omitempty"`
 	CoverImage               string                   `json:"cover_image,omitempty"`
 	Screenshots              []string                 `json:"screenshots,omitempty"`
@@ -78,16 +79,16 @@ type ToolResponse struct {
 // ToolDetailResponse represents detailed tool response
 type ToolDetailResponse struct {
 	ToolResponse
-	Features             interface{} `json:"features,omitempty"`
-	Capabilities         interface{} `json:"capabilities,omitempty"`
-	APIEndpoints         interface{} `json:"api_endpoints,omitempty"`
-	DefaultLimits        interface{} `json:"default_limits,omitempty"`
-	RateLimits           interface{} `json:"rate_limits,omitempty"`
-	ConfigurationSchema  interface{} `json:"configuration_schema,omitempty"`
-	DefaultConfiguration interface{} `json:"default_configuration,omitempty"`
-	DatabaseTables       []string    `json:"database_tables,omitempty"`
-	Tags                 []string    `json:"tags,omitempty"`
-	Metadata             interface{} `json:"metadata,omitempty"`
+	Features             json.RawMessage `json:"features,omitempty"`
+	Capabilities         json.RawMessage `json:"capabilities,omitempty"`
+	APIEndpoints         json.RawMessage `json:"api_endpoints,omitempty"`
+	DefaultLimits        json.RawMessage `json:"default_limits,omitempty"`
+	RateLimits           json.RawMessage `json:"rate_limits,omitempty"`
+	ConfigurationSchema  json.RawMessage `json:"configuration_schema,omitempty"`
+	DefaultConfiguration json.RawMessage `json:"default_configuration,omitempty"`
+	DatabaseTables       []string        `json:"database_tables,omitempty"`
+	Tags                 []string        `json:"tags,omitempty"`
+	Metadata             json.RawMessage `json:"metadata,omitempty"`
 }
 
 // ToolListResponse represents paginated tool list response

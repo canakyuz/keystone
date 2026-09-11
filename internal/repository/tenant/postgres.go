@@ -527,7 +527,7 @@ func (r *PostgresRepository) VerifyCustomDomain(ctx context.Context, tenantID st
 }
 
 // GetStats returns tenant statistics
-func (r *PostgresRepository) GetStats(ctx context.Context) (map[string]interface{}, error) {
+func (r *PostgresRepository) GetStats(ctx context.Context) (map[string]int64, error) {
 	query := `
 		SELECT
 			COUNT(*) as total,
@@ -553,7 +553,7 @@ func (r *PostgresRepository) GetStats(ctx context.Context) (map[string]interface
 		return nil, fmt.Errorf("failed to get stats: %w", err)
 	}
 
-	stats := map[string]interface{}{
+	stats := map[string]int64{
 		"total":      total,
 		"active":     active,
 		"suspended":  suspended,

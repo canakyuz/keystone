@@ -62,6 +62,14 @@ feat(tenant): add schema provisioning
 fix(rls): force row level security on tenant tables
 ```
 
+## Changelog
+
+A change that someone using the API, the worker or the schema would notice goes under
+**Unreleased** in [CHANGELOG.md](CHANGELOG.md), in the section that fits: Added, Changed,
+Fixed or Removed. A release moves those entries under a version number and tags that commit
+`vMAJOR.MINOR.PATCH`. Below 1.0.0 a minor release may break compatibility, and when it does
+the entry says so.
+
 ## Before submitting
 
 ```

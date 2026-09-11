@@ -211,10 +211,18 @@ in English.
 
 **Work**
 
-1. A godoc comment on every exported symbol.
-2. An architecture diagram.
-3. A CHANGELOG and SemVer tagging.
-4. `interface{}` cleanup: turn the DTO usages into concrete types.
+1. A godoc comment on every exported symbol. **Done** for the control plane (`internal/`,
+   `pkg/`, `cmd/`, `test/helpers`), and held there by `test/architecture/godoc_test.go`.
+   The reference application under `examples/` is deliberately left out. Most of its 259
+   undocumented symbols are handlers and repository methods whose names already say what
+   they do, and a comment that repeats a name is noise rather than documentation.
+2. An architecture diagram. **Done**; see the Architecture section of the README.
+3. A CHANGELOG and SemVer tagging. **Done**; see [CHANGELOG.md](../CHANGELOG.md), starting
+   at `v0.1.0`.
+4. `interface{}` cleanup: turn the DTO usages into concrete types. **Done.** Registry
+   payloads are `json.RawMessage` and statistics are `map[string]int64`. What remains is
+   genuinely open-ended — JSONB metadata, SQL argument lists, logger fields — and is
+   spelled `any`.
 
 ---
 

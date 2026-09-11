@@ -41,7 +41,7 @@ func (s *stubStore) CreateTenantProvision(
 	return s.result, nil
 }
 
-func (s *stubStore) GetOperation(_ context.Context, _ string) (*domain.Operation, error) {
+func (s *stubStore) GetOperation(_ context.Context, _, _ string) (*domain.Operation, error) {
 	if s.err != nil {
 		return nil, s.err
 	}

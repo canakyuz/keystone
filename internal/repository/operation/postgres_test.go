@@ -275,7 +275,7 @@ func TestCompleteSuccess_ActivatesTenantInSameTransaction(t *testing.T) {
 
 	require.NoError(t, repo.CompleteSuccess(ctx, job.ID, "worker-1", job.Fence, true))
 
-	op, err := repo.GetOperation(ctx, created.Operation.ID)
+	op, err := repo.GetOperation(ctx, created.Operation.ID, "")
 	require.NoError(t, err)
 	assert.Equal(t, domain.StatusSucceeded, op.Status)
 	assert.NotNil(t, op.CompletedAt, "tamamlanan operasyonun bitis zamani yok")
@@ -310,7 +310,7 @@ func TestCompleteFailure_RetriesUntilExhausted(t *testing.T) {
 		created.Operation.ID).Scan(&jobStatus))
 	assert.Equal(t, "dead", jobStatus, "hak tukendigi halde is olu isaretlenmedi")
 
-	op, err := repo.GetOperation(ctx, created.Operation.ID)
+	op, err := repo.GetOperation(ctx, created.Operation.ID, "")
 	require.NoError(t, err)
 	assert.Equal(t, domain.StatusFailed, op.Status)
 	assert.Equal(t, "schema_error", op.ErrorCode)
@@ -350,7 +350,7 @@ func TestRenewLease_RejectsStaleFence(t *testing.T) {
 func TestGetOperation_NotFound(t *testing.T) {
 	repo, _, _ := setup(t)
 
-	_, err := repo.GetOperation(context.Background(), "00000000-0000-0000-0000-000000000000")
+	_, err := repo.GetOperation(context.Background(), "00000000-0000-0000-0000-000000000000", "")
 
 	assert.True(t, errors.Is(err, domain.ErrNotFound))
 }

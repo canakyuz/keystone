@@ -21,7 +21,7 @@ import (
 // is a translation layer between protobuf and the domain, nothing more.
 type OperationStore interface {
 	CreateTenantProvision(ctx context.Context, req oprepo.ProvisionRequest) (*oprepo.ProvisionResult, error)
-	GetOperation(ctx context.Context, id string) (*domain.Operation, error)
+	GetOperation(ctx context.Context, id, subject string) (*domain.Operation, error)
 }
 
 // OperationService serves keystone.v1.OperationService.
@@ -84,7 +84,7 @@ func (s *OperationService) GetOperation(
 		return nil, status.Error(codes.InvalidArgument, "id is required")
 	}
 
-	op, err := s.store.GetOperation(ctx, req.GetId())
+	op, err := s.store.GetOperation(ctx, req.GetId(), SubjectFrom(ctx))
 	if err != nil {
 		if errors.Is(err, domain.ErrNotFound) {
 			return nil, status.Error(codes.NotFound, "operation not found")

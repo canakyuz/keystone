@@ -33,7 +33,7 @@ const maxIdempotencyKeyLength = 255
 // uses, not the whole repository.
 type Store interface {
 	CreateTenantProvision(ctx context.Context, req oprepo.ProvisionRequest) (*oprepo.ProvisionResult, error)
-	GetOperation(ctx context.Context, id string) (*domain.Operation, error)
+	GetOperation(ctx context.Context, id, subject string) (*domain.Operation, error)
 }
 
 // Handler serves the operation and tenant provisioning endpoints.
@@ -127,7 +127,7 @@ func (h *Handler) CreateTenant(c *fiber.Ctx) error {
 
 // GetOperation returns the operation status.
 func (h *Handler) GetOperation(c *fiber.Ctx) error {
-	op, err := h.store.GetOperation(c.UserContext(), c.Params("id"))
+	op, err := h.store.GetOperation(c.UserContext(), c.Params("id"), subjectID(c))
 
 	switch {
 	case errors.Is(err, domain.ErrNotFound):

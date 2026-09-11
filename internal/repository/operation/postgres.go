@@ -178,7 +178,7 @@ func (r *Repository) lookupIdempotent(
 		return nil, domain.ErrIdempotencyConflict
 	}
 
-	op, err := r.GetOperation(ctx, operationID)
+	op, err := r.GetOperation(ctx, operationID, req.CreatedBy)
 	if err != nil {
 		return nil, err
 	}
@@ -257,13 +257,39 @@ func insertIdempotencyKey(
 	return fmt.Errorf("could not write idempotency record: %w", err)
 }
 
-// GetOperation fetches an operation by its id.
-func (r *Repository) GetOperation(ctx context.Context, id string) (*domain.Operation, error) {
+// setCurrentTenantLocal and setCurrentSubjectLocal scope a transaction for RLS.
+//
+// set_config rather than SET: SET does not accept a bind parameter, and building the
+// statement from a string would put a caller-supplied value into SQL. The third argument
+// makes the setting transaction-local, so it ends with the transaction and never reaches
+// a pooled connection.
+const (
+	setCurrentTenantLocal  = `SELECT set_config('app.current_tenant', $1, true)`
+	setCurrentSubjectLocal = `SELECT set_config('app.current_subject', $1, true)`
+)
+
+// GetOperation fetches an operation on behalf of a subject.
+//
+// The subject is not a filter in the query. It is what the policy from migration 038
+// checks: without tenant context, only the subject that created the operation can see
+// it. Under the non-superuser role the application runs as, an empty subject sees
+// nothing, which is the intended answer for a caller the token did not identify.
+func (r *Repository) GetOperation(ctx context.Context, id, subject string) (*domain.Operation, error) {
+	tx, err := r.db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	if err != nil {
+		return nil, fmt.Errorf("could not begin operation lookup: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	if _, err := tx.ExecContext(ctx, setCurrentSubjectLocal, subject); err != nil {
+		return nil, fmt.Errorf("could not scope operation lookup: %w", err)
+	}
+
 	op := &domain.Operation{}
 	var errCode, errMessage, createdBy sql.NullString
 	var completedAt sql.NullTime
 
-	err := r.db.QueryRowContext(ctx, `
+	err = tx.QueryRowContext(ctx, `
 		SELECT id, tenant_id, kind, status, error_code, error_message,
 		       created_by, created_at, updated_at, completed_at
 		FROM operations
@@ -292,6 +318,13 @@ func (r *Repository) GetOperation(ctx context.Context, id string) (*domain.Opera
 // transaction. The tenant provisioning flow uses the same helper, so the two paths
 // cannot drift apart in how they record things.
 func insertOperationAndJobTx(ctx context.Context, tx *sql.Tx, req CreateRequest) (*domain.Operation, string, error) {
+	// The tenant policy on operations and provisioning_jobs checks every new row against
+	// app.current_tenant (migration 031). Without it, the insert is refused under the
+	// non-superuser role, which is how POST /tenants failed on every request there.
+	if _, err := tx.ExecContext(ctx, setCurrentTenantLocal, req.TenantID); err != nil {
+		return nil, "", fmt.Errorf("could not scope operation write: %w", err)
+	}
+
 	op := &domain.Operation{TenantID: req.TenantID, Kind: req.Kind, Status: domain.StatusPending}
 
 	err := tx.QueryRowContext(ctx, `

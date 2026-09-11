@@ -159,7 +159,7 @@ func insertPendingTenant(ctx context.Context, tx *sql.Tx, req ProvisionRequest) 
 func (r *Repository) lookupProvision(
 	ctx context.Context, req ProvisionRequest, fingerprint string,
 ) (*ProvisionResult, error) {
-	createReq := CreateRequest{Scope: req.Scope, IdempotencyKey: req.IdempotencyKey}
+	createReq := CreateRequest{Scope: req.Scope, IdempotencyKey: req.IdempotencyKey, CreatedBy: req.CreatedBy}
 
 	existing, err := r.lookupIdempotent(ctx, createReq, fingerprint)
 	if err != nil || existing == nil {

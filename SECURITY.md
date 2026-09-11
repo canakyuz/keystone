@@ -96,6 +96,7 @@ relevant migration files.
 | Login logged the request email and returned the raw service error | The address went to stderr on every attempt, in an unstructured stream nothing rotates or redacts, and a repository failure would have described the schema to the caller | `internal/handler/auth` |
 | The provisioning endpoints were registered ahead of the global middleware | In Fiber that means the middleware never runs for them, so the endpoint that creates tenants had no rate limit, no metrics and no request log | `internal/app` |
 | Webhook delivery connected to any address a tenant supplied | Server-side request forgery: a registered destination of `http://169.254.169.254/` reaches the cloud metadata credentials, and any internal service is reachable from inside the perimeter. Not exploitable at the time it was found — there is no endpoint for registering a destination yet — but the delivery code that will serve one was unguarded | `pkg/outbound` |
+| Provisioning wrote to `operations` without tenant context, and the status lookup read it without any | Under the non-superuser role this file requires, the tenant policy refused the insert, so `POST /tenants` failed on every request, and every status poll and idempotent retry answered 404. Development connected as a superuser and saw neither. The lookup is now visible to the subject that created the operation and to no one else | `038` |
 
 ## Testing it
 

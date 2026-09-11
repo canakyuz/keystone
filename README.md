@@ -319,7 +319,7 @@ marked "not yet" there rather than being listed as a slogan.
 ## What is the control plane and what is an example
 
 ```
-internal/          the control plane          88 Go files
+internal/          the control plane          98 Go files
   domain/          tenant, operation, user, registry
   repository/      the same, plus template
   usecase/         tenant provisioning, users
@@ -351,21 +351,66 @@ go test ./test/architecture/
 
 ## Architecture
 
-```
-HTTP (Fiber)                     cmd/worker
-    |                                 |
-    v                                 |
-Handler  --->  Usecase  --->  Repository  --->  PostgreSQL
-                                  |
-                                  +-- TenantConnectionManager
-                                      checks out one connection from the pool,
-                                      sets search_path to the tenant schema,
-                                      hands THAT SAME connection to the callback
+```mermaid
+flowchart LR
+    client([Client])
+
+    subgraph server["cmd/server · application role"]
+        direction TB
+        http["HTTP · Fiber<br/>tracing · metrics · request log · address limit"]
+        grpc["gRPC<br/>recovery · metrics · tracing"]
+        httpauth["authenticate → membership → plan limit"]
+        grpcauth["authenticate → tenant schema → membership"]
+        tenant["tenant context<br/>schema cache: memory → Redis → database"]
+        core["handlers → usecases → repositories"]
+        http --> httpauth --> tenant --> core
+        grpc --> grpcauth --> core
+    end
+
+    subgraph worker["cmd/worker · keystone_worker role"]
+        direction TB
+        claim["claim a job<br/>FOR UPDATE SKIP LOCKED · lease · fence"]
+        provision["create the tenant schema"]
+        complete["one transaction:<br/>job done · tenant active · audit · outbox"]
+        deliver["deliver the outbox<br/>signed · retried · internal addresses refused"]
+        claim --> provision --> complete -.-> deliver
+    end
+
+    pg[("PostgreSQL<br/>row level security, fail-closed")]
+    redis[("Redis<br/>cache · token buckets")]
+    hook([Tenant webhook])
+
+    client --> http
+    client --> grpc
+    httpauth --> redis
+    tenant --> redis
+    core -- "POST /tenants: tenant, operation,<br/>job and key in one transaction" --> pg
+    claim --> pg
+    complete --> pg
+    deliver --> hook
 ```
 
-Dependencies always point inward. `internal/domain` knows nothing about any outer
-layer. Tenant context keys live in `pkg/tenantctx`, a leaf package, so the
-repository layer never has to import HTTP middleware.
+A request enters over HTTP or gRPC and meets the same decisions: the token is verified
+(`pkg/authn`), the subject's membership and role are read from the tenant's own record
+(`internal/authz`), and the tenant's schema is put on the request. The two surfaces share
+those packages rather than copies of them. The order differs in one place: gRPC resolves
+the schema before checking membership, so that a tenant which does not exist answers
+`NotFound` rather than `PermissionDenied`.
+
+Provisioning never runs inside a request. `POST /tenants` writes the tenant, the operation,
+the job and, when the client sent one, the idempotency key in one transaction, and answers
+202. The worker is a
+separate process with a database role of its own: it claims the job, creates the schema,
+and closes the job, activates the tenant, writes the audit entry and records the
+notification in one more transaction. Delivery happens after that commits, so a webhook
+that is down cannot undo a provisioning.
+
+Inside the API, dependencies point inward. `internal/domain` knows nothing about any outer
+layer, and tenant context keys live in `pkg/tenantctx`, a leaf package, so the repository
+layer never has to import HTTP middleware. A repository that needs a tenant schema takes
+one connection from the pool through `TenantConnectionManager`, sets `search_path` and
+`app.current_tenant` on it, and runs its query on that same connection. Why the same one
+matters is in [SECURITY.md](SECURITY.md).
 
 ## Quick start
 

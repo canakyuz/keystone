@@ -21,15 +21,22 @@ const (
 	// down. The distinction answers the question "can provisioning be retried?"
 	TenantStatusFailed TenantStatus = "failed"
 
-	TenantStatusActive    TenantStatus = "active"
+	// TenantStatusActive serves traffic. It and TenantStatusTrial are the only states the
+	// tenant schema cache resolves; a request for a tenant in any other state is refused.
+	TenantStatusActive TenantStatus = "active"
+	// TenantStatusSuspended: a working tenant was stopped, and can be reactivated.
 	TenantStatusSuspended TenantStatus = "suspended"
-	TenantStatusInactive  TenantStatus = "inactive"
-	TenantStatusTrial     TenantStatus = "trial"
+	// TenantStatusInactive: a working tenant was shut down.
+	TenantStatusInactive TenantStatus = "inactive"
+	// TenantStatusTrial serves traffic as TenantStatusActive does, on a trial.
+	TenantStatusTrial TenantStatus = "trial"
 )
 
 // SubscriptionPlan represents different subscription tiers
 type SubscriptionPlan string
 
+// The subscription plans. A tenant's plan sets its rate limit quota and picks the schema
+// template applied when it is provisioned.
 const (
 	PlanFree       SubscriptionPlan = "free"
 	PlanStarter    SubscriptionPlan = "starter"

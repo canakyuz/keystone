@@ -9,6 +9,8 @@ import (
 // JobStatus is the state of a unit of work.
 type JobStatus string
 
+// The job states. Claimable reports which of them a worker may take; JobDead is the one
+// that is never taken again.
 const (
 	JobPending   JobStatus = "pending"
 	JobRunning   JobStatus = "running"

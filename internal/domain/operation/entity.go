@@ -27,6 +27,8 @@ const (
 // Status is the operation's state.
 type Status string
 
+// The operation states. The permitted moves between them are in allowedTransitions, and
+// IsTerminal reports which of them end an operation.
 const (
 	StatusPending   Status = "pending"
 	StatusRunning   Status = "running"

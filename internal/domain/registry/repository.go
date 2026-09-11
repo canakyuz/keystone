@@ -96,7 +96,8 @@ type TenantToolRepository interface {
 	UpdateUsage(ctx context.Context, tenantID, toolID string, usage map[string]any) error
 }
 
-// Filter types
+// ModuleFilters narrows a module catalogue query. A nil field is not filtered on, a zero
+// Limit takes the default page size, and an empty SortBy the default order.
 type ModuleFilters struct {
 	Category     *ModuleCategory
 	ModuleType   *ModuleType
@@ -111,6 +112,7 @@ type ModuleFilters struct {
 	SortOrder    string // "asc", "desc"
 }
 
+// ToolFilters narrows a tool catalogue query, with the conventions of ModuleFilters.
 type ToolFilters struct {
 	Category     *ToolCategory
 	ToolType     *ToolType
@@ -126,6 +128,8 @@ type ToolFilters struct {
 	SortOrder    string // "asc", "desc"
 }
 
+// TenantModuleFilters narrows the modules installed for one tenant, with the conventions
+// of ModuleFilters.
 type TenantModuleFilters struct {
 	Status             *TenantModuleStatus
 	IsEnabled          *bool
@@ -137,6 +141,8 @@ type TenantModuleFilters struct {
 	SortOrder          string // "asc", "desc"
 }
 
+// TenantToolFilters narrows the tools installed for one tenant, with the conventions of
+// ModuleFilters.
 type TenantToolFilters struct {
 	Status             *TenantToolStatus
 	IsEnabled          *bool

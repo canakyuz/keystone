@@ -10,6 +10,7 @@ import (
 // ToolStatus represents tool status
 type ToolStatus string
 
+// The lifecycle states of a tool in the catalogue.
 const (
 	ToolStatusActive     ToolStatus = "active"
 	ToolStatusInactive   ToolStatus = "inactive"
@@ -20,6 +21,7 @@ const (
 // ToolType represents tool type
 type ToolType string
 
+// Whether a tool is global or specific to one module.
 const (
 	ToolTypeGlobal         ToolType = "global"
 	ToolTypeModuleSpecific ToolType = "module_specific"
@@ -28,6 +30,7 @@ const (
 // ToolScope represents tool scope
 type ToolScope string
 
+// Whether a tool works across modules or is bound to one.
 const (
 	ToolScopeCrossModule ToolScope = "cross_module"
 	ToolScopeModuleBound ToolScope = "module_bound"
@@ -36,6 +39,7 @@ const (
 // ToolCategory represents tool category
 type ToolCategory string
 
+// The catalogue categories a tool is listed under.
 const (
 	ToolCategoryPayment       ToolCategory = "payment"
 	ToolCategoryCommunication ToolCategory = "communication"
@@ -51,6 +55,7 @@ const (
 // IntegrationType represents integration type
 type IntegrationType string
 
+// How a tool connects to what it integrates with.
 const (
 	IntegrationNative     IntegrationType = "native"
 	IntegrationThirdParty IntegrationType = "third_party"

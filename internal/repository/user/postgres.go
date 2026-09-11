@@ -20,6 +20,9 @@ type PostgresRepository struct {
 	tenantConnectionManager database.TenantConnectionManager
 }
 
+// NewPostgresRepository returns the PostgreSQL user repository. Queries that need a tenant
+// schema run through the connection manager, which pins one connection and sets the tenant
+// on it; see pkg/database.
 func NewPostgresRepository(db *sql.DB, tenantConnetionManager database.TenantConnectionManager) *PostgresRepository {
 	return &PostgresRepository{
 		db:                      db,

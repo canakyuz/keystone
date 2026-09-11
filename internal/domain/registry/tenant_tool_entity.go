@@ -10,6 +10,7 @@ import (
 // TenantToolStatus represents tenant tool activation status
 type TenantToolStatus string
 
+// The activation states of a tool installed for a tenant.
 const (
 	TenantToolStatusActive              TenantToolStatus = "active"
 	TenantToolStatusInactive            TenantToolStatus = "inactive"
@@ -21,6 +22,7 @@ const (
 // IntegrationStatus represents external integration status
 type IntegrationStatus string
 
+// The states of the connection between an installed tool and the service it integrates.
 const (
 	IntegrationStatusConnected    IntegrationStatus = "connected"
 	IntegrationStatusDisconnected IntegrationStatus = "disconnected"
@@ -31,6 +33,7 @@ const (
 // HealthStatus represents tool health status
 type HealthStatus string
 
+// The health states of a tool installed for a tenant.
 const (
 	HealthStatusHealthy     HealthStatus = "healthy"
 	HealthStatusDegraded    HealthStatus = "degraded"

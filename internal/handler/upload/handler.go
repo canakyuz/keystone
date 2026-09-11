@@ -14,6 +14,7 @@ import (
 	"github.com/google/uuid"
 )
 
+// Upload size limits, in bytes, and where accepted files are stored.
 const (
 	// File size limits
 	MaxLogoSize    = 2 * 1024 * 1024  // 2MB

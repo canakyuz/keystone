@@ -10,6 +10,7 @@ import (
 // TenantModuleStatus represents tenant module activation status
 type TenantModuleStatus string
 
+// The activation states of a module installed for a tenant.
 const (
 	TenantModuleStatusActive       TenantModuleStatus = "active"
 	TenantModuleStatusInactive     TenantModuleStatus = "inactive"
@@ -20,6 +21,7 @@ const (
 // SubscriptionStatus represents subscription status
 type SubscriptionStatus string
 
+// The billing states of a tenant's subscription to a module or a tool.
 const (
 	SubscriptionStatusTrial     SubscriptionStatus = "trial"
 	SubscriptionStatusActive    SubscriptionStatus = "active"

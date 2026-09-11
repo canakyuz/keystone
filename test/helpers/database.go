@@ -201,6 +201,15 @@ func runMigrations(t *testing.T, db *sql.DB) {
 		}
 	}
 }
+
+// SetTenantContext points search_path at the tenant's schema, for fixtures that run as the
+// superuser.
+//
+// It scopes less than its name says. Both statements run on whichever pooled connection
+// serves them, and set_config with is_local true outside a transaction ends with the
+// statement, so app.current_tenant is not in force for anything that follows. The fixtures
+// that call it work because they connect as the superuser, which RLS ignores. Tests of RLS
+// itself go through the repositories over SetupAppRoleDB instead.
 func SetTenantContext(ctx context.Context, db *sql.DB, tenantID string) error {
 	if _, err := db.ExecContext(ctx, "SELECT set_config('app.current_tenant', $1, true)", tenantID); err != nil {
 		return err

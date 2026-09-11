@@ -10,6 +10,8 @@ import (
 // UserStatus represents the status of a user account
 type UserStatus string
 
+// The states of a user account. Only an active user can log in, and only an active user
+// passes the membership check in internal/authz.
 const (
 	UserStatusActive    UserStatus = "active"
 	UserStatusInactive  UserStatus = "inactive"
@@ -20,6 +22,8 @@ const (
 // UserRole represents user roles within a tenant
 type UserRole string
 
+// The roles a user holds within one tenant, from most to least privileged. Route guards
+// read the role from the tenant's record rather than from the token; see internal/authz.
 const (
 	RoleOwner  UserRole = "owner"  // Tenant owner (full access)
 	RoleAdmin  UserRole = "admin"  // Administrator

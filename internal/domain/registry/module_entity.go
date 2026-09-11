@@ -10,6 +10,7 @@ import (
 // ModuleStatus represents module status
 type ModuleStatus string
 
+// The lifecycle states of a module in the catalogue.
 const (
 	ModuleStatusActive     ModuleStatus = "active"
 	ModuleStatusInactive   ModuleStatus = "inactive"
@@ -20,6 +21,7 @@ const (
 // ModuleType represents module tier
 type ModuleType string
 
+// The module tiers.
 const (
 	ModuleTypeStandard   ModuleType = "standard"
 	ModuleTypePremium    ModuleType = "premium"
@@ -29,6 +31,7 @@ const (
 // PricingModel represents how module is priced
 type PricingModel string
 
+// The ways a module or a tool is priced.
 const (
 	PricingFree         PricingModel = "free"
 	PricingOneTime      PricingModel = "one_time"
@@ -39,6 +42,7 @@ const (
 // ModuleCategory represents module category
 type ModuleCategory string
 
+// The catalogue categories a module is listed under.
 const (
 	CategoryEducation     ModuleCategory = "education"
 	CategoryContent       ModuleCategory = "content"

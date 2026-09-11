@@ -371,7 +371,9 @@ body {
   padding: clamp(32px, 6vw, 72px) var(--gutter);
   border-top: 3px solid var(--ink);
 }
-@media (max-width: 860px) { .signin-body { grid-template-columns: 1fr; align-items: start; } }
+/* Stacked, the body still fills the viewport height, and its two rows would share the spare
+   height between them. Packing them at the top keeps the headline and the form together. */
+@media (max-width: 860px) { .signin-body { grid-template-columns: 1fr; align-items: start; align-content: start; gap: 36px; } }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition: none !important; animation: none !important; }

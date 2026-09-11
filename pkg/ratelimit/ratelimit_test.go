@@ -68,13 +68,13 @@ func TestAllow_BurstThenDeny(t *testing.T) {
 			for i := 0; i < quota.Burst; i++ {
 				res, err := limiter.Allow(ctx, key, quota)
 				require.NoError(t, err)
-				assert.True(t, res.Allowed, "kapasite icindeki %d. istek reddedildi", i+1)
+				assert.True(t, res.Allowed, "request %d within capacity was refused", i+1)
 				assert.Equal(t, quota.Burst, res.Limit)
 			}
 
 			res, err := limiter.Allow(ctx, key, quota)
 			require.NoError(t, err)
-			assert.False(t, res.Allowed, "kapasite asildigi halde istek gecti")
+			assert.False(t, res.Allowed, "a request passed over capacity")
 			assert.Zero(t, res.Remaining)
 			assert.Greater(t, res.RetryAfter, time.Duration(0), "Retry-After hesaplanmadi")
 		})
@@ -165,7 +165,7 @@ func TestAllow_ConcurrentDoesNotExceedBurst(t *testing.T) {
 			wg.Wait()
 
 			assert.Equal(t, int64(burst), allowed.Load(),
-				"eszamanli yukte gecen istek sayisi kapasiteden farkli")
+				"under concurrent load the requests let through differ from capacity")
 		})
 	}
 }
@@ -210,11 +210,11 @@ func TestRedis_FailOpenWhenUnreachable(t *testing.T) {
 	res, err := limiter.Allow(context.Background(), "anahtar", quota)
 
 	assert.Error(t, err, "the connection error was not reported")
-	assert.True(t, res.Allowed, "fail-open acikken istek reddedildi")
+	assert.True(t, res.Allowed, "a request was refused with fail-open on")
 
 	limiter.FailOpen = false
 	res, err = limiter.Allow(context.Background(), "anahtar", quota)
 
 	assert.Error(t, err)
-	assert.False(t, res.Allowed, "fail-open kapaliyken istek gecti")
+	assert.False(t, res.Allowed, "a request passed with fail-open off")
 }

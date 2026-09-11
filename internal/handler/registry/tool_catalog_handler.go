@@ -72,7 +72,7 @@ func (h *ToolCatalogHandler) SearchTools(c *fiber.Ctx) error {
 	}
 
 	if req.Query == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Arama sorgusu zorunludur"})
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "a search query is required"})
 	}
 
 	// Apply the pagination defaults.

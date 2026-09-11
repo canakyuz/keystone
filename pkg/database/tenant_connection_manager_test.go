@@ -81,7 +81,7 @@ func TestValidateSchemaName(t *testing.T) {
 					assert.Contains(t, err.Error(), tt.errorMsg)
 				}
 			} else {
-				assert.NoError(t, err, "Hata beklenmiyordu: %v", err)
+				assert.NoError(t, err, "unexpected error: %v", err)
 			}
 		})
 	}

@@ -173,11 +173,11 @@ func (h *Handler) internal(c *fiber.Ctx, err error) error {
 func validateCreate(req CreateTenantRequest) string {
 	switch {
 	case strings.TrimSpace(req.Name) == "":
-		return "name zorunlu"
+		return "name is required"
 	case strings.TrimSpace(req.Slug) == "":
-		return "slug zorunlu"
+		return "slug is required"
 	case strings.TrimSpace(req.Email) == "":
-		return "email zorunlu"
+		return "email is required"
 	}
 
 	return ""

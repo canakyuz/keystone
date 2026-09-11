@@ -73,7 +73,7 @@ func TestGet_NegativeCaching(t *testing.T) {
 	})
 
 	for i := 0; i < 10; i++ {
-		_, err := c.Get(context.Background(), "yok-boyle-tenant")
+		_, err := c.Get(context.Background(), "no-such-tenant")
 		assert.ErrorIs(t, err, ErrNotFound)
 	}
 
@@ -231,5 +231,5 @@ func TestL1_RespectsMaxEntries(t *testing.T) {
 	size := len(c.l1.items)
 	c.l1.mu.RUnlock()
 
-	assert.LessOrEqual(t, size, maxEntries, "L1 ust sinirini asti")
+	assert.LessOrEqual(t, size, maxEntries, "L1 grew past its bound")
 }

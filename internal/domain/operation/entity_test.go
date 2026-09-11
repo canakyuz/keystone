@@ -86,9 +86,9 @@ func TestJob_Claimable(t *testing.T) {
 		want bool
 	}{
 		{"hic sahiplenilmemis", Job{Status: JobPending, NextAttempt: past}, true},
-		{"lease suresi dolmus", Job{Status: JobRunning, NextAttempt: past, LeaseExpires: &past}, true},
-		{"lease gecerli", Job{Status: JobRunning, NextAttempt: past, LeaseExpires: &future}, false},
-		{"deneme zamani gelmemis", Job{Status: JobPending, NextAttempt: future}, false},
+		{"lease expired", Job{Status: JobRunning, NextAttempt: past, LeaseExpires: &past}, true},
+		{"lease still valid", Job{Status: JobRunning, NextAttempt: past, LeaseExpires: &future}, false},
+		{"next attempt not due", Job{Status: JobPending, NextAttempt: future}, false},
 		{"tamamlanmis", Job{Status: JobSucceeded, NextAttempt: past}, false},
 		{"olu", Job{Status: JobDead, NextAttempt: past}, false},
 	}
@@ -119,8 +119,8 @@ func TestBackoffFor(t *testing.T) {
 	assert.Equal(t, 4*time.Second, BackoffFor(cfg, 3, 0))
 	assert.Equal(t, 8*time.Second, BackoffFor(cfg, 4, 0))
 
-	assert.Equal(t, time.Minute, BackoffFor(cfg, 20, 0), "ust sinira takilmadi")
-	assert.Equal(t, time.Minute, BackoffFor(cfg, 1000, 0), "cok buyuk deneme sayisi tasti")
+	assert.Equal(t, time.Minute, BackoffFor(cfg, 20, 0), "not capped at the maximum")
+	assert.Equal(t, time.Minute, BackoffFor(cfg, 1000, 0), "a very large attempt count overflowed")
 }
 
 // TestBackoffFor_Jitter verifies jitter stays within the expected range.

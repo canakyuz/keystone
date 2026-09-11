@@ -97,6 +97,12 @@ SELF = "scripts/langcheck.py"
 
 COMMENT = re.compile(r"(?://|--|#)\s?(.*)$")
 PRINTED = re.compile(r"""["']([^"']{8,})["']""")
+
+# A Go string literal is prose a client reads: an error body, a validation message. The
+# comment scan never looked inside one, which is how "name zorunlu" reached an API response
+# while this check reported the tree clean. Raw backtick strings are left alone; in this
+# codebase they hold SQL and struct tags, not messages.
+GO_STRING = re.compile(r'"((?:[^"\\]|\\.){8,})"')
 BACKTICKED = re.compile(r"`[^`]*`")
 
 # Sentence punctuation is stripped before the code filter runs. Without this step a word
@@ -161,6 +167,8 @@ def comment_tokens():
                 parts.append(match.group(1))
             if path.endswith((".sh",)) or path == "Makefile":
                 parts.extend(PRINTED.findall(line))
+            if path.endswith(".go"):
+                parts.extend(GO_STRING.findall(line))
             if not parts:
                 continue
             text = BACKTICKED.sub(" ", " ".join(parts))

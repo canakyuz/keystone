@@ -14,6 +14,9 @@ the entry says so under **Changed**.
 
 - `GET /api/v1/auth/me` answered 404 to every caller: it read the user without the tenant
   context the lookup needs.
+- Two API validation messages were in Turkish (`POST /api/v1/tenants`, the tool catalogue
+  search). The language check now reads Go string literals as well as comments, and found
+  25 more in test assertions.
 
 ## [0.1.0] - 2026-09-11
 

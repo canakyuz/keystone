@@ -143,7 +143,7 @@ func TestCreate_ConcurrentSameKeyProducesOneOperation(t *testing.T) {
 	}
 	wg.Wait()
 
-	assert.Zero(t, failures.Load(), "eszamanli yinelenen istek hata verdi")
+	assert.Zero(t, failures.Load(), "a concurrent repeated request failed")
 
 	unique := make(map[string]bool)
 	for _, id := range ids {
@@ -151,7 +151,7 @@ func TestCreate_ConcurrentSameKeyProducesOneOperation(t *testing.T) {
 			unique[id] = true
 		}
 	}
-	assert.Len(t, unique, 1, "eszamanli ayni anahtar birden fazla operasyon uretti")
+	assert.Len(t, unique, 1, "the same key produced more than one operation under concurrency")
 
 	var operationCount int
 	require.NoError(t, db.QueryRow(
@@ -187,7 +187,7 @@ func TestClaim_OnlyOneWorkerGetsTheJob(t *testing.T) {
 	}
 	wg.Wait()
 
-	assert.Equal(t, int64(1), claimed.Load(), "ayni is birden fazla worker tarafindan devralindi")
+	assert.Equal(t, int64(1), claimed.Load(), "the same job was claimed by more than one worker")
 }
 
 // TestClaim_ExpiredLeaseIsReclaimable verifies a crashed worker's job can be taken
@@ -216,7 +216,7 @@ func TestClaim_ExpiredLeaseIsReclaimable(t *testing.T) {
 	require.NoError(t, err)
 
 	second, err := repo.Claim(ctx, "worker-ikinci", leaseDuration)
-	require.NoError(t, err, "suresi dolmus lease devralinamadi")
+	require.NoError(t, err, "an expired lease could not be taken over")
 
 	assert.Equal(t, first.ID, second.ID)
 	assert.Greater(t, second.Fence, first.Fence, "devralmada fence artmadi")
@@ -278,11 +278,11 @@ func TestCompleteSuccess_ActivatesTenantInSameTransaction(t *testing.T) {
 	op, err := repo.GetOperation(ctx, created.Operation.ID, "")
 	require.NoError(t, err)
 	assert.Equal(t, domain.StatusSucceeded, op.Status)
-	assert.NotNil(t, op.CompletedAt, "tamamlanan operasyonun bitis zamani yok")
+	assert.NotNil(t, op.CompletedAt, "the completed operation has no completion time")
 
 	var tenantStatus string
 	require.NoError(t, db.QueryRow(`SELECT status FROM tenants WHERE id = $1`, tenantID).Scan(&tenantStatus))
-	assert.Equal(t, "active", tenantStatus, "operasyon tamamlandi ama tenant aktiflesmedi")
+	assert.Equal(t, "active", tenantStatus, "the operation completed but the tenant was not activated")
 }
 
 // TestCompleteFailure_RetriesUntilExhausted verifies the job is retried until its
@@ -297,7 +297,7 @@ func TestCompleteFailure_RetriesUntilExhausted(t *testing.T) {
 	// MaxAttempts is 3: the first two failures reschedule, the third kills the job.
 	for attempt := 1; attempt <= 3; attempt++ {
 		job, err := repo.Claim(ctx, "worker-1", leaseDuration)
-		require.NoErrorf(t, err, "%d. denemede is devralinamadi", attempt)
+		require.NoErrorf(t, err, "the job could not be claimed on attempt %d", attempt)
 
 		// retryAfter is zero so the next attempt is immediately claimable.
 		require.NoError(t, repo.CompleteFailure(
@@ -308,7 +308,7 @@ func TestCompleteFailure_RetriesUntilExhausted(t *testing.T) {
 	require.NoError(t, db.QueryRow(
 		`SELECT status FROM provisioning_jobs WHERE operation_id = $1`,
 		created.Operation.ID).Scan(&jobStatus))
-	assert.Equal(t, "dead", jobStatus, "hak tukendigi halde is olu isaretlenmedi")
+	assert.Equal(t, "dead", jobStatus, "the job was not marked dead after its attempts ran out")
 
 	op, err := repo.GetOperation(ctx, created.Operation.ID, "")
 	require.NoError(t, err)
@@ -317,7 +317,7 @@ func TestCompleteFailure_RetriesUntilExhausted(t *testing.T) {
 
 	// A dead job can no longer be claimed.
 	_, err = repo.Claim(ctx, "worker-1", leaseDuration)
-	assert.ErrorIs(t, err, ErrNoJob, "olu is devralindi")
+	assert.ErrorIs(t, err, ErrNoJob, "a dead job was claimed")
 }
 
 // TestRenewLease_RejectsStaleFence verifies an old worker cannot disrupt the current

@@ -210,8 +210,8 @@ func TestRun_PanicDoesNotKillWorker(t *testing.T) {
 	p := New(testConfig(), store, handler, nil)
 	require.NoError(t, runFor(t, p, 400*time.Millisecond))
 
-	assert.Equal(t, int64(1), store.failed.Load(), "panikleyen is basarisiz sayilmadi")
-	assert.Equal(t, int64(1), store.succeeded.Load(), "worker paniktan sonra durdu")
+	assert.Equal(t, int64(1), store.failed.Load(), "a panicking job was not counted as failed")
+	assert.Equal(t, int64(1), store.succeeded.Load(), "the worker stopped after a panic")
 }
 
 // TestRun_GracefulShutdownWaitsForRunningJobs verifies a running job is waited for
@@ -234,7 +234,7 @@ func TestRun_GracefulShutdownWaitsForRunningJobs(t *testing.T) {
 	// Send the shutdown signal right after the job starts.
 	require.NoError(t, runFor(t, p, 50*time.Millisecond))
 
-	assert.True(t, completed.Load(), "kapanma calisan isi yarida kesti")
+	assert.True(t, completed.Load(), "shutdown cut a running job short")
 	assert.Equal(t, int64(1), store.succeeded.Load())
 }
 
@@ -333,6 +333,6 @@ func TestRun_StopsClaimingAfterCancel(t *testing.T) {
 	before := store.claimed.Load()
 	time.Sleep(100 * time.Millisecond)
 
-	assert.Equal(t, before, store.claimed.Load(), "iptalden sonra is alinmaya devam edildi")
-	assert.Less(t, before, int64(100), "yuva siniri is alimini sinirlamadi")
+	assert.Equal(t, before, store.claimed.Load(), "jobs were still claimed after cancellation")
+	assert.Less(t, before, int64(100), "the slot limit did not bound claiming")
 }

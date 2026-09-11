@@ -72,7 +72,7 @@ func TestExtractTenantID_HeaderCannotOverrideJWT(t *testing.T) {
 		assert.Equal(t, jwtTenant, got, "query parametresi JWT claim'ini ezdi")
 	})
 
-	t.Run("uretimde JWT yoksa header kabul edilmez", func(t *testing.T) {
+	t.Run("in production the header is refused without a JWT", func(t *testing.T) {
 		AllowUntrustedTenantSource(false)
 		app := newProbeApp("")
 
@@ -81,7 +81,7 @@ func TestExtractTenantID_HeaderCannotOverrideJWT(t *testing.T) {
 		assert.Empty(t, got, "kimlik dogrulanmadan header ile tenant secildi")
 	})
 
-	t.Run("development'ta JWT yoksa header kullanilabilir", func(t *testing.T) {
+	t.Run("in development the header is used without a JWT", func(t *testing.T) {
 		AllowUntrustedTenantSource(true)
 		t.Cleanup(func() { AllowUntrustedTenantSource(false) })
 

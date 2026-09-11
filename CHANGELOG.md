@@ -10,6 +10,11 @@ the entry says so under **Changed**.
 
 ## [Unreleased]
 
+### Fixed
+
+- `GET /api/v1/auth/me` answered 404 to every caller: it read the user without the tenant
+  context the lookup needs.
+
 ## [0.1.0] - 2026-09-11
 
 The first tagged release: the control plane extracted from an earlier multi-tenant API,

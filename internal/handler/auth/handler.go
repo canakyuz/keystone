@@ -106,7 +106,7 @@ func (h *Handler) GetMe(c *fiber.Ctx) error {
 		})
 	}
 
-	result, err := h.userService.GetByID(c.Context(), tenantID, userID)
+	result, err := h.userService.GetByID(c.UserContext(), tenantID, userID)
 	if err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 			"error": err.Error(),

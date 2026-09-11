@@ -81,8 +81,10 @@ func setupRoutes(
 	auth.Post("/login", authH.Login)
 	auth.Post("/logout", authH.Logout)
 
-	// Protected auth routes; a JWT is required.
-	authProtected := v1.Group("/auth", chain(authenticated)...)
+	// Protected auth routes; a JWT is required. /me reads the caller's user row, which needs
+	// the tenant context like every other tenant read. Without it the lookup found no schema
+	// and the endpoint answered 404 to every caller.
+	authProtected := v1.Group("/auth", chain(authenticated, tenantContextMiddleware)...)
 	authProtected.Get("/me", authH.GetMe)
 
 	// Tenant routes: authenticated, and scoped to one tenant.

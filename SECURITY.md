@@ -26,6 +26,11 @@ superusers bypass RLS policies under all circumstances. `FORCE ROW LEVEL
 SECURITY` does not change that. Create a separate, non-superuser role for the
 application.
 
+**The worker must connect as its own role.** Grant `keystone_worker` (migration 039)
+to a login role and set `WORKER_DB_USER`. That role can run jobs, create tenant schemas
+and deliver notifications, and it cannot read tenant data or change the audit trail. In
+production the worker will not start without it.
+
 **`ENVIRONMENT` must be production.** While it is `development`, the tenant can
 be selected with the `X-Tenant-ID` header or the `tenant_id` query parameter.
 That is a local development convenience only. Left on in production, any
@@ -101,6 +106,7 @@ relevant migration files.
 | No route checked a role | A viewer could grant roles, including owner, and create or delete users in its tenant | `internal/app/routes.go` |
 | The token was trusted after the membership behind it ended | A suspended or deleted user kept access for the rest of the token's lifetime, up to 24 hours, and a demoted administrator kept administering | `internal/authz` |
 | Routes that act across tenants had no guard | Any authenticated caller could list every tenant, read counts across all of them, and change any tenant's plan or status | `internal/middleware`, `PlatformOnly` |
+| The worker had no role of its own and worked only as a superuser | Its claims read queue tables that carry the tenant policy, so under any other role it found no work. The process that delivers webhooks to addresses tenants supply therefore held a credential that ignores every policy in the database | `039` |
 
 ## Testing it
 

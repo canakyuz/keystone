@@ -92,6 +92,10 @@ type DatabaseConfig struct {
 	Name     string
 	SSLMode  string
 
+	// WorkerUser and WorkerPassword are the worker's own credentials; see WorkerDatabase.
+	WorkerUser     string
+	WorkerPassword string
+
 	MaxOpenConns    int
 	MaxIdleConns    int
 	ConnMaxLifetime time.Duration
@@ -195,6 +199,8 @@ func Load() (*Config, error) {
 			Port:            getEnv("DB_PORT", "5432"),
 			User:            getEnv("DB_USER", "postgres"),
 			Password:        getEnv("DB_PASSWORD", "postgres"),
+			WorkerUser:      getEnv("WORKER_DB_USER", ""),
+			WorkerPassword:  getEnv("WORKER_DB_PASSWORD", ""),
 			Name:            getEnv("DB_NAME", "keystone_dev"),
 			SSLMode:         getEnv("DB_SSLMODE", "disable"),
 			MaxOpenConns:    parseInt(getEnv("DB_MAX_OPEN_CONNS", "25")),
@@ -265,6 +271,30 @@ func Load() (*Config, error) {
 	}
 
 	return cfg, nil
+}
+
+// WorkerDatabase returns the connection settings the worker uses.
+//
+// The worker connects as its own role, one holding keystone_worker (migration 039). The
+// process that provisions tenants and delivers webhooks then holds neither the API's
+// privileges nor the ability to read tenant data, and the API does not hold the worker's.
+//
+// Outside production an unset worker user falls back to the API's credentials, so a local
+// run needs no extra setup. In production that fallback is refused, and so is a worker
+// user equal to the API's: a shared role is the boundary not existing.
+func (c *Config) WorkerDatabase() (DatabaseConfig, error) {
+	db := c.Database
+
+	if c.Server.Environment == "production" && (db.WorkerUser == "" || db.WorkerUser == db.User) {
+		return DatabaseConfig{}, fmt.Errorf("WORKER_DB_USER must name a role separate from DB_USER in production")
+	}
+
+	if db.WorkerUser != "" {
+		db.User = db.WorkerUser
+		db.Password = db.WorkerPassword
+	}
+
+	return db, nil
 }
 
 // DSN returns the PostgreSQL connection string

@@ -375,3 +375,46 @@ func SetupAppRoleDB(t *testing.T, admin *sql.DB) *sql.DB {
 func WithTenantSchema(ctx context.Context, schemaName string) context.Context {
 	return tenantctx.WithSchema(ctx, schemaName)
 }
+
+// SetupWorkerRoleDB connects as a login role that holds keystone_worker, the group role
+// migration 039 defines, and nothing else.
+//
+// It is neither a superuser nor a table owner, and either would make a worker test pass
+// for the wrong reason: a superuser ignores RLS, and an owner holds every privilege on its
+// tables whatever the grants say.
+func SetupWorkerRoleDB(t *testing.T, admin *sql.DB) *sql.DB {
+	t.Helper()
+
+	cfg := DefaultTestDBConfig()
+
+	var dbName string
+	require.NoError(t, admin.QueryRow("SELECT current_database()").Scan(&dbName))
+
+	roleName := uniqueDBName(t, "worker_role")
+	quotedRole := pq.QuoteIdentifier(roleName)
+
+	for _, stmt := range []string{
+		"DROP ROLE IF EXISTS " + quotedRole,
+		fmt.Sprintf("CREATE ROLE %s LOGIN PASSWORD 'workerrole' IN ROLE keystone_worker", quotedRole),
+		fmt.Sprintf("GRANT CONNECT ON DATABASE %s TO %s", pq.QuoteIdentifier(dbName), quotedRole),
+	} {
+		_, err := admin.Exec(stmt)
+		require.NoErrorf(t, err, "setup failed: %s", stmt)
+	}
+
+	workerDB, err := sql.Open("postgres", fmt.Sprintf(
+		"host=%s port=%s user=%s password=workerrole dbname=%s sslmode=%s",
+		cfg.Host, cfg.Port, roleName, dbName, cfg.SSLMode,
+	))
+	require.NoError(t, err)
+	require.NoError(t, workerDB.Ping())
+
+	t.Cleanup(func() {
+		workerDB.Close()
+		// The role owns the tenant schemas it created; dropping them goes with it.
+		_, _ = admin.Exec("DROP OWNED BY " + quotedRole)
+		_, _ = admin.Exec("DROP ROLE IF EXISTS " + quotedRole)
+	})
+
+	return workerDB
+}

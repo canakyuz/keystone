@@ -206,6 +206,9 @@ asking.
 - Code: `internal/repository/operation/claim.go`, `appendAudit`
 - Tests: `TestCompleteSuccess_WritesTheAuditEntryInTheSameTransaction`,
   `TestCompleteSuccess_AuditFailureRollsBackTheActivation`
+- Test: `test/security/worker_role_test.go`, `TestWorkerRole_HoldsNothingElse`. The
+  worker writes the trail, and its role can insert into it but not read, change or
+  delete it.
 
 **Limit:** only the provisioning path writes to it so far. Tenant suspension, plan
 changes and user role changes all belong in the trail and are not there yet.

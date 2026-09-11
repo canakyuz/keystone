@@ -414,19 +414,22 @@ The application must connect to the database with a **non-superuser** role. In
 PostgreSQL, superusers bypass RLS under all circumstances. Details:
 [SECURITY.md](SECURITY.md).
 
+The worker connects as a role of its own: create a login role, grant it
+`keystone_worker` (defined by migration 039), and set `WORKER_DB_USER` and
+`WORKER_DB_PASSWORD`. In production the worker refuses to start without one.
+
 ## Status
 
 The control plane works: tenant provisioning with durable operations, leases and fencing,
-RLS enforcement verified end to end, membership and roles checked against the tenant's own
+a worker running under its own narrowly privileged database role, RLS enforcement verified end to end, membership and roles checked against the tenant's own
 record on every request, an audit trail and a transactional outbox written in the same
 transaction as the change they describe, a REST and a gRPC surface over the same
 repositories, metrics, tracing, and a migration runner. The vertical modules sit in
 `examples/verticals` as a reference application.
 
-Open: a separate, narrowly privileged database role for the worker (the closing condition
-of ADR-0001), a platform permission model for the routes that act across tenants, and a
-load measurement taken somewhere the load generator is not sharing a machine with the
-service. See [docs/ROADMAP.md](docs/ROADMAP.md).
+Open: a platform permission model for the routes that act across tenants, audit entries
+for changes other than provisioning, and a load measurement taken somewhere the load
+generator is not sharing a machine with the service. See [docs/ROADMAP.md](docs/ROADMAP.md).
 
 ## License
 

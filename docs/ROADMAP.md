@@ -198,7 +198,7 @@ forever is not.
    a real check (the gap in rule 1). **Done**, against the existing user record
    rather than a new table; see [ADR-0008](decisions/0008-membership-is-the-tenant-user-record.md).
 4. A separate, narrowly privileged database role for the worker — the closing
-   condition of ADR-0001.
+   condition of ADR-0001. **Done**; see migration 039.
 
 ---
 

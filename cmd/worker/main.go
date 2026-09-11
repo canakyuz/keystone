@@ -4,9 +4,9 @@
 //
 //   - Provisioning takes a long time. Running it in the API process would make
 //     request-serving capacity compete with provisioning load.
-//   - It needs different database privileges. The worker creates schemas; the API
-//     does not. A separate process makes splitting those privileges possible.
-//     (That split has not been done yet, see docs/decisions/0001.)
+//   - It needs different database privileges. The worker creates schemas and crosses
+//     tenants on the queue tables; the API does neither, and the worker reads no tenant
+//     data. It connects as its own role, see migration 039 and docs/decisions/0001.
 //   - It needs a concurrency limit independent of user requests. In one process the
 //     two limits would interfere.
 //
@@ -41,7 +41,7 @@ import (
 
 func main() {
 	if err := run(); err != nil {
-		fmt.Fprintf(os.Stderr, "worker durdu: %v\n", err)
+		fmt.Fprintf(os.Stderr, "worker stopped: %v\n", err)
 		os.Exit(1)
 	}
 }
@@ -57,7 +57,13 @@ func run() error {
 		Environment: cfg.Server.Environment,
 	})
 
-	db, err := database.NewPostgresDB(cfg.Database)
+	// Its own role, not the API's. See Config.WorkerDatabase.
+	dbCfg, err := cfg.WorkerDatabase()
+	if err != nil {
+		return err
+	}
+
+	db, err := database.NewPostgresDB(dbCfg)
 	if err != nil {
 		return fmt.Errorf("could not connect to the database: %w", err)
 	}

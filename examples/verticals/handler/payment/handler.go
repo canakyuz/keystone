@@ -27,9 +27,9 @@ func (h *Handler) CreatePayment(c *fiber.Ctx) error {
 	userID := middleware.GetUserID(c)
 
 	// Get tenant settings (would be from tenant service in production)
-	tenantSettings := make(map[string]interface{})
+	tenantSettings := make(map[string]any)
 	if settings := c.Locals("tenant_settings"); settings != nil {
-		if settingsMap, ok := settings.(map[string]interface{}); ok {
+		if settingsMap, ok := settings.(map[string]any); ok {
 			tenantSettings = settingsMap
 		}
 	}

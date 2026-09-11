@@ -50,9 +50,9 @@ type PaymentEvent struct {
 	ProviderEventID string          `json:"provider_event_id"` // For idempotency
 
 	// Event data
-	EventType    EventType              `json:"event_type"`
-	EventVersion string                 `json:"event_version,omitempty"`
-	Payload      map[string]interface{} `json:"payload"` // Full webhook payload
+	EventType    EventType      `json:"event_type"`
+	EventVersion string         `json:"event_version,omitempty"`
+	Payload      map[string]any `json:"payload"` // Full webhook payload
 
 	// Related resources
 	PaymentID *string `json:"payment_id,omitempty"`
@@ -65,9 +65,9 @@ type PaymentEvent struct {
 	RetryCount      int        `json:"retry_count"`
 
 	// Request metadata
-	RequestIPAddress string                 `json:"request_ip_address,omitempty"`
-	RequestHeaders   map[string]interface{} `json:"request_headers,omitempty"`
-	SignatureValid   bool                   `json:"signature_valid"`
+	RequestIPAddress string         `json:"request_ip_address,omitempty"`
+	RequestHeaders   map[string]any `json:"request_headers,omitempty"`
+	SignatureValid   bool           `json:"signature_valid"`
 
 	// Timestamps
 	CreatedAt time.Time `json:"created_at"`
@@ -75,7 +75,7 @@ type PaymentEvent struct {
 }
 
 // New creates a new payment event
-func New(tenantID string, provider PaymentProvider, providerEventID string, eventType EventType, payload map[string]interface{}) (*PaymentEvent, error) {
+func New(tenantID string, provider PaymentProvider, providerEventID string, eventType EventType, payload map[string]any) (*PaymentEvent, error) {
 	now := time.Now()
 
 	event := &PaymentEvent{
@@ -90,7 +90,7 @@ func New(tenantID string, provider PaymentProvider, providerEventID string, even
 		SignatureValid:  false,
 		CreatedAt:       now,
 		UpdatedAt:       now,
-		RequestHeaders:  make(map[string]interface{}),
+		RequestHeaders:  make(map[string]any),
 	}
 
 	// Validate event
@@ -174,7 +174,7 @@ func (e *PaymentEvent) SetRefundID(refundID string) {
 }
 
 // SetRequestMetadata sets request metadata
-func (e *PaymentEvent) SetRequestMetadata(ipAddress string, headers map[string]interface{}) {
+func (e *PaymentEvent) SetRequestMetadata(ipAddress string, headers map[string]any) {
 	e.RequestIPAddress = ipAddress
 	e.RequestHeaders = headers
 	e.UpdatedAt = time.Now()
@@ -236,7 +236,7 @@ func (e *PaymentEvent) IsChargebackEvent() bool {
 }
 
 // GetPayloadValue retrieves a value from the payload
-func (e *PaymentEvent) GetPayloadValue(key string) (interface{}, bool) {
+func (e *PaymentEvent) GetPayloadValue(key string) (any, bool) {
 	if e.Payload == nil {
 		return nil, false
 	}

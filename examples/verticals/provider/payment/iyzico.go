@@ -40,7 +40,7 @@ func (p *IyzicoProvider) GetName() string {
 // CreatePayment initiates a payment with iyzico
 func (p *IyzicoProvider) CreatePayment(ctx context.Context, req *PaymentRequest) (*PaymentResponse, error) {
 	// Build iyzico payment request
-	iyzicoReq := map[string]interface{}{
+	iyzicoReq := map[string]any{
 		"locale":         "tr",
 		"conversationId": req.ReferenceID,
 		"price":          fmt.Sprintf("%.2f", req.Amount),
@@ -55,7 +55,7 @@ func (p *IyzicoProvider) CreatePayment(ctx context.Context, req *PaymentRequest)
 		"callbackUrl": req.CallbackURL,
 
 		// Payment card
-		"paymentCard": map[string]interface{}{
+		"paymentCard": map[string]any{
 			"cardHolderName": req.CardHolderName,
 			"cardNumber":     req.CardNumber,
 			"expireMonth":    req.CardExpMonth,
@@ -64,7 +64,7 @@ func (p *IyzicoProvider) CreatePayment(ctx context.Context, req *PaymentRequest)
 		},
 
 		// Buyer information
-		"buyer": map[string]interface{}{
+		"buyer": map[string]any{
 			"id":                  req.TenantID,
 			"name":                req.CustomerFirstName,
 			"surname":             req.CustomerLastName,
@@ -78,7 +78,7 @@ func (p *IyzicoProvider) CreatePayment(ctx context.Context, req *PaymentRequest)
 		},
 
 		// Billing and shipping address (same for digital goods)
-		"billingAddress": map[string]interface{}{
+		"billingAddress": map[string]any{
 			"contactName": req.CustomerFirstName + " " + req.CustomerLastName,
 			"city":        req.BillingCity,
 			"country":     req.BillingCountry,
@@ -86,7 +86,7 @@ func (p *IyzicoProvider) CreatePayment(ctx context.Context, req *PaymentRequest)
 			"zipCode":     req.BillingZipCode,
 		},
 
-		"shippingAddress": map[string]interface{}{
+		"shippingAddress": map[string]any{
 			"contactName": req.CustomerFirstName + " " + req.CustomerLastName,
 			"city":        req.BillingCity,
 			"country":     req.BillingCountry,
@@ -95,7 +95,7 @@ func (p *IyzicoProvider) CreatePayment(ctx context.Context, req *PaymentRequest)
 		},
 
 		// Basket items (required)
-		"basketItems": []map[string]interface{}{
+		"basketItems": []map[string]any{
 			{
 				"id":        req.OrderID,
 				"name":      req.Description,
@@ -154,7 +154,7 @@ func (p *IyzicoProvider) CreatePayment(ctx context.Context, req *PaymentRequest)
 // CompletePayment completes 3DS authentication
 func (p *IyzicoProvider) CompletePayment(ctx context.Context, req *CompletePaymentRequest) (*PaymentResponse, error) {
 	// Build completion request
-	iyzicoReq := map[string]interface{}{
+	iyzicoReq := map[string]any{
 		"locale":           "tr",
 		"conversationId":   req.PaymentID,
 		"paymentId":        req.ProviderPaymentID,
@@ -188,7 +188,7 @@ func (p *IyzicoProvider) CompletePayment(ctx context.Context, req *CompletePayme
 
 	// Extract card information
 	var cardBrand, cardLast4, cardBin string
-	if cardDetails, ok := respData["cardDetails"].(map[string]interface{}); ok {
+	if cardDetails, ok := respData["cardDetails"].(map[string]any); ok {
 		cardBrand, _ = cardDetails["cardFamily"].(string)
 		cardLast4, _ = cardDetails["lastFourDigits"].(string)
 		cardBin, _ = cardDetails["binNumber"].(string)
@@ -212,7 +212,7 @@ func (p *IyzicoProvider) CompletePayment(ctx context.Context, req *CompletePayme
 // GetPayment retrieves payment details
 func (p *IyzicoProvider) GetPayment(ctx context.Context, providerPaymentID string) (*PaymentResponse, error) {
 	// Build request
-	iyzicoReq := map[string]interface{}{
+	iyzicoReq := map[string]any{
 		"locale":         "tr",
 		"conversationId": providerPaymentID,
 		"paymentId":      providerPaymentID,
@@ -246,7 +246,7 @@ func (p *IyzicoProvider) GetPayment(ctx context.Context, providerPaymentID strin
 // CancelPayment cancels a payment
 func (p *IyzicoProvider) CancelPayment(ctx context.Context, providerPaymentID string) error {
 	// Build request
-	iyzicoReq := map[string]interface{}{
+	iyzicoReq := map[string]any{
 		"locale":         "tr",
 		"conversationId": providerPaymentID,
 		"paymentId":      providerPaymentID,
@@ -272,7 +272,7 @@ func (p *IyzicoProvider) CancelPayment(ctx context.Context, providerPaymentID st
 // CreateRefund initiates a refund
 func (p *IyzicoProvider) CreateRefund(ctx context.Context, req *RefundRequest) (*RefundResponse, error) {
 	// Build request
-	iyzicoReq := map[string]interface{}{
+	iyzicoReq := map[string]any{
 		"locale":               "tr",
 		"conversationId":       req.PaymentID,
 		"paymentTransactionId": req.ProviderPaymentID,
@@ -334,7 +334,7 @@ func (p *IyzicoProvider) VerifyWebhookSignature(ctx context.Context, payload []b
 
 // ParseWebhook parses webhook payload
 func (p *IyzicoProvider) ParseWebhook(ctx context.Context, payload []byte) (*WebhookEvent, error) {
-	var webhookData map[string]interface{}
+	var webhookData map[string]any
 	if err := json.Unmarshal(payload, &webhookData); err != nil {
 		return nil, fmt.Errorf("failed to parse webhook: %w", err)
 	}
@@ -359,7 +359,7 @@ func (p *IyzicoProvider) ParseWebhook(ctx context.Context, payload []byte) (*Web
 }
 
 // makeRequest makes HTTP request to iyzico API
-func (p *IyzicoProvider) makeRequest(ctx context.Context, endpoint string, body interface{}) (map[string]interface{}, error) {
+func (p *IyzicoProvider) makeRequest(ctx context.Context, endpoint string, body any) (map[string]any, error) {
 	// Marshal body
 	jsonBody, err := json.Marshal(body)
 	if err != nil {
@@ -395,7 +395,7 @@ func (p *IyzicoProvider) makeRequest(ctx context.Context, endpoint string, body 
 	}
 
 	// Parse response
-	var result map[string]interface{}
+	var result map[string]any
 	if err := json.Unmarshal(respBody, &result); err != nil {
 		return nil, fmt.Errorf("failed to parse response: %w", err)
 	}

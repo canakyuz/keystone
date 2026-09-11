@@ -58,7 +58,7 @@ func (s *PostService) Create(ctx context.Context, tenantID, userID string, req C
 	}
 
 	if req.Metadata == nil {
-		post.Metadata = make(map[string]interface{})
+		post.Metadata = make(map[string]any)
 	}
 	if req.Tags == nil {
 		post.Tags = []string{}

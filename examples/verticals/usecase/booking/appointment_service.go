@@ -40,7 +40,7 @@ func (s *AppointmentService) Create(ctx context.Context, tenantID string, req *C
 		Location:    req.Location,
 		MeetingURL:  req.MeetingURL,
 		Notes:       req.Notes,
-		Metadata:    make(map[string]interface{}),
+		Metadata:    make(map[string]any),
 		CreatedAt:   time.Now(),
 		UpdatedAt:   time.Now(),
 	}
@@ -273,7 +273,7 @@ func (s *AppointmentService) Delete(ctx context.Context, id string) error {
 	return nil
 }
 
-func (s *AppointmentService) GetStats(ctx context.Context) (map[string]interface{}, error) {
+func (s *AppointmentService) GetStats(ctx context.Context) (map[string]any, error) {
 	return s.repo.GetStats(ctx)
 }
 

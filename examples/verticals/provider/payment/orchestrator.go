@@ -38,7 +38,7 @@ func (o *Orchestrator) GetProvider(name string) (Provider, error) {
 
 // SelectProvider selects the appropriate provider based on routing rules
 // Priority: Tenant settings > Currency/Country > Default
-func (o *Orchestrator) SelectProvider(tenantSettings map[string]interface{}, currency, country string) (Provider, error) {
+func (o *Orchestrator) SelectProvider(tenantSettings map[string]any, currency, country string) (Provider, error) {
 	// 1. Check tenant-specific provider configuration
 	if tenantProvider := o.getProviderFromTenantSettings(tenantSettings); tenantProvider != nil {
 		return tenantProvider, nil
@@ -59,13 +59,13 @@ func (o *Orchestrator) SelectProvider(tenantSettings map[string]interface{}, cur
 }
 
 // getProviderFromTenantSettings extracts provider from tenant settings
-func (o *Orchestrator) getProviderFromTenantSettings(settings map[string]interface{}) Provider {
+func (o *Orchestrator) getProviderFromTenantSettings(settings map[string]any) Provider {
 	if settings == nil {
 		return nil
 	}
 
 	// Check if tenant has payment settings
-	paymentSettings, ok := settings["payment"].(map[string]interface{})
+	paymentSettings, ok := settings["payment"].(map[string]any)
 	if !ok {
 		return nil
 	}
@@ -113,7 +113,7 @@ func (o *Orchestrator) getProviderByCurrencyAndCountry(currency, country string)
 }
 
 // CreatePayment creates a payment using the appropriate provider
-func (o *Orchestrator) CreatePayment(ctx context.Context, tenantSettings map[string]interface{}, req *PaymentRequest) (*PaymentResponse, error) {
+func (o *Orchestrator) CreatePayment(ctx context.Context, tenantSettings map[string]any, req *PaymentRequest) (*PaymentResponse, error) {
 	provider, err := o.SelectProvider(tenantSettings, req.Currency, req.BillingCountry)
 	if err != nil {
 		return nil, fmt.Errorf("failed to select payment provider: %w", err)
@@ -193,19 +193,19 @@ func (o *Orchestrator) ParseWebhook(ctx context.Context, providerName string, pa
 }
 
 // GetTenantProviderCredentials extracts provider credentials from tenant settings
-func GetTenantProviderCredentials(settings map[string]interface{}, providerName string) (map[string]string, error) {
+func GetTenantProviderCredentials(settings map[string]any, providerName string) (map[string]string, error) {
 	if settings == nil {
 		return nil, fmt.Errorf("tenant settings is nil")
 	}
 
 	// Get payment settings
-	paymentSettings, ok := settings["payment"].(map[string]interface{})
+	paymentSettings, ok := settings["payment"].(map[string]any)
 	if !ok {
 		return nil, fmt.Errorf("payment settings not found in tenant settings")
 	}
 
 	// Get provider credentials
-	providerSettings, ok := paymentSettings[providerName].(map[string]interface{})
+	providerSettings, ok := paymentSettings[providerName].(map[string]any)
 	if !ok {
 		return nil, fmt.Errorf("%s credentials not found in tenant settings", providerName)
 	}
@@ -222,7 +222,7 @@ func GetTenantProviderCredentials(settings map[string]interface{}, providerName 
 }
 
 // ValidateTenantProviderSettings validates tenant provider configuration
-func ValidateTenantProviderSettings(settings map[string]interface{}, providerName string) error {
+func ValidateTenantProviderSettings(settings map[string]any, providerName string) error {
 	credentials, err := GetTenantProviderCredentials(settings, providerName)
 	if err != nil {
 		return err
@@ -251,8 +251,8 @@ func ValidateTenantProviderSettings(settings map[string]interface{}, providerNam
 
 // MarshalProviderSettings converts provider settings to JSON
 func MarshalProviderSettings(providerName string, credentials map[string]string) ([]byte, error) {
-	settings := map[string]interface{}{
-		"payment": map[string]interface{}{
+	settings := map[string]any{
+		"payment": map[string]any{
 			"provider":   providerName,
 			providerName: credentials,
 		},

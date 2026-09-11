@@ -62,7 +62,7 @@ type TenantModuleRepository interface {
 
 	// Usage tracking
 	UpdateLastUsed(ctx context.Context, tenantID, moduleID string) error
-	UpdateUsage(ctx context.Context, tenantID, moduleID string, usage map[string]interface{}) error
+	UpdateUsage(ctx context.Context, tenantID, moduleID string, usage map[string]any) error
 }
 
 // TenantToolRepository defines tenant tool activation operations
@@ -93,7 +93,7 @@ type TenantToolRepository interface {
 
 	// Usage tracking
 	UpdateLastUsed(ctx context.Context, tenantID, toolID string) error
-	UpdateUsage(ctx context.Context, tenantID, toolID string, usage map[string]interface{}) error
+	UpdateUsage(ctx context.Context, tenantID, toolID string, usage map[string]any) error
 }
 
 // Filter types

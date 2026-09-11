@@ -51,7 +51,7 @@ func (s *StudentService) Create(ctx context.Context, tenantID string, req *Creat
 		Notes:          req.Notes,
 		EnrollmentDate: time.Now(),
 		Avatar:         req.Avatar,
-		Metadata:       make(map[string]interface{}),
+		Metadata:       make(map[string]any),
 		CreatedAt:      time.Now(),
 		UpdatedAt:      time.Now(),
 		CreatedBy:      tenantID,
@@ -204,7 +204,7 @@ func (s *StudentService) Delete(ctx context.Context, id string) error {
 	return nil
 }
 
-func (s *StudentService) GetStats(ctx context.Context) (map[string]interface{}, error) {
+func (s *StudentService) GetStats(ctx context.Context) (map[string]any, error) {
 	return s.repo.GetStats(ctx)
 }
 

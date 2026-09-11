@@ -44,7 +44,7 @@ type CreatePaymentRequest struct {
 	CallbackURL string `json:"callback_url,omitempty"`
 
 	// Additional metadata
-	Metadata map[string]interface{} `json:"metadata,omitempty"`
+	Metadata map[string]any `json:"metadata,omitempty"`
 }
 
 // Complete3DSRequest represents 3DS completion request
@@ -94,9 +94,9 @@ type PaymentResponse struct {
 	CustomerEmail string `json:"customer_email,omitempty"`
 
 	// Metadata
-	Description string                 `json:"description,omitempty"`
-	OrderID     string                 `json:"order_id,omitempty"`
-	Metadata    map[string]interface{} `json:"metadata,omitempty"`
+	Description string         `json:"description,omitempty"`
+	OrderID     string         `json:"order_id,omitempty"`
+	Metadata    map[string]any `json:"metadata,omitempty"`
 
 	// Timestamps
 	CreatedAt   time.Time  `json:"created_at"`
@@ -106,42 +106,42 @@ type PaymentResponse struct {
 
 // RefundResponse represents refund response DTO
 type RefundResponse struct {
-	ID               string                 `json:"id"`
-	TenantID         string                 `json:"tenant_id"`
-	PaymentID        string                 `json:"payment_id"`
-	Provider         string                 `json:"provider"`
-	ProviderRefundID string                 `json:"provider_refund_id,omitempty"`
-	Amount           float64                `json:"amount"`
-	Currency         string                 `json:"currency"`
-	Status           string                 `json:"status"`
-	FailureCode      string                 `json:"failure_code,omitempty"`
-	FailureMessage   string                 `json:"failure_message,omitempty"`
-	Reason           string                 `json:"reason"`
-	Description      string                 `json:"description,omitempty"`
-	Metadata         map[string]interface{} `json:"metadata,omitempty"`
-	CreatedAt        time.Time              `json:"created_at"`
-	UpdatedAt        time.Time              `json:"updated_at"`
-	SucceededAt      *time.Time             `json:"succeeded_at,omitempty"`
+	ID               string         `json:"id"`
+	TenantID         string         `json:"tenant_id"`
+	PaymentID        string         `json:"payment_id"`
+	Provider         string         `json:"provider"`
+	ProviderRefundID string         `json:"provider_refund_id,omitempty"`
+	Amount           float64        `json:"amount"`
+	Currency         string         `json:"currency"`
+	Status           string         `json:"status"`
+	FailureCode      string         `json:"failure_code,omitempty"`
+	FailureMessage   string         `json:"failure_message,omitempty"`
+	Reason           string         `json:"reason"`
+	Description      string         `json:"description,omitempty"`
+	Metadata         map[string]any `json:"metadata,omitempty"`
+	CreatedAt        time.Time      `json:"created_at"`
+	UpdatedAt        time.Time      `json:"updated_at"`
+	SucceededAt      *time.Time     `json:"succeeded_at,omitempty"`
 }
 
 // WebhookEventResponse represents webhook event response DTO
 type WebhookEventResponse struct {
-	ID              string                 `json:"id"`
-	TenantID        string                 `json:"tenant_id"`
-	Provider        string                 `json:"provider"`
-	ProviderEventID string                 `json:"provider_event_id"`
-	EventType       string                 `json:"event_type"`
-	EventVersion    string                 `json:"event_version,omitempty"`
-	PaymentID       *string                `json:"payment_id,omitempty"`
-	RefundID        *string                `json:"refund_id,omitempty"`
-	Processed       bool                   `json:"processed"`
-	ProcessedAt     *time.Time             `json:"processed_at,omitempty"`
-	ProcessingError string                 `json:"processing_error,omitempty"`
-	RetryCount      int                    `json:"retry_count"`
-	SignatureValid  bool                   `json:"signature_valid"`
-	Payload         map[string]interface{} `json:"payload,omitempty"`
-	CreatedAt       time.Time              `json:"created_at"`
-	UpdatedAt       time.Time              `json:"updated_at"`
+	ID              string         `json:"id"`
+	TenantID        string         `json:"tenant_id"`
+	Provider        string         `json:"provider"`
+	ProviderEventID string         `json:"provider_event_id"`
+	EventType       string         `json:"event_type"`
+	EventVersion    string         `json:"event_version,omitempty"`
+	PaymentID       *string        `json:"payment_id,omitempty"`
+	RefundID        *string        `json:"refund_id,omitempty"`
+	Processed       bool           `json:"processed"`
+	ProcessedAt     *time.Time     `json:"processed_at,omitempty"`
+	ProcessingError string         `json:"processing_error,omitempty"`
+	RetryCount      int            `json:"retry_count"`
+	SignatureValid  bool           `json:"signature_valid"`
+	Payload         map[string]any `json:"payload,omitempty"`
+	CreatedAt       time.Time      `json:"created_at"`
+	UpdatedAt       time.Time      `json:"updated_at"`
 }
 
 // ListPaymentsRequest represents list payments request

@@ -49,11 +49,11 @@ const (
 
 // AppError represents a structured application error
 type AppError struct {
-	Code       ErrorCode              `json:"code"`
-	Message    string                 `json:"message"`
-	Details    map[string]interface{} `json:"details,omitempty"`
-	StatusCode int                    `json:"-"`
-	Err        error                  `json:"-"`
+	Code       ErrorCode      `json:"code"`
+	Message    string         `json:"message"`
+	Details    map[string]any `json:"details,omitempty"`
+	StatusCode int            `json:"-"`
+	Err        error          `json:"-"`
 }
 
 // Error implements the error interface
@@ -70,9 +70,9 @@ func (e *AppError) Unwrap() error {
 }
 
 // WithDetails adds additional context to the error
-func (e *AppError) WithDetails(key string, value interface{}) *AppError {
+func (e *AppError) WithDetails(key string, value any) *AppError {
 	if e.Details == nil {
-		e.Details = make(map[string]interface{})
+		e.Details = make(map[string]any)
 	}
 	e.Details[key] = value
 	return e
@@ -103,7 +103,7 @@ func Is(err error, target error) bool {
 }
 
 // As attempts to convert error to specific type
-func As(err error, target interface{}) bool {
+func As(err error, target any) bool {
 	return errors.As(err, target)
 }
 

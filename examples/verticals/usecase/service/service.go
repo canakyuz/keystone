@@ -38,7 +38,7 @@ func (s *ServiceService) Create(ctx context.Context, tenantID string, req *Creat
 		IsPublic:     req.IsPublic,
 		Featured:     false,
 		Image:        req.Image,
-		Metadata:     make(map[string]interface{}),
+		Metadata:     make(map[string]any),
 		CreatedAt:    time.Now(),
 		UpdatedAt:    time.Now(),
 		CreatedBy:    tenantID,
@@ -142,7 +142,7 @@ func (s *ServiceService) Delete(ctx context.Context, id string) error {
 	return nil
 }
 
-func (s *ServiceService) GetStats(ctx context.Context) (map[string]interface{}, error) {
+func (s *ServiceService) GetStats(ctx context.Context) (map[string]any, error) {
 	return s.repo.GetStats(ctx)
 }
 

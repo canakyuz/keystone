@@ -107,16 +107,16 @@ func (r *LessonPostgresRepository) GetUpcoming(ctx context.Context, limit int) (
 	return lessons, nil
 }
 
-func (r *LessonPostgresRepository) GetStats(ctx context.Context) (map[string]interface{}, error) {
+func (r *LessonPostgresRepository) GetStats(ctx context.Context) (map[string]any, error) {
 	query := `SELECT COUNT(*) as total, COUNT(*) FILTER (WHERE status='completed') as completed, COUNT(*) FILTER (WHERE status='scheduled') as scheduled, COUNT(*) FILTER (WHERE status='cancelled') as cancelled FROM lessons WHERE deleted_at IS NULL`
 	var total, completed, scheduled, cancelled int64
 	r.db.QueryRowContext(ctx, query).Scan(&total, &completed, &scheduled, &cancelled)
-	return map[string]interface{}{"total": total, "completed": completed, "scheduled": scheduled, "cancelled": cancelled}, nil
+	return map[string]any{"total": total, "completed": completed, "scheduled": scheduled, "cancelled": cancelled}, nil
 }
 
-func buildLessonWhereClause(filters lesson.LessonListFilters) (string, []interface{}) {
+func buildLessonWhereClause(filters lesson.LessonListFilters) (string, []any) {
 	conditions := []string{"deleted_at IS NULL"}
-	args := []interface{}{}
+	args := []any{}
 	argCount := 1
 	if filters.StudentID != nil {
 		conditions = append(conditions, fmt.Sprintf("student_id = $%d", argCount))

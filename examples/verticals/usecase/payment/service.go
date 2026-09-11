@@ -28,7 +28,7 @@ func NewService(repo paymentRepo.Repository, orchestrator *providerPayment.Orche
 }
 
 // CreatePayment creates a new payment
-func (s *Service) CreatePayment(ctx context.Context, tenantID, userID string, tenantSettings map[string]interface{}, req *CreatePaymentRequest) (*PaymentResponse, error) {
+func (s *Service) CreatePayment(ctx context.Context, tenantID, userID string, tenantSettings map[string]any, req *CreatePaymentRequest) (*PaymentResponse, error) {
 	// Select payment provider based on tenant settings and currency
 	provider, err := s.orchestrator.SelectProvider(tenantSettings, req.Currency, req.BillingCountry)
 	if err != nil {
@@ -291,7 +291,7 @@ func (s *Service) CreateRefund(ctx context.Context, tenantID, userID string, req
 }
 
 // ProcessWebhook processes a webhook event
-func (s *Service) ProcessWebhook(ctx context.Context, tenantID, provider string, payload []byte, signature string, ipAddress string, headers map[string]interface{}) (*WebhookEventResponse, error) {
+func (s *Service) ProcessWebhook(ctx context.Context, tenantID, provider string, payload []byte, signature string, ipAddress string, headers map[string]any) (*WebhookEventResponse, error) {
 	// Verify webhook signature
 	if err := s.orchestrator.VerifyWebhookSignature(ctx, provider, payload, signature); err != nil {
 		return nil, fmt.Errorf("webhook signature verification failed: %w", err)

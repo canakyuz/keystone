@@ -350,7 +350,7 @@ func (r *postgresRepo) Delete(ctx context.Context, id, tenantID uuid.UUID) error
 //   - NULL values are handled with pointers (*string, *uuid.UUID).
 //   - The scan order must match the SELECT order.
 func scanWebsite(scanner interface {
-	Scan(dest ...interface{}) error
+	Scan(dest ...any) error
 }) (*website.Website, error) {
 	var site website.Website
 

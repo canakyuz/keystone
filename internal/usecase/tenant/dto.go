@@ -141,7 +141,7 @@ func ToResponse(t *tenant.Tenant) *TenantResponse {
 
 	// Extract branding settings if exists
 	if branding, exists := t.Settings["branding"]; exists {
-		if brandingMap, ok := branding.(map[string]interface{}); ok {
+		if brandingMap, ok := branding.(map[string]any); ok {
 			brandingSettings := &BrandingSettings{}
 			if logo, ok := brandingMap["logo"].(string); ok {
 				brandingSettings.Logo = logo

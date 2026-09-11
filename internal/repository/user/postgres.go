@@ -66,7 +66,7 @@ func (r *PostgresRepository) Create(ctx context.Context, u *user.User) error {
 		return fmt.Errorf("failed to marshal metadata: %w", err)
 	}
 
-	var createdBy, updatedBy interface{}
+	var createdBy, updatedBy any
 	if u.CreatedBy != "" {
 		createdBy = u.CreatedBy
 	}
@@ -562,9 +562,9 @@ func (r *PostgresRepository) scanUserFromRows(rows *sql.Rows) (*user.User, error
 }
 
 // buildWhereClause builds WHERE clause for list queries
-func buildWhereClause(tenantID string, filters ListFilters) (string, []interface{}) {
+func buildWhereClause(tenantID string, filters ListFilters) (string, []any) {
 	conditions := []string{"tenant_id = $1", "deleted_at IS NULL"}
-	args := []interface{}{tenantID}
+	args := []any{tenantID}
 	argCount := 2
 
 	if filters.Role != nil {

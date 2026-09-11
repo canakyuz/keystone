@@ -8,52 +8,52 @@ import (
 
 // Post DTOs
 type CreatePostRequest struct {
-	CategoryID  *string                `json:"category_id,omitempty"`
-	Title       string                 `json:"title" validate:"required"`
-	Slug        string                 `json:"slug" validate:"required"`
-	Content     *string                `json:"content,omitempty"`
-	Excerpt     *string                `json:"excerpt,omitempty"`
-	Status      string                 `json:"status" validate:"required,oneof=draft published archived"`
-	Featured    bool                   `json:"featured"`
-	Image       *string                `json:"image,omitempty"`
-	Tags        []string               `json:"tags,omitempty"`
-	PublishedAt *time.Time             `json:"published_at,omitempty"`
-	Metadata    map[string]interface{} `json:"metadata,omitempty"`
+	CategoryID  *string        `json:"category_id,omitempty"`
+	Title       string         `json:"title" validate:"required"`
+	Slug        string         `json:"slug" validate:"required"`
+	Content     *string        `json:"content,omitempty"`
+	Excerpt     *string        `json:"excerpt,omitempty"`
+	Status      string         `json:"status" validate:"required,oneof=draft published archived"`
+	Featured    bool           `json:"featured"`
+	Image       *string        `json:"image,omitempty"`
+	Tags        []string       `json:"tags,omitempty"`
+	PublishedAt *time.Time     `json:"published_at,omitempty"`
+	Metadata    map[string]any `json:"metadata,omitempty"`
 }
 
 type UpdatePostRequest struct {
-	CategoryID  *string                `json:"category_id,omitempty"`
-	Title       string                 `json:"title" validate:"required"`
-	Slug        string                 `json:"slug" validate:"required"`
-	Content     *string                `json:"content,omitempty"`
-	Excerpt     *string                `json:"excerpt,omitempty"`
-	Status      string                 `json:"status" validate:"required,oneof=draft published archived"`
-	Featured    bool                   `json:"featured"`
-	Image       *string                `json:"image,omitempty"`
-	Tags        []string               `json:"tags,omitempty"`
-	PublishedAt *time.Time             `json:"published_at,omitempty"`
-	Metadata    map[string]interface{} `json:"metadata,omitempty"`
+	CategoryID  *string        `json:"category_id,omitempty"`
+	Title       string         `json:"title" validate:"required"`
+	Slug        string         `json:"slug" validate:"required"`
+	Content     *string        `json:"content,omitempty"`
+	Excerpt     *string        `json:"excerpt,omitempty"`
+	Status      string         `json:"status" validate:"required,oneof=draft published archived"`
+	Featured    bool           `json:"featured"`
+	Image       *string        `json:"image,omitempty"`
+	Tags        []string       `json:"tags,omitempty"`
+	PublishedAt *time.Time     `json:"published_at,omitempty"`
+	Metadata    map[string]any `json:"metadata,omitempty"`
 }
 
 type PostResponse struct {
-	ID          string                 `json:"id"`
-	TenantID    string                 `json:"tenant_id"`
-	CategoryID  *string                `json:"category_id,omitempty"`
-	Title       string                 `json:"title"`
-	Slug        string                 `json:"slug"`
-	Content     *string                `json:"content,omitempty"`
-	Excerpt     *string                `json:"excerpt,omitempty"`
-	Status      string                 `json:"status"`
-	Featured    bool                   `json:"featured"`
-	ViewCount   int64                  `json:"view_count"`
-	Image       *string                `json:"image,omitempty"`
-	Tags        []string               `json:"tags"`
-	PublishedAt *time.Time             `json:"published_at,omitempty"`
-	Metadata    map[string]interface{} `json:"metadata"`
-	CreatedAt   time.Time              `json:"created_at"`
-	UpdatedAt   time.Time              `json:"updated_at"`
-	CreatedBy   *string                `json:"created_by,omitempty"`
-	UpdatedBy   *string                `json:"updated_by,omitempty"`
+	ID          string         `json:"id"`
+	TenantID    string         `json:"tenant_id"`
+	CategoryID  *string        `json:"category_id,omitempty"`
+	Title       string         `json:"title"`
+	Slug        string         `json:"slug"`
+	Content     *string        `json:"content,omitempty"`
+	Excerpt     *string        `json:"excerpt,omitempty"`
+	Status      string         `json:"status"`
+	Featured    bool           `json:"featured"`
+	ViewCount   int64          `json:"view_count"`
+	Image       *string        `json:"image,omitempty"`
+	Tags        []string       `json:"tags"`
+	PublishedAt *time.Time     `json:"published_at,omitempty"`
+	Metadata    map[string]any `json:"metadata"`
+	CreatedAt   time.Time      `json:"created_at"`
+	UpdatedAt   time.Time      `json:"updated_at"`
+	CreatedBy   *string        `json:"created_by,omitempty"`
+	UpdatedBy   *string        `json:"updated_by,omitempty"`
 }
 
 type PostListResponse struct {
@@ -65,29 +65,29 @@ type PostListResponse struct {
 
 // Category DTOs
 type CreateCategoryRequest struct {
-	Name        string                 `json:"name" validate:"required"`
-	Slug        string                 `json:"slug" validate:"required"`
-	Description *string                `json:"description,omitempty"`
-	Metadata    map[string]interface{} `json:"metadata,omitempty"`
+	Name        string         `json:"name" validate:"required"`
+	Slug        string         `json:"slug" validate:"required"`
+	Description *string        `json:"description,omitempty"`
+	Metadata    map[string]any `json:"metadata,omitempty"`
 }
 
 type UpdateCategoryRequest struct {
-	Name        string                 `json:"name" validate:"required"`
-	Slug        string                 `json:"slug" validate:"required"`
-	Description *string                `json:"description,omitempty"`
-	Metadata    map[string]interface{} `json:"metadata,omitempty"`
+	Name        string         `json:"name" validate:"required"`
+	Slug        string         `json:"slug" validate:"required"`
+	Description *string        `json:"description,omitempty"`
+	Metadata    map[string]any `json:"metadata,omitempty"`
 }
 
 type CategoryResponse struct {
-	ID          string                 `json:"id"`
-	TenantID    string                 `json:"tenant_id"`
-	Name        string                 `json:"name"`
-	Slug        string                 `json:"slug"`
-	Description *string                `json:"description,omitempty"`
-	PostCount   int                    `json:"post_count"`
-	Metadata    map[string]interface{} `json:"metadata"`
-	CreatedAt   time.Time              `json:"created_at"`
-	UpdatedAt   time.Time              `json:"updated_at"`
+	ID          string         `json:"id"`
+	TenantID    string         `json:"tenant_id"`
+	Name        string         `json:"name"`
+	Slug        string         `json:"slug"`
+	Description *string        `json:"description,omitempty"`
+	PostCount   int            `json:"post_count"`
+	Metadata    map[string]any `json:"metadata"`
+	CreatedAt   time.Time      `json:"created_at"`
+	UpdatedAt   time.Time      `json:"updated_at"`
 }
 
 type CategoryListResponse struct {

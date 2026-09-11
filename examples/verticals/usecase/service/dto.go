@@ -29,26 +29,26 @@ type UpdateServiceRequest struct {
 }
 
 type ServiceResponse struct {
-	ID           string                 `json:"id"`
-	TenantID     string                 `json:"tenant_id"`
-	Name         string                 `json:"name"`
-	Slug         string                 `json:"slug"`
-	Description  string                 `json:"description,omitempty"`
-	Category     string                 `json:"category"`
-	Status       string                 `json:"status"`
-	Features     []string               `json:"features,omitempty"`
-	BasePrice    float64                `json:"base_price"`
-	Currency     string                 `json:"currency"`
-	PricingModel string                 `json:"pricing_model"`
-	BillingCycle string                 `json:"billing_cycle,omitempty"`
-	Duration     int                    `json:"duration,omitempty"`
-	MaxClients   int                    `json:"max_clients,omitempty"`
-	IsPublic     bool                   `json:"is_public"`
-	Featured     bool                   `json:"featured"`
-	Image        string                 `json:"image,omitempty"`
-	Metadata     map[string]interface{} `json:"metadata,omitempty"`
-	CreatedAt    time.Time              `json:"created_at"`
-	UpdatedAt    time.Time              `json:"updated_at"`
+	ID           string         `json:"id"`
+	TenantID     string         `json:"tenant_id"`
+	Name         string         `json:"name"`
+	Slug         string         `json:"slug"`
+	Description  string         `json:"description,omitempty"`
+	Category     string         `json:"category"`
+	Status       string         `json:"status"`
+	Features     []string       `json:"features,omitempty"`
+	BasePrice    float64        `json:"base_price"`
+	Currency     string         `json:"currency"`
+	PricingModel string         `json:"pricing_model"`
+	BillingCycle string         `json:"billing_cycle,omitempty"`
+	Duration     int            `json:"duration,omitempty"`
+	MaxClients   int            `json:"max_clients,omitempty"`
+	IsPublic     bool           `json:"is_public"`
+	Featured     bool           `json:"featured"`
+	Image        string         `json:"image,omitempty"`
+	Metadata     map[string]any `json:"metadata,omitempty"`
+	CreatedAt    time.Time      `json:"created_at"`
+	UpdatedAt    time.Time      `json:"updated_at"`
 }
 
 type ServiceListResponse struct {

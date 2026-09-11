@@ -102,11 +102,11 @@ type Payment struct {
 	BillingZipCode     string `json:"billing_zip_code,omitempty"`
 
 	// Transaction details
-	Description   string                 `json:"description,omitempty"`
-	ReferenceID   string                 `json:"reference_id,omitempty"`
-	OrderID       string                 `json:"order_id,omitempty"`
-	InvoiceNumber string                 `json:"invoice_number,omitempty"`
-	Metadata      map[string]interface{} `json:"metadata,omitempty"`
+	Description   string         `json:"description,omitempty"`
+	ReferenceID   string         `json:"reference_id,omitempty"`
+	OrderID       string         `json:"order_id,omitempty"`
+	InvoiceNumber string         `json:"invoice_number,omitempty"`
+	Metadata      map[string]any `json:"metadata,omitempty"`
 
 	// Timestamps
 	CreatedAt   time.Time  `json:"created_at"`
@@ -133,7 +133,7 @@ func New(tenantID string, provider PaymentProvider, amount float64, currency str
 		Installment: 1,
 		CreatedAt:   now,
 		UpdatedAt:   now,
-		Metadata:    make(map[string]interface{}),
+		Metadata:    make(map[string]any),
 	}
 
 	// Validate payment
@@ -268,7 +268,7 @@ func (p *Payment) MarkAsCanceled(reason string) error {
 	p.UpdatedAt = now
 
 	if p.Metadata == nil {
-		p.Metadata = make(map[string]interface{})
+		p.Metadata = make(map[string]any)
 	}
 	p.Metadata["cancelation_reason"] = reason
 	p.Metadata["canceled_at"] = now
@@ -391,16 +391,16 @@ func (p *Payment) CanBeCanceled() bool {
 }
 
 // UpdateMetadata updates payment metadata
-func (p *Payment) UpdateMetadata(key string, value interface{}) {
+func (p *Payment) UpdateMetadata(key string, value any) {
 	if p.Metadata == nil {
-		p.Metadata = make(map[string]interface{})
+		p.Metadata = make(map[string]any)
 	}
 	p.Metadata[key] = value
 	p.UpdatedAt = time.Now()
 }
 
 // GetMetadata retrieves payment metadata
-func (p *Payment) GetMetadata(key string) (interface{}, bool) {
+func (p *Payment) GetMetadata(key string) (any, bool) {
 	if p.Metadata == nil {
 		return nil, false
 	}

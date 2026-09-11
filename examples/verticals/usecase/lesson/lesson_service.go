@@ -40,7 +40,7 @@ func (s *LessonService) Create(ctx context.Context, tenantID string, req *Create
 		Materials:   req.Materials,
 		Homework:    req.Homework,
 		Notes:       req.Notes,
-		Metadata:    make(map[string]interface{}),
+		Metadata:    make(map[string]any),
 		CreatedAt:   time.Now(),
 		UpdatedAt:   time.Now(),
 		CreatedBy:   tenantID,
@@ -195,7 +195,7 @@ func (s *LessonService) Delete(ctx context.Context, id string) error {
 	return nil
 }
 
-func (s *LessonService) GetStats(ctx context.Context) (map[string]interface{}, error) {
+func (s *LessonService) GetStats(ctx context.Context) (map[string]any, error) {
 	return s.repo.GetStats(ctx)
 }
 

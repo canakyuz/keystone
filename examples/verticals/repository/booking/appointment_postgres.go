@@ -130,16 +130,16 @@ func (r *AppointmentPostgresRepository) Delete(ctx context.Context, id string) e
 	return err
 }
 
-func (r *AppointmentPostgresRepository) GetStats(ctx context.Context) (map[string]interface{}, error) {
+func (r *AppointmentPostgresRepository) GetStats(ctx context.Context) (map[string]any, error) {
 	query := `SELECT COUNT(*) as total, COUNT(*) FILTER (WHERE status='pending') as pending, COUNT(*) FILTER (WHERE status='confirmed') as confirmed, COUNT(*) FILTER (WHERE status='completed') as completed, COUNT(*) FILTER (WHERE status='cancelled') as cancelled FROM appointments WHERE deleted_at IS NULL`
 	var total, pending, confirmed, completed, cancelled int64
 	r.db.QueryRowContext(ctx, query).Scan(&total, &pending, &confirmed, &completed, &cancelled)
-	return map[string]interface{}{"total": total, "pending": pending, "confirmed": confirmed, "completed": completed, "cancelled": cancelled}, nil
+	return map[string]any{"total": total, "pending": pending, "confirmed": confirmed, "completed": completed, "cancelled": cancelled}, nil
 }
 
-func buildAppointmentWhereClause(filters booking.AppointmentListFilters) (string, []interface{}) {
+func buildAppointmentWhereClause(filters booking.AppointmentListFilters) (string, []any) {
 	conditions := []string{"deleted_at IS NULL"}
-	args := []interface{}{}
+	args := []any{}
 	argCount := 1
 	if filters.UserID != nil {
 		conditions = append(conditions, fmt.Sprintf("user_id = $%d", argCount))

@@ -568,9 +568,9 @@ func (r *PostgresRepository) GetStats(ctx context.Context) (map[string]int64, er
 }
 
 // buildWhereClause builds WHERE clause for list queries
-func buildWhereClause(filters ListFilters) (string, []interface{}) {
+func buildWhereClause(filters ListFilters) (string, []any) {
 	conditions := []string{"deleted_at IS NULL"}
-	args := []interface{}{}
+	args := []any{}
 	argCount := 1
 
 	if filters.Status != nil {

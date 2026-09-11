@@ -35,7 +35,7 @@ type Repository interface {
 	GetByCategory(ctx context.Context, category ProjectCategory, limit, offset int) ([]*Project, int64, error)
 
 	// GetStats returns project statistics
-	GetStats(ctx context.Context) (map[string]interface{}, error)
+	GetStats(ctx context.Context) (map[string]any, error)
 }
 
 // ListFilters defines filters for listing projects

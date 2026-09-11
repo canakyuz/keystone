@@ -31,31 +31,31 @@ const (
 
 // Project represents a portfolio project
 type Project struct {
-	ID           string                 `json:"id"`
-	TenantID     string                 `json:"tenant_id"` // CRITICAL: Multi-tenant isolation
-	Title        string                 `json:"title"`
-	Slug         string                 `json:"slug"`
-	Description  string                 `json:"description"`
-	Content      string                 `json:"content"` // Rich text content
-	Category     ProjectCategory        `json:"category"`
-	Status       ProjectStatus          `json:"status"`
-	Client       string                 `json:"client,omitempty"`
-	Technologies []string               `json:"technologies,omitempty"`
-	Images       []string               `json:"images,omitempty"`
-	CoverImage   string                 `json:"cover_image,omitempty"`
-	LiveURL      string                 `json:"live_url,omitempty"`
-	GithubURL    string                 `json:"github_url,omitempty"`
-	StartDate    *time.Time             `json:"start_date,omitempty"`
-	EndDate      *time.Time             `json:"end_date,omitempty"`
-	Featured     bool                   `json:"featured"`
-	SortOrder    int                    `json:"sort_order"`
-	ViewCount    int64                  `json:"view_count"`
-	Metadata     map[string]interface{} `json:"metadata,omitempty"`
-	CreatedAt    time.Time              `json:"created_at"`
-	UpdatedAt    time.Time              `json:"updated_at"`
-	CreatedBy    string                 `json:"created_by,omitempty"`
-	UpdatedBy    string                 `json:"updated_by,omitempty"`
-	DeletedAt    *time.Time             `json:"deleted_at,omitempty"`
+	ID           string          `json:"id"`
+	TenantID     string          `json:"tenant_id"` // CRITICAL: Multi-tenant isolation
+	Title        string          `json:"title"`
+	Slug         string          `json:"slug"`
+	Description  string          `json:"description"`
+	Content      string          `json:"content"` // Rich text content
+	Category     ProjectCategory `json:"category"`
+	Status       ProjectStatus   `json:"status"`
+	Client       string          `json:"client,omitempty"`
+	Technologies []string        `json:"technologies,omitempty"`
+	Images       []string        `json:"images,omitempty"`
+	CoverImage   string          `json:"cover_image,omitempty"`
+	LiveURL      string          `json:"live_url,omitempty"`
+	GithubURL    string          `json:"github_url,omitempty"`
+	StartDate    *time.Time      `json:"start_date,omitempty"`
+	EndDate      *time.Time      `json:"end_date,omitempty"`
+	Featured     bool            `json:"featured"`
+	SortOrder    int             `json:"sort_order"`
+	ViewCount    int64           `json:"view_count"`
+	Metadata     map[string]any  `json:"metadata,omitempty"`
+	CreatedAt    time.Time       `json:"created_at"`
+	UpdatedAt    time.Time       `json:"updated_at"`
+	CreatedBy    string          `json:"created_by,omitempty"`
+	UpdatedBy    string          `json:"updated_by,omitempty"`
+	DeletedAt    *time.Time      `json:"deleted_at,omitempty"`
 }
 
 // New creates a new project
@@ -72,7 +72,7 @@ func New(tenantID, title, slug, description string, category ProjectCategory, st
 		Featured:    false,
 		SortOrder:   0,
 		ViewCount:   0,
-		Metadata:    make(map[string]interface{}),
+		Metadata:    make(map[string]any),
 		CreatedAt:   now,
 		UpdatedAt:   now,
 	}
@@ -161,7 +161,7 @@ func (p *Project) Cancel(reason string) error {
 	p.UpdatedAt = time.Now()
 
 	if p.Metadata == nil {
-		p.Metadata = make(map[string]interface{})
+		p.Metadata = make(map[string]any)
 	}
 	p.Metadata["cancellation_reason"] = reason
 	p.Metadata["cancelled_at"] = time.Now()

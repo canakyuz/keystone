@@ -62,7 +62,7 @@ type Lesson struct {
 	NextLessonDate  *time.Time `json:"next_lesson_date,omitempty"`
 
 	// Metadata
-	Metadata map[string]interface{} `json:"metadata,omitempty"`
+	Metadata map[string]any `json:"metadata,omitempty"`
 
 	// Audit
 	CreatedAt time.Time  `json:"created_at"`
@@ -85,7 +85,7 @@ func NewLesson(tenantID, studentID, title, subject string, scheduledAt time.Time
 		Type:        lessonType,
 		ScheduledAt: scheduledAt,
 		Duration:    duration,
-		Metadata:    make(map[string]interface{}),
+		Metadata:    make(map[string]any),
 		CreatedAt:   now,
 		UpdatedAt:   now,
 	}
@@ -169,7 +169,7 @@ func (l *Lesson) Cancel(reason string) error {
 	l.UpdatedAt = time.Now()
 
 	if l.Metadata == nil {
-		l.Metadata = make(map[string]interface{})
+		l.Metadata = make(map[string]any)
 	}
 	l.Metadata["cancellation_reason"] = reason
 	l.Metadata["cancelled_at"] = time.Now()

@@ -35,7 +35,7 @@ func (s *AvailabilityService) Create(ctx context.Context, tenantID string, req *
 		Recurrence:    booking.RecurrenceType(req.Recurrence),
 		RecurrenceEnd: req.RecurrenceEnd,
 		DaysOfWeek:    req.DaysOfWeek,
-		Metadata:      make(map[string]interface{}),
+		Metadata:      make(map[string]any),
 		CreatedAt:     time.Now(),
 		UpdatedAt:     time.Now(),
 	}
@@ -169,7 +169,7 @@ func (s *AvailabilityService) Delete(ctx context.Context, id string) error {
 	return nil
 }
 
-func (s *AvailabilityService) GetStats(ctx context.Context) (map[string]interface{}, error) {
+func (s *AvailabilityService) GetStats(ctx context.Context) (map[string]any, error) {
 	return s.repo.GetStats(ctx)
 }
 

@@ -185,7 +185,7 @@ func (r *tenantModuleRepository) ListByTenant(ctx context.Context, tenantID stri
 	`
 
 	conditions, args := r.buildFilterConditions(filters)
-	allArgs := append([]interface{}{tenantID}, args...)
+	allArgs := append([]any{tenantID}, args...)
 
 	if len(conditions) > 0 {
 		query += " AND " + strings.Join(conditions, " AND ")
@@ -294,7 +294,7 @@ func (r *tenantModuleRepository) UpdateLastUsed(ctx context.Context, tenantID, m
 }
 
 // UpdateUsage updates the current usage for a module
-func (r *tenantModuleRepository) UpdateUsage(ctx context.Context, tenantID, moduleID string, usage map[string]interface{}) error {
+func (r *tenantModuleRepository) UpdateUsage(ctx context.Context, tenantID, moduleID string, usage map[string]any) error {
 	usageJSON, err := json.Marshal(usage)
 	if err != nil {
 		return fmt.Errorf("failed to marshal usage: %w", err)
@@ -311,9 +311,9 @@ func (r *tenantModuleRepository) UpdateUsage(ctx context.Context, tenantID, modu
 }
 
 // Helper functions
-func (r *tenantModuleRepository) buildFilterConditions(filters registry.TenantModuleFilters) ([]string, []interface{}) {
+func (r *tenantModuleRepository) buildFilterConditions(filters registry.TenantModuleFilters) ([]string, []any) {
 	var conditions []string
-	var args []interface{}
+	var args []any
 	paramCount := 2 // Start at 2 because $1 is tenantID
 
 	if filters.Status != nil {

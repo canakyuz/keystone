@@ -56,8 +56,8 @@ type User struct {
 	PasswordChangedAt *time.Time `json:"password_changed_at,omitempty"`
 
 	// Metadata
-	Preferences map[string]interface{} `json:"preferences,omitempty"`
-	Metadata    map[string]interface{} `json:"metadata,omitempty"`
+	Preferences map[string]any `json:"preferences,omitempty"`
+	Metadata    map[string]any `json:"metadata,omitempty"`
 
 	// Audit
 	CreatedBy string `json:"created_by,omitempty"`
@@ -86,8 +86,8 @@ func New(tenantID, email, password, firstName, lastName string, role UserRole) (
 		UpdatedAt:        now,
 		EmailVerified:    false,
 		TwoFactorEnabled: false,
-		Preferences:      make(map[string]interface{}),
-		Metadata:         make(map[string]interface{}),
+		Preferences:      make(map[string]any),
+		Metadata:         make(map[string]any),
 	}
 
 	// Validate user
@@ -248,7 +248,7 @@ func (u *User) Suspend(reason string) error {
 	u.UpdatedAt = time.Now()
 
 	if u.Metadata == nil {
-		u.Metadata = make(map[string]interface{})
+		u.Metadata = make(map[string]any)
 	}
 	u.Metadata["suspension_reason"] = reason
 	u.Metadata["suspended_at"] = time.Now()
@@ -342,16 +342,16 @@ func (u *User) DisableTwoFactor() {
 }
 
 // UpdatePreference updates a user preference
-func (u *User) UpdatePreference(key string, value interface{}) {
+func (u *User) UpdatePreference(key string, value any) {
 	if u.Preferences == nil {
-		u.Preferences = make(map[string]interface{})
+		u.Preferences = make(map[string]any)
 	}
 	u.Preferences[key] = value
 	u.UpdatedAt = time.Now()
 }
 
 // GetPreference retrieves a user preference
-func (u *User) GetPreference(key string) (interface{}, bool) {
+func (u *User) GetPreference(key string) (any, bool) {
 	if u.Preferences == nil {
 		return nil, false
 	}

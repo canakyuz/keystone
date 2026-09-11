@@ -279,7 +279,7 @@ func (r *StudentPostgresRepository) Delete(ctx context.Context, id string) error
 }
 
 // GetStats returns student statistics
-func (r *StudentPostgresRepository) GetStats(ctx context.Context) (map[string]interface{}, error) {
+func (r *StudentPostgresRepository) GetStats(ctx context.Context) (map[string]any, error) {
 	query := `
 		SELECT
 			COUNT(*) as total,
@@ -308,7 +308,7 @@ func (r *StudentPostgresRepository) GetStats(ctx context.Context) (map[string]in
 		return nil, fmt.Errorf("failed to get stats: %w", err)
 	}
 
-	stats := map[string]interface{}{
+	stats := map[string]any{
 		"total":          total,
 		"active":         active,
 		"inactive":       inactive,
@@ -325,9 +325,9 @@ func (r *StudentPostgresRepository) GetStats(ctx context.Context) (map[string]in
 }
 
 // buildStudentWhereClause builds WHERE clause for student queries
-func buildStudentWhereClause(filters lesson.StudentListFilters) (string, []interface{}) {
+func buildStudentWhereClause(filters lesson.StudentListFilters) (string, []any) {
 	conditions := []string{"deleted_at IS NULL"}
-	args := []interface{}{}
+	args := []any{}
 	argCount := 1
 
 	if filters.Status != nil {

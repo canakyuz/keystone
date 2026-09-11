@@ -10,7 +10,7 @@ type StudentRepository interface {
 	List(ctx context.Context, filters StudentListFilters) ([]*Student, int64, error)
 	Update(ctx context.Context, student *Student) error
 	Delete(ctx context.Context, id string) error
-	GetStats(ctx context.Context) (map[string]interface{}, error)
+	GetStats(ctx context.Context) (map[string]any, error)
 }
 
 // LessonRepository defines lesson data access interface
@@ -22,7 +22,7 @@ type LessonRepository interface {
 	Update(ctx context.Context, lesson *Lesson) error
 	Delete(ctx context.Context, id string) error
 	GetUpcoming(ctx context.Context, limit int) ([]*Lesson, error)
-	GetStats(ctx context.Context) (map[string]interface{}, error)
+	GetStats(ctx context.Context) (map[string]any, error)
 }
 
 // AssignmentRepository defines assignment data access interface
@@ -34,7 +34,7 @@ type AssignmentRepository interface {
 	GetOverdue(ctx context.Context) ([]*Assignment, error)
 	Update(ctx context.Context, assignment *Assignment) error
 	Delete(ctx context.Context, id string) error
-	GetStats(ctx context.Context) (map[string]interface{}, error)
+	GetStats(ctx context.Context) (map[string]any, error)
 }
 
 // StudentListFilters defines filters for listing students

@@ -45,7 +45,7 @@ func (h *WebhookHandler) HandleWebhook(c *fiber.Ctx) error {
 	ipAddress := c.IP()
 
 	// Get request headers
-	headers := make(map[string]interface{})
+	headers := make(map[string]any)
 	c.Request().Header.VisitAll(func(key, value []byte) {
 		headers[string(key)] = string(value)
 	})
@@ -118,7 +118,7 @@ func (h *WebhookHandler) HandleIyzicoWebhook(c *fiber.Ctx) error {
 	signature := c.Get("X-IYZ-Signature", "")
 	ipAddress := c.IP()
 
-	headers := make(map[string]interface{})
+	headers := make(map[string]any)
 	c.Request().Header.VisitAll(func(key, value []byte) {
 		headers[string(key)] = string(value)
 	})
@@ -156,7 +156,7 @@ func (h *WebhookHandler) HandleCheckoutWebhook(c *fiber.Ctx) error {
 	signature := c.Get("Cko-Signature", "")
 	ipAddress := c.IP()
 
-	headers := make(map[string]interface{})
+	headers := make(map[string]any)
 	c.Request().Header.VisitAll(func(key, value []byte) {
 		headers[string(key)] = string(value)
 	})

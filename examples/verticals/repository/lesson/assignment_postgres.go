@@ -107,16 +107,16 @@ func (r *AssignmentPostgresRepository) Delete(ctx context.Context, id string) er
 	return err
 }
 
-func (r *AssignmentPostgresRepository) GetStats(ctx context.Context) (map[string]interface{}, error) {
+func (r *AssignmentPostgresRepository) GetStats(ctx context.Context) (map[string]any, error) {
 	query := `SELECT COUNT(*) as total, COUNT(*) FILTER (WHERE status='pending') as pending, COUNT(*) FILTER (WHERE status='submitted') as submitted, COUNT(*) FILTER (WHERE status='graded') as graded FROM assignments WHERE deleted_at IS NULL`
 	var total, pending, submitted, graded int64
 	r.db.QueryRowContext(ctx, query).Scan(&total, &pending, &submitted, &graded)
-	return map[string]interface{}{"total": total, "pending": pending, "submitted": submitted, "graded": graded}, nil
+	return map[string]any{"total": total, "pending": pending, "submitted": submitted, "graded": graded}, nil
 }
 
-func buildAssignmentWhereClause(filters lesson.AssignmentListFilters) (string, []interface{}) {
+func buildAssignmentWhereClause(filters lesson.AssignmentListFilters) (string, []any) {
 	conditions := []string{"deleted_at IS NULL"}
-	args := []interface{}{}
+	args := []any{}
 	argCount := 1
 	if filters.StudentID != nil {
 		conditions = append(conditions, fmt.Sprintf("student_id = $%d", argCount))

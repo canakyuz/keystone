@@ -25,20 +25,20 @@ const (
 
 // Availability represents a time slot availability
 type Availability struct {
-	ID            string                 `json:"id"`
-	TenantID      string                 `json:"tenant_id"` // Multi-tenant isolation
-	UserID        string                 `json:"user_id,omitempty"`
-	Title         string                 `json:"title"`
-	Description   string                 `json:"description,omitempty"`
-	StartTime     time.Time              `json:"start_time"`
-	EndTime       time.Time              `json:"end_time"`
-	Status        AvailabilityStatus     `json:"status"`
-	Recurrence    RecurrenceType         `json:"recurrence"`
-	RecurrenceEnd *time.Time             `json:"recurrence_end,omitempty"`
-	DaysOfWeek    []int                  `json:"days_of_week,omitempty"` // 0=Sunday, 1=Monday, etc.
-	Metadata      map[string]interface{} `json:"metadata,omitempty"`
-	CreatedAt     time.Time              `json:"created_at"`
-	UpdatedAt     time.Time              `json:"updated_at"`
+	ID            string             `json:"id"`
+	TenantID      string             `json:"tenant_id"` // Multi-tenant isolation
+	UserID        string             `json:"user_id,omitempty"`
+	Title         string             `json:"title"`
+	Description   string             `json:"description,omitempty"`
+	StartTime     time.Time          `json:"start_time"`
+	EndTime       time.Time          `json:"end_time"`
+	Status        AvailabilityStatus `json:"status"`
+	Recurrence    RecurrenceType     `json:"recurrence"`
+	RecurrenceEnd *time.Time         `json:"recurrence_end,omitempty"`
+	DaysOfWeek    []int              `json:"days_of_week,omitempty"` // 0=Sunday, 1=Monday, etc.
+	Metadata      map[string]any     `json:"metadata,omitempty"`
+	CreatedAt     time.Time          `json:"created_at"`
+	UpdatedAt     time.Time          `json:"updated_at"`
 }
 
 // IsActive checks if availability is currently active

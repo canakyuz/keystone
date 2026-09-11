@@ -11,7 +11,7 @@ type AvailabilityRepository interface {
 	GetByDateRange(ctx context.Context, startDate, endDate string) ([]*Availability, error)
 	Update(ctx context.Context, availability *Availability) error
 	Delete(ctx context.Context, id string) error
-	GetStats(ctx context.Context) (map[string]interface{}, error)
+	GetStats(ctx context.Context) (map[string]any, error)
 }
 
 // AppointmentRepository defines appointment data access interface
@@ -25,7 +25,7 @@ type AppointmentRepository interface {
 	GetByDateRange(ctx context.Context, startDate, endDate string) ([]*Appointment, error)
 	Update(ctx context.Context, appointment *Appointment) error
 	Delete(ctx context.Context, id string) error
-	GetStats(ctx context.Context) (map[string]interface{}, error)
+	GetStats(ctx context.Context) (map[string]any, error)
 }
 
 // AvailabilityListFilters defines filters for listing availabilities

@@ -18,27 +18,27 @@ const (
 
 // Assignment represents a homework/assignment
 type Assignment struct {
-	ID          string                 `json:"id"`
-	TenantID    string                 `json:"tenant_id"` // CRITICAL: Multi-tenant isolation
-	StudentID   string                 `json:"student_id"`
-	LessonID    string                 `json:"lesson_id,omitempty"`
-	Title       string                 `json:"title"`
-	Description string                 `json:"description"`
-	Subject     string                 `json:"subject"`
-	Status      AssignmentStatus       `json:"status"`
-	DueDate     time.Time              `json:"due_date"`
-	SubmittedAt *time.Time             `json:"submitted_at,omitempty"`
-	GradedAt    *time.Time             `json:"graded_at,omitempty"`
-	Score       *int                   `json:"score,omitempty"` // 0-100
-	MaxScore    int                    `json:"max_score"`
-	Feedback    string                 `json:"feedback,omitempty"`
-	Files       []string               `json:"files,omitempty"` // URLs to uploaded files
-	Metadata    map[string]interface{} `json:"metadata,omitempty"`
-	CreatedAt   time.Time              `json:"created_at"`
-	UpdatedAt   time.Time              `json:"updated_at"`
-	CreatedBy   string                 `json:"created_by,omitempty"`
-	UpdatedBy   string                 `json:"updated_by,omitempty"`
-	DeletedAt   *time.Time             `json:"deleted_at,omitempty"`
+	ID          string           `json:"id"`
+	TenantID    string           `json:"tenant_id"` // CRITICAL: Multi-tenant isolation
+	StudentID   string           `json:"student_id"`
+	LessonID    string           `json:"lesson_id,omitempty"`
+	Title       string           `json:"title"`
+	Description string           `json:"description"`
+	Subject     string           `json:"subject"`
+	Status      AssignmentStatus `json:"status"`
+	DueDate     time.Time        `json:"due_date"`
+	SubmittedAt *time.Time       `json:"submitted_at,omitempty"`
+	GradedAt    *time.Time       `json:"graded_at,omitempty"`
+	Score       *int             `json:"score,omitempty"` // 0-100
+	MaxScore    int              `json:"max_score"`
+	Feedback    string           `json:"feedback,omitempty"`
+	Files       []string         `json:"files,omitempty"` // URLs to uploaded files
+	Metadata    map[string]any   `json:"metadata,omitempty"`
+	CreatedAt   time.Time        `json:"created_at"`
+	UpdatedAt   time.Time        `json:"updated_at"`
+	CreatedBy   string           `json:"created_by,omitempty"`
+	UpdatedBy   string           `json:"updated_by,omitempty"`
+	DeletedAt   *time.Time       `json:"deleted_at,omitempty"`
 }
 
 // NewAssignment creates a new assignment
@@ -54,7 +54,7 @@ func NewAssignment(tenantID, studentID, title, description, subject string, dueD
 		Status:      AssignmentStatusPending,
 		DueDate:     dueDate,
 		MaxScore:    maxScore,
-		Metadata:    make(map[string]interface{}),
+		Metadata:    make(map[string]any),
 		CreatedAt:   now,
 		UpdatedAt:   now,
 	}

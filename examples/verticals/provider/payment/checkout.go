@@ -40,8 +40,8 @@ func (p *CheckoutProvider) GetName() string {
 // CreatePayment initiates a payment with Checkout.com
 func (p *CheckoutProvider) CreatePayment(ctx context.Context, req *PaymentRequest) (*PaymentResponse, error) {
 	// Build Checkout.com payment request
-	checkoutReq := map[string]interface{}{
-		"source": map[string]interface{}{
+	checkoutReq := map[string]any{
+		"source": map[string]any{
 			"type":  "token",
 			"token": req.CardToken, // Checkout.com uses tokenized cards
 		},
@@ -51,19 +51,19 @@ func (p *CheckoutProvider) CreatePayment(ctx context.Context, req *PaymentReques
 		"description": req.Description,
 
 		// 3DS configuration
-		"3ds": map[string]interface{}{
+		"3ds": map[string]any{
 			"enabled": true,
 		},
 
 		// Customer information
-		"customer": map[string]interface{}{
+		"customer": map[string]any{
 			"email": req.CustomerEmail,
 			"name":  req.CustomerFirstName + " " + req.CustomerLastName,
 		},
 
 		// Billing address
-		"billing": map[string]interface{}{
-			"address": map[string]interface{}{
+		"billing": map[string]any{
+			"address": map[string]any{
 				"address_line1": req.BillingAddressLine,
 				"city":          req.BillingCity,
 				"zip":           req.BillingZipCode,
@@ -76,7 +76,7 @@ func (p *CheckoutProvider) CreatePayment(ctx context.Context, req *PaymentReques
 		"failure_url": req.FailureURL,
 
 		// Metadata
-		"metadata": map[string]interface{}{
+		"metadata": map[string]any{
 			"tenant_id": req.TenantID,
 			"order_id":  req.OrderID,
 		},
@@ -97,8 +97,8 @@ func (p *CheckoutProvider) CreatePayment(ctx context.Context, req *PaymentReques
 	var requires3DS bool
 	var threeDSRedirectURL string
 
-	if links, ok := respData["_links"].(map[string]interface{}); ok {
-		if redirectLink, ok := links["redirect"].(map[string]interface{}); ok {
+	if links, ok := respData["_links"].(map[string]any); ok {
+		if redirectLink, ok := links["redirect"].(map[string]any); ok {
 			if href, ok := redirectLink["href"].(string); ok {
 				requires3DS = true
 				threeDSRedirectURL = href
@@ -108,7 +108,7 @@ func (p *CheckoutProvider) CreatePayment(ctx context.Context, req *PaymentReques
 
 	// Extract card details
 	var cardBrand, cardLast4, cardBin, cardExpMonth, cardExpYear string
-	if source, ok := respData["source"].(map[string]interface{}); ok {
+	if source, ok := respData["source"].(map[string]any); ok {
 		cardBrand, _ = source["scheme"].(string)
 		cardLast4, _ = source["last4"].(string)
 		cardBin, _ = source["bin"].(string)
@@ -186,7 +186,7 @@ func (p *CheckoutProvider) GetPayment(ctx context.Context, providerPaymentID str
 
 	// Extract card details
 	var cardBrand, cardLast4 string
-	if source, ok := respData["source"].(map[string]interface{}); ok {
+	if source, ok := respData["source"].(map[string]any); ok {
 		cardBrand, _ = source["scheme"].(string)
 		cardLast4, _ = source["last4"].(string)
 	}
@@ -205,7 +205,7 @@ func (p *CheckoutProvider) GetPayment(ctx context.Context, providerPaymentID str
 // CancelPayment cancels a payment (Checkout.com uses void)
 func (p *CheckoutProvider) CancelPayment(ctx context.Context, providerPaymentID string) error {
 	// Build request
-	voidReq := map[string]interface{}{
+	voidReq := map[string]any{
 		"reference": fmt.Sprintf("void_%s", providerPaymentID),
 	}
 
@@ -227,10 +227,10 @@ func (p *CheckoutProvider) CancelPayment(ctx context.Context, providerPaymentID 
 // CreateRefund initiates a refund
 func (p *CheckoutProvider) CreateRefund(ctx context.Context, req *RefundRequest) (*RefundResponse, error) {
 	// Build request
-	refundReq := map[string]interface{}{
+	refundReq := map[string]any{
 		"amount":    int(req.Amount * 100), // Amount in cents
 		"reference": req.PaymentID,
-		"metadata": map[string]interface{}{
+		"metadata": map[string]any{
 			"tenant_id":   req.TenantID,
 			"reason":      req.Reason,
 			"description": req.Description,
@@ -277,7 +277,7 @@ func (p *CheckoutProvider) VerifyWebhookSignature(ctx context.Context, payload [
 
 // ParseWebhook parses webhook payload
 func (p *CheckoutProvider) ParseWebhook(ctx context.Context, payload []byte) (*WebhookEvent, error) {
-	var webhookData map[string]interface{}
+	var webhookData map[string]any
 	if err := json.Unmarshal(payload, &webhookData); err != nil {
 		return nil, fmt.Errorf("failed to parse webhook: %w", err)
 	}
@@ -291,7 +291,7 @@ func (p *CheckoutProvider) ParseWebhook(ctx context.Context, payload []byte) (*W
 	var amount float64
 	var currency string
 
-	if data, ok := webhookData["data"].(map[string]interface{}); ok {
+	if data, ok := webhookData["data"].(map[string]any); ok {
 		paymentID, _ = data["id"].(string)
 		status, _ = data["status"].(string)
 		if amountFloat, ok := data["amount"].(float64); ok {
@@ -315,7 +315,7 @@ func (p *CheckoutProvider) ParseWebhook(ctx context.Context, payload []byte) (*W
 }
 
 // makeRequest makes HTTP request to Checkout.com API
-func (p *CheckoutProvider) makeRequest(ctx context.Context, endpoint, method string, body interface{}) (map[string]interface{}, error) {
+func (p *CheckoutProvider) makeRequest(ctx context.Context, endpoint, method string, body any) (map[string]any, error) {
 	var reqBody io.Reader
 	if body != nil {
 		jsonBody, err := json.Marshal(body)
@@ -356,7 +356,7 @@ func (p *CheckoutProvider) makeRequest(ctx context.Context, endpoint, method str
 	}
 
 	// Parse response
-	var result map[string]interface{}
+	var result map[string]any
 	if len(respBody) > 0 {
 		if err := json.Unmarshal(respBody, &result); err != nil {
 			return nil, fmt.Errorf("failed to parse response: %w", err)

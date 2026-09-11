@@ -35,7 +35,7 @@ func (s *AssignmentService) Create(ctx context.Context, tenantID string, req *Cr
 		DueDate:     req.DueDate,
 		MaxScore:    req.MaxScore,
 		Files:       req.Files,
-		Metadata:    make(map[string]interface{}),
+		Metadata:    make(map[string]any),
 		CreatedAt:   time.Now(),
 		UpdatedAt:   time.Now(),
 	}
@@ -178,7 +178,7 @@ func (s *AssignmentService) Delete(ctx context.Context, id string) error {
 	return nil
 }
 
-func (s *AssignmentService) GetStats(ctx context.Context) (map[string]interface{}, error) {
+func (s *AssignmentService) GetStats(ctx context.Context) (map[string]any, error) {
 	return s.repo.GetStats(ctx)
 }
 

@@ -57,7 +57,7 @@ func New() *Validator {
 }
 
 // Validate validates a struct and returns formatted errors
-func (v *Validator) Validate(data interface{}) error {
+func (v *Validator) Validate(data any) error {
 	err := v.validate.Struct(data)
 	if err == nil {
 		return nil
@@ -85,7 +85,7 @@ func (v *Validator) Validate(data interface{}) error {
 }
 
 // ValidateVar validates a single variable
-func (v *Validator) ValidateVar(field interface{}, tag string) error {
+func (v *Validator) ValidateVar(field any, tag string) error {
 	err := v.validate.Var(field, tag)
 	if err == nil {
 		return nil

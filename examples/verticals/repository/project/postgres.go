@@ -443,7 +443,7 @@ func (r *PostgresRepository) GetByCategory(ctx context.Context, category project
 }
 
 // GetStats returns project statistics
-func (r *PostgresRepository) GetStats(ctx context.Context) (map[string]interface{}, error) {
+func (r *PostgresRepository) GetStats(ctx context.Context) (map[string]any, error) {
 	query := `
 		SELECT
 			COUNT(*) as total,
@@ -465,7 +465,7 @@ func (r *PostgresRepository) GetStats(ctx context.Context) (map[string]interface
 		return nil, fmt.Errorf("failed to get stats: %w", err)
 	}
 
-	stats := map[string]interface{}{
+	stats := map[string]any{
 		"total":       total,
 		"completed":   completed,
 		"in_progress": inProgress,
@@ -478,9 +478,9 @@ func (r *PostgresRepository) GetStats(ctx context.Context) (map[string]interface
 }
 
 // buildWhereClause builds WHERE clause for list queries
-func buildWhereClause(filters project.ListFilters) (string, []interface{}) {
+func buildWhereClause(filters project.ListFilters) (string, []any) {
 	conditions := []string{"deleted_at IS NULL"}
-	args := []interface{}{}
+	args := []any{}
 	argCount := 1
 
 	if filters.Status != nil {

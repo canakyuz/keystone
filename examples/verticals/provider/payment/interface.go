@@ -73,7 +73,7 @@ type PaymentRequest struct {
 	SuccessURL  string
 
 	// Additional metadata
-	Metadata map[string]interface{}
+	Metadata map[string]any
 }
 
 // PaymentResponse represents a payment response from provider
@@ -106,7 +106,7 @@ type PaymentResponse struct {
 	FailureMessage string
 
 	// Provider raw response
-	RawResponse map[string]interface{}
+	RawResponse map[string]any
 }
 
 // CompletePaymentRequest represents a 3DS completion request
@@ -126,7 +126,7 @@ type RefundRequest struct {
 	Currency          string
 	Reason            string
 	Description       string
-	Metadata          map[string]interface{}
+	Metadata          map[string]any
 }
 
 // RefundResponse represents a refund response from provider
@@ -137,7 +137,7 @@ type RefundResponse struct {
 	Currency         string
 	FailureCode      string
 	FailureMessage   string
-	RawResponse      map[string]interface{}
+	RawResponse      map[string]any
 }
 
 // WebhookEvent represents a parsed webhook event
@@ -152,7 +152,7 @@ type WebhookEvent struct {
 	Currency        string
 	FailureCode     string
 	FailureMessage  string
-	Payload         map[string]interface{}
+	Payload         map[string]any
 }
 
 // InstallmentOption represents an installment plan option

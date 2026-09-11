@@ -61,8 +61,8 @@ type Tenant struct {
 	CustomDomainVerifiedAt *time.Time `json:"custom_domain_verified_at,omitempty"`
 
 	// Metadata
-	Settings map[string]interface{} `json:"settings,omitempty"`
-	Metadata map[string]interface{} `json:"metadata,omitempty"`
+	Settings map[string]any `json:"settings,omitempty"`
+	Metadata map[string]any `json:"metadata,omitempty"`
 
 	// Audit
 	CreatedBy string `json:"created_by,omitempty"`
@@ -83,8 +83,8 @@ func New(name, slug, email string, plan SubscriptionPlan) (*Tenant, error) {
 		CreatedAt:            now,
 		UpdatedAt:            now,
 		CustomDomainVerified: false,
-		Settings:             make(map[string]interface{}),
-		Metadata:             make(map[string]interface{}),
+		Settings:             make(map[string]any),
+		Metadata:             make(map[string]any),
 	}
 
 	// Set trial period for free/starter plans
@@ -213,7 +213,7 @@ func (t *Tenant) Suspend(reason string) error {
 	t.UpdatedAt = time.Now()
 
 	if t.Metadata == nil {
-		t.Metadata = make(map[string]interface{})
+		t.Metadata = make(map[string]any)
 	}
 	t.Metadata["suspension_reason"] = reason
 	t.Metadata["suspended_at"] = time.Now()
@@ -301,16 +301,16 @@ func (t *Tenant) RemoveCustomDomain() {
 }
 
 // UpdateSettings updates tenant settings
-func (t *Tenant) UpdateSettings(key string, value interface{}) {
+func (t *Tenant) UpdateSettings(key string, value any) {
 	if t.Settings == nil {
-		t.Settings = make(map[string]interface{})
+		t.Settings = make(map[string]any)
 	}
 	t.Settings[key] = value
 	t.UpdatedAt = time.Now()
 }
 
 // GetSetting retrieves a tenant setting
-func (t *Tenant) GetSetting(key string) (interface{}, bool) {
+func (t *Tenant) GetSetting(key string) (any, bool) {
 	if t.Settings == nil {
 		return nil, false
 	}

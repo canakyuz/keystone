@@ -40,7 +40,7 @@ func (s *CategoryService) Create(ctx context.Context, tenantID string, req Creat
 	}
 
 	if req.Metadata == nil {
-		category.Metadata = make(map[string]interface{})
+		category.Metadata = make(map[string]any)
 	}
 
 	if err := s.repo.Create(ctx, category); err != nil {

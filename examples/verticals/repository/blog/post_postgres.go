@@ -46,7 +46,7 @@ func (r *PostPostgresRepository) GetBySlug(ctx context.Context, slug string) (*b
 
 func (r *PostPostgresRepository) List(ctx context.Context, filters blog.PostListFilters) ([]*blog.Post, int64, error) {
 	query := `SELECT id, tenant_id, category_id, title, slug, content, excerpt, status, featured, view_count, image, tags, published_at, metadata, created_at, updated_at, created_by, updated_by FROM blog_posts WHERE deleted_at IS NULL`
-	var args []interface{}
+	var args []any
 	argPos := 1
 
 	if filters.Status != nil {
@@ -196,8 +196,8 @@ func (r *PostPostgresRepository) GetByCategory(ctx context.Context, categoryID s
 	return posts, total, rows.Err()
 }
 
-func (r *PostPostgresRepository) GetStats(ctx context.Context) (map[string]interface{}, error) {
-	stats := make(map[string]interface{})
+func (r *PostPostgresRepository) GetStats(ctx context.Context) (map[string]any, error) {
+	stats := make(map[string]any)
 
 	// Total posts
 	var totalPosts int64

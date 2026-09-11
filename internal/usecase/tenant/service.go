@@ -381,15 +381,15 @@ func (s *Service) UpdateBranding(ctx context.Context, id string, req *UpdateBran
 	}
 
 	// Get current branding settings or create new
-	var branding map[string]interface{}
+	var branding map[string]any
 	if existingBranding, exists := t.Settings["branding"]; exists {
-		if brandingMap, ok := existingBranding.(map[string]interface{}); ok {
+		if brandingMap, ok := existingBranding.(map[string]any); ok {
 			branding = brandingMap
 		} else {
-			branding = make(map[string]interface{})
+			branding = make(map[string]any)
 		}
 	} else {
-		branding = make(map[string]interface{})
+		branding = make(map[string]any)
 	}
 
 	// Update only provided fields

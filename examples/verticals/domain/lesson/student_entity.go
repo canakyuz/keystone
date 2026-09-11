@@ -63,8 +63,8 @@ type Student struct {
 	AverageScore     float64 `json:"average_score"`
 
 	// Metadata
-	Avatar   string                 `json:"avatar,omitempty"`
-	Metadata map[string]interface{} `json:"metadata,omitempty"`
+	Avatar   string         `json:"avatar,omitempty"`
+	Metadata map[string]any `json:"metadata,omitempty"`
 
 	// Audit
 	CreatedAt time.Time  `json:"created_at"`
@@ -87,7 +87,7 @@ func NewStudent(tenantID, firstName, lastName, email, phone string, level Studen
 		Status:         StudentStatusActive,
 		Level:          level,
 		EnrollmentDate: now,
-		Metadata:       make(map[string]interface{}),
+		Metadata:       make(map[string]any),
 		CreatedAt:      now,
 		UpdatedAt:      now,
 	}
@@ -149,7 +149,7 @@ func (s *Student) Suspend(reason string) error {
 	s.UpdatedAt = time.Now()
 
 	if s.Metadata == nil {
-		s.Metadata = make(map[string]interface{})
+		s.Metadata = make(map[string]any)
 	}
 	s.Metadata["suspension_reason"] = reason
 	s.Metadata["suspended_at"] = time.Now()
@@ -166,7 +166,7 @@ func (s *Student) Graduate() error {
 	s.UpdatedAt = time.Now()
 
 	if s.Metadata == nil {
-		s.Metadata = make(map[string]interface{})
+		s.Metadata = make(map[string]any)
 	}
 	s.Metadata["graduated_at"] = time.Now()
 

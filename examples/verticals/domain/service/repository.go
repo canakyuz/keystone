@@ -12,7 +12,7 @@ type ServiceRepository interface {
 	GetByCategory(ctx context.Context, category ServiceCategory, limit, offset int) ([]*Service, int64, error)
 	Update(ctx context.Context, service *Service) error
 	Delete(ctx context.Context, id string) error
-	GetStats(ctx context.Context) (map[string]interface{}, error)
+	GetStats(ctx context.Context) (map[string]any, error)
 }
 
 // ServiceListFilters defines filters for listing services

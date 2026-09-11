@@ -52,28 +52,28 @@ type ListProjectsRequest struct {
 
 // ProjectResponse represents project response
 type ProjectResponse struct {
-	ID           string                 `json:"id"`
-	TenantID     string                 `json:"tenant_id"`
-	Title        string                 `json:"title"`
-	Slug         string                 `json:"slug"`
-	Description  string                 `json:"description"`
-	Content      string                 `json:"content,omitempty"`
-	Category     string                 `json:"category"`
-	Status       string                 `json:"status"`
-	Client       string                 `json:"client,omitempty"`
-	Technologies []string               `json:"technologies,omitempty"`
-	Images       []string               `json:"images,omitempty"`
-	CoverImage   string                 `json:"cover_image,omitempty"`
-	LiveURL      string                 `json:"live_url,omitempty"`
-	GithubURL    string                 `json:"github_url,omitempty"`
-	StartDate    *time.Time             `json:"start_date,omitempty"`
-	EndDate      *time.Time             `json:"end_date,omitempty"`
-	Featured     bool                   `json:"featured"`
-	SortOrder    int                    `json:"sort_order"`
-	ViewCount    int64                  `json:"view_count"`
-	Metadata     map[string]interface{} `json:"metadata,omitempty"`
-	CreatedAt    time.Time              `json:"created_at"`
-	UpdatedAt    time.Time              `json:"updated_at"`
+	ID           string         `json:"id"`
+	TenantID     string         `json:"tenant_id"`
+	Title        string         `json:"title"`
+	Slug         string         `json:"slug"`
+	Description  string         `json:"description"`
+	Content      string         `json:"content,omitempty"`
+	Category     string         `json:"category"`
+	Status       string         `json:"status"`
+	Client       string         `json:"client,omitempty"`
+	Technologies []string       `json:"technologies,omitempty"`
+	Images       []string       `json:"images,omitempty"`
+	CoverImage   string         `json:"cover_image,omitempty"`
+	LiveURL      string         `json:"live_url,omitempty"`
+	GithubURL    string         `json:"github_url,omitempty"`
+	StartDate    *time.Time     `json:"start_date,omitempty"`
+	EndDate      *time.Time     `json:"end_date,omitempty"`
+	Featured     bool           `json:"featured"`
+	SortOrder    int            `json:"sort_order"`
+	ViewCount    int64          `json:"view_count"`
+	Metadata     map[string]any `json:"metadata,omitempty"`
+	CreatedAt    time.Time      `json:"created_at"`
+	UpdatedAt    time.Time      `json:"updated_at"`
 }
 
 // ListProjectsResponse represents paginated project list response

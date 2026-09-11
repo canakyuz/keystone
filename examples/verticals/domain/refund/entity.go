@@ -60,7 +60,7 @@ type Refund struct {
 	Description string       `json:"description,omitempty"`
 
 	// Metadata
-	Metadata map[string]interface{} `json:"metadata,omitempty"`
+	Metadata map[string]any `json:"metadata,omitempty"`
 
 	// Timestamps
 	CreatedAt   time.Time  `json:"created_at"`
@@ -87,7 +87,7 @@ func New(tenantID, paymentID string, provider PaymentProvider, amount float64, c
 		Reason:    reason,
 		CreatedAt: now,
 		UpdatedAt: now,
-		Metadata:  make(map[string]interface{}),
+		Metadata:  make(map[string]any),
 	}
 
 	// Validate refund
@@ -186,7 +186,7 @@ func (r *Refund) MarkAsCanceled(reason string) error {
 	r.UpdatedAt = time.Now()
 
 	if r.Metadata == nil {
-		r.Metadata = make(map[string]interface{})
+		r.Metadata = make(map[string]any)
 	}
 	r.Metadata["cancelation_reason"] = reason
 	r.Metadata["canceled_at"] = time.Now()
@@ -226,16 +226,16 @@ func (r *Refund) IsCanceled() bool {
 }
 
 // UpdateMetadata updates refund metadata
-func (r *Refund) UpdateMetadata(key string, value interface{}) {
+func (r *Refund) UpdateMetadata(key string, value any) {
 	if r.Metadata == nil {
-		r.Metadata = make(map[string]interface{})
+		r.Metadata = make(map[string]any)
 	}
 	r.Metadata[key] = value
 	r.UpdatedAt = time.Now()
 }
 
 // GetMetadata retrieves refund metadata
-func (r *Refund) GetMetadata(key string) (interface{}, bool) {
+func (r *Refund) GetMetadata(key string) (any, bool) {
 	if r.Metadata == nil {
 		return nil, false
 	}

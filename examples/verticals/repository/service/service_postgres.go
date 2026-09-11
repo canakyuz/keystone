@@ -117,16 +117,16 @@ func (r *ServicePostgresRepository) Delete(ctx context.Context, id string) error
 	return err
 }
 
-func (r *ServicePostgresRepository) GetStats(ctx context.Context) (map[string]interface{}, error) {
+func (r *ServicePostgresRepository) GetStats(ctx context.Context) (map[string]any, error) {
 	query := `SELECT COUNT(*) as total, COUNT(*) FILTER (WHERE status='active') as active, COUNT(*) FILTER (WHERE featured=TRUE) as featured FROM services WHERE deleted_at IS NULL`
 	var total, active, featured int64
 	r.db.QueryRowContext(ctx, query).Scan(&total, &active, &featured)
-	return map[string]interface{}{"total": total, "active": active, "featured": featured}, nil
+	return map[string]any{"total": total, "active": active, "featured": featured}, nil
 }
 
-func buildServiceWhereClause(filters service.ServiceListFilters) (string, []interface{}) {
+func buildServiceWhereClause(filters service.ServiceListFilters) (string, []any) {
 	conditions := []string{"deleted_at IS NULL"}
-	args := []interface{}{}
+	args := []any{}
 	argCount := 1
 	if filters.Category != nil {
 		conditions = append(conditions, fmt.Sprintf("category = $%d", argCount))

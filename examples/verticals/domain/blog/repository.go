@@ -13,7 +13,7 @@ type PostRepository interface {
 	Update(ctx context.Context, post *Post) error
 	Delete(ctx context.Context, id string) error
 	IncrementViewCount(ctx context.Context, id string) error
-	GetStats(ctx context.Context) (map[string]interface{}, error)
+	GetStats(ctx context.Context) (map[string]any, error)
 }
 
 type CategoryRepository interface {

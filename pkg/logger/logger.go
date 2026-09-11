@@ -16,7 +16,7 @@ type Logger struct {
 }
 
 // Fields represents structured logging fields
-type Fields map[string]interface{}
+type Fields map[string]any
 
 // Config represents logger configuration
 type Config struct {
@@ -108,7 +108,7 @@ func (l *Logger) Debug(msg string) {
 }
 
 // Debugf logs a formatted debug message
-func (l *Logger) Debugf(format string, args ...interface{}) {
+func (l *Logger) Debugf(format string, args ...any) {
 	l.logger.Debug().Msgf(format, args...)
 }
 
@@ -118,7 +118,7 @@ func (l *Logger) Info(msg string) {
 }
 
 // Infof logs a formatted info message
-func (l *Logger) Infof(format string, args ...interface{}) {
+func (l *Logger) Infof(format string, args ...any) {
 	l.logger.Info().Msgf(format, args...)
 }
 
@@ -128,7 +128,7 @@ func (l *Logger) Warn(msg string) {
 }
 
 // Warnf logs a formatted warning message
-func (l *Logger) Warnf(format string, args ...interface{}) {
+func (l *Logger) Warnf(format string, args ...any) {
 	l.logger.Warn().Msgf(format, args...)
 }
 
@@ -138,7 +138,7 @@ func (l *Logger) Error(msg string) {
 }
 
 // Errorf logs a formatted error message
-func (l *Logger) Errorf(format string, args ...interface{}) {
+func (l *Logger) Errorf(format string, args ...any) {
 	l.logger.Error().Msgf(format, args...)
 }
 
@@ -153,7 +153,7 @@ func (l *Logger) Fatal(msg string) {
 }
 
 // Fatalf logs a formatted fatal message and exits
-func (l *Logger) Fatalf(format string, args ...interface{}) {
+func (l *Logger) Fatalf(format string, args ...any) {
 	l.logger.Fatal().Msgf(format, args...)
 }
 

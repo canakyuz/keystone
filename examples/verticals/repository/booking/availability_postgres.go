@@ -107,16 +107,16 @@ func (r *AvailabilityPostgresRepository) Delete(ctx context.Context, id string) 
 	return err
 }
 
-func (r *AvailabilityPostgresRepository) GetStats(ctx context.Context) (map[string]interface{}, error) {
+func (r *AvailabilityPostgresRepository) GetStats(ctx context.Context) (map[string]any, error) {
 	query := `SELECT COUNT(*) as total, COUNT(*) FILTER (WHERE status='available') as available, COUNT(*) FILTER (WHERE status='booked') as booked, COUNT(*) FILTER (WHERE status='unavailable') as unavailable FROM availabilities WHERE deleted_at IS NULL`
 	var total, available, booked, unavailable int64
 	r.db.QueryRowContext(ctx, query).Scan(&total, &available, &booked, &unavailable)
-	return map[string]interface{}{"total": total, "available": available, "booked": booked, "unavailable": unavailable}, nil
+	return map[string]any{"total": total, "available": available, "booked": booked, "unavailable": unavailable}, nil
 }
 
-func buildAvailabilityWhereClause(filters booking.AvailabilityListFilters) (string, []interface{}) {
+func buildAvailabilityWhereClause(filters booking.AvailabilityListFilters) (string, []any) {
 	conditions := []string{"deleted_at IS NULL"}
-	args := []interface{}{}
+	args := []any{}
 	argCount := 1
 	if filters.UserID != nil {
 		conditions = append(conditions, fmt.Sprintf("user_id = $%d", argCount))

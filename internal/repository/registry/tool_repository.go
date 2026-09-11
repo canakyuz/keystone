@@ -308,7 +308,7 @@ func (r *toolRepository) Search(ctx context.Context, query string, filters regis
 	// $1 is used for search pattern, so filter conditions start at $2
 	conditions, args := r.buildFilterConditionsWithOffset(filters, 2)
 	searchPattern := "%" + query + "%"
-	allArgs := append([]interface{}{searchPattern}, args...)
+	allArgs := append([]any{searchPattern}, args...)
 
 	if len(conditions) > 0 {
 		searchQuery += " AND " + strings.Join(conditions, " AND ")
@@ -383,13 +383,13 @@ func (r *toolRepository) UpdateInstallCount(ctx context.Context, toolID string, 
 }
 
 // Helper functions
-func (r *toolRepository) buildFilterConditions(filters registry.ToolFilters) ([]string, []interface{}) {
+func (r *toolRepository) buildFilterConditions(filters registry.ToolFilters) ([]string, []any) {
 	return r.buildFilterConditionsWithOffset(filters, 1)
 }
 
-func (r *toolRepository) buildFilterConditionsWithOffset(filters registry.ToolFilters, startParam int) ([]string, []interface{}) {
+func (r *toolRepository) buildFilterConditionsWithOffset(filters registry.ToolFilters, startParam int) ([]string, []any) {
 	var conditions []string
-	var args []interface{}
+	var args []any
 	paramCount := startParam
 
 	if filters.Category != nil {

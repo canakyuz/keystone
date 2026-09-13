@@ -19,8 +19,8 @@ psql -d keystone_dev -c "ALTER DATABASE keystone_dev SET app.environment = 'deve
 psql -d keystone_dev -f scripts/seed/dev_seed.sql
 ```
 
-The accounts it creates use the password `DevPass123!` and live on
-`dev.keystone.local` / `dev.keystone.dev` addresses. They exist only to have
+The accounts it creates use the password `DevPass123!` and live on `dev.local`
+addresses. They exist only to have
 something to log in as; do not reuse them anywhere real.
 
 ## The production guard

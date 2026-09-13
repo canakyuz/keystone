@@ -44,7 +44,7 @@ bun run dev
 ```
 
 `PORT` picks the port (Next.js defaults to 3000). The development seed
-(`make seed-dev`) creates `owner@dev.keystone.local`.
+(`make seed-dev`) creates `owner@dev.local`.
 
 ## Stack
 

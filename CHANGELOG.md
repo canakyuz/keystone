@@ -38,6 +38,12 @@ the entry says so under **Changed**.
 - Two API validation messages were in Turkish (`POST /api/v1/tenants`, the tool catalogue
   search). The language check now reads Go string literals as well as comments, and found
   25 more in test assertions.
+### Removed
+
+- `POST /api/v1/auth/register`. It created an account in whatever tenant the request named,
+  for anyone who knew the tenant's id, and it had never worked: every call failed before
+  writing because it ran without the tenant context. Members are added by an owner or an
+  admin through `POST /api/v1/users`.
 
 ## [0.1.0] - 2026-09-11
 

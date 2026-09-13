@@ -31,44 +31,6 @@ func NewService(repo userRepo.Repository, val *validator.Validator, log *logger.
 	}
 }
 
-// Register registers a new user
-func (s *Service) Register(ctx context.Context, req *RegisterRequest) (*UserResponse, error) {
-	// Validate request
-	if err := s.validator.Validate(req); err != nil {
-		return nil, err
-	}
-
-	// Check if user already exists
-	exists, err := s.repo.ExistsByEmail(ctx, req.TenantID, req.Email)
-	if err != nil {
-		s.logger.ErrorWithErr(err, "failed to check user existence")
-		return nil, fmt.Errorf("failed to check user existence: %w", err)
-	}
-	if exists {
-		return nil, user.ErrEmailAlreadyTaken
-	}
-
-	// Create user domain entity
-	u, err := user.New(req.TenantID, req.Email, req.Password, req.FirstName, req.LastName, user.RoleViewer)
-	if err != nil {
-		return nil, err
-	}
-
-	// Save to repository
-	if err := s.repo.Create(ctx, u); err != nil {
-		s.logger.ErrorWithErr(err, "failed to create user")
-		return nil, fmt.Errorf("failed to create user: %w", err)
-	}
-
-	s.logger.WithFields(logger.Fields{
-		"user_id":   u.ID,
-		"tenant_id": u.TenantID,
-		"email":     u.Email,
-	}).Info("User registered successfully")
-
-	return ToResponse(u), nil
-}
-
 // Login authenticates a user and returns JWT token
 func (s *Service) Login(ctx context.Context, req *LoginRequest) (*LoginResponse, error) {
 	// Validate request

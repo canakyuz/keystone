@@ -79,7 +79,6 @@ func setupRoutes(
 
 	// Authentication routes: login and registration. Public.
 	auth := v1.Group("/auth")
-	auth.Post("/register", authH.Register)
 	auth.Post("/login", authH.Login)
 	auth.Post("/logout", authH.Logout)
 

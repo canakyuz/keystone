@@ -61,30 +61,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-  /auth/register:
-    post:
-      tags: [Auth]
-      summary: Register tenant user
-      security: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/RegisterRequest'
-      responses:
-        '201':
-          description: Registered user
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/UserEnvelope'
-        '400':
-          description: Invalid input
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
   /auth/login:
     post:
       tags: [Auth]
@@ -3300,23 +3276,6 @@ components:
           type: string
         message:
           type: string
-    RegisterRequest:
-      type: object
-      properties:
-        tenant_id:
-          type: string
-          format: uuid
-        email:
-          type: string
-          format: email
-        password:
-          type: string
-          format: password
-        first_name:
-          type: string
-        last_name:
-          type: string
-      required: [tenant_id, email, password, first_name, last_name]
     LoginRequest:
       type: object
       properties:

@@ -6,15 +6,6 @@ import (
 	"github.com/canakyuz/keystone/internal/domain/user"
 )
 
-// RegisterRequest represents user registration request
-type RegisterRequest struct {
-	TenantID  string `json:"tenant_id" validate:"required,uuid"`
-	Email     string `json:"email" validate:"required,email"`
-	Password  string `json:"password" validate:"required,min=8,max=72"`
-	FirstName string `json:"first_name" validate:"required,min=1,max=100"`
-	LastName  string `json:"last_name" validate:"required,min=1,max=100"`
-}
-
 // LoginRequest represents login request
 type LoginRequest struct {
 	Email    string `json:"email" validate:"required,email"`

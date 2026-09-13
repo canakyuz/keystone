@@ -27,28 +27,6 @@ func NewHandler(userService *user.Service) *Handler {
 	}
 }
 
-// Register handles user registration
-// POST /api/v1/auth/register
-func (h *Handler) Register(c *fiber.Ctx) error {
-	var req user.RegisterRequest
-	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "Invalid request body",
-		})
-	}
-
-	result, err := h.userService.Register(c.Context(), &req)
-	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": err.Error(),
-		})
-	}
-
-	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
-		"data": result,
-	})
-}
-
 // Login handles user login
 // POST /api/v1/auth/login
 func (h *Handler) Login(c *fiber.Ctx) error {

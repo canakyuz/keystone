@@ -24,6 +24,9 @@ the entry says so under **Changed**.
 
 ### Fixed
 
+- The tenant endpoints passed the wrong context into their service, so neither the tenant
+  nor the acting subject reached the repository layer. It went unnoticed while nothing
+  there needed either; the audit trail needs both.
 - `GET /api/v1/auth/me` answered 404 to every caller: it read the user without the tenant
   context the lookup needs.
 - Two API validation messages were in Turkish (`POST /api/v1/tenants`, the tool catalogue

@@ -25,6 +25,14 @@ const TOKEN = __ENV.TOKEN;
 // exceeds it and the rejection is real rather than arranged.
 const BURST_TOKEN = __ENV.BURST_TOKEN || TOKEN;
 
+// Whether the tail figure from this run describes the service or the machine.
+//
+// scripts/loadtest.sh sets it to 0 when the generator shares a host with the service and
+// that host is already busy. Under those conditions p95 tracks the load average rather
+// than the code, so it is reported and not asserted: a threshold that fails for a reason
+// outside the code teaches a team to ignore thresholds.
+const TAIL_TRUSTED = __ENV.TAIL_TRUSTED !== '0';
+
 // Overridable so the same profile can be run lighter on a busy machine. The defaults
 // are the enterprise ceiling; the README records which values produced its numbers.
 const RATE = Number(__ENV.RATE || 100);
@@ -90,19 +98,35 @@ export const options = {
       preAllocatedVUs: 5,
     },
   },
-  thresholds: {
+  thresholds: thresholds(),
+};
+
+// The assertions, minus the one the conditions cannot support.
+function thresholds() {
+  const asserted = {
     // The limiter must reject the burst, and must not reject the in-quota traffic. A
     // rate limit that is never exercised in a load test is an untested rate limit.
     'burst_rejected': ['rate>0.3'],
-    // Asserted, not just reported. A load test whose output nobody reads is a load test
-    // that silently stops being true.
-    'path_tenant_read': ['p(95)<200'],
     // Scoped to the steady traffic. The burst scenario is expected to be rejected, so a
     // global failure rate would assert against the limiter doing its job.
     'http_req_failed{scenario:tenant_read}': ['rate<0.01'],
     'http_req_failed{scenario:probes}': ['rate<0.01'],
-  },
-};
+  };
+
+  if (TAIL_TRUSTED) {
+    asserted['path_tenant_read'] = ['p(95)<200'];
+  }
+
+  return asserted;
+}
+
+export function setup() {
+  console.log(
+    TAIL_TRUSTED
+      ? `tail asserted: p(95) of the tenant read must stay under 200 ms against ${BASE}`
+      : 'tail reported but not asserted: the generator shares a busy host with the service',
+  );
+}
 
 export function tenantRead() {
   const res = http.get(`${BASE}/api/v1/users`, {

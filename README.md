@@ -154,38 +154,50 @@ against it.
 
 | Property | Result |
 |---|---|
-| Tenant-scoped read, median latency | 4-10 ms across every run |
-| Liveness probe, p95 | under 2 ms |
-| Readiness probe, p95 | 10-50 ms, and it touches the database and Redis |
-| Enterprise tenant at its 100/s ceiling | 6001 requests, 0 rejected |
-| Pro tenant under a 300/s burst | ~50% rejected, the rest served |
-| Tenant schema cache | 7396 L1 hits, 3 L2 hits, 1 miss |
+| Tenant-scoped read, median | 4.4 ms |
+| Tenant-scoped read, p95 | 7.5 ms |
+| Tenant-scoped read, slowest single request | 135 ms |
+| Liveness probe, p95 | 0.22 ms |
+| Readiness probe, p95 | 0.9 ms, and it touches the database and Redis |
+| Enterprise tenant at its 100/s ceiling | 6000 requests, 0 rejected |
+| Pro tenant under a 300/s burst | 53.4% rejected, the rest served |
+| Tenant schema cache | 7392 L1 hits, 1 L2 hit, 2 misses |
 
 The cache line is the one ADR-0006 was missing. A comment in the previous implementation
-claimed a "98-99% hit rate" and had never been checked; the measured figure on this
-profile is 99.96%, and it is now a metric rather than a comment.
+claimed a "98-99% hit rate" and had never been checked; the measured figure on this profile
+is 99.96%, and it is now a metric rather than a comment.
 
-The rate limiter lines matter more than they look. The plan quotas are enforced exactly:
-an enterprise tenant runs at its ceiling without a single rejection, while a pro tenant's
-smaller bucket turns away half of a burst. The token bucket lets the first 1200 through
-on purpose — bursting up to capacity is what ADR-0007 chose over a fixed window.
+The rate limiter lines matter more than they look. The plan quotas are enforced exactly: an
+enterprise tenant runs at its ceiling without a single rejection, while a pro tenant's
+smaller bucket turns away half of a burst. The token bucket lets the first 1200 through on
+purpose; bursting up to capacity is what ADR-0007 chose over a fixed window.
 
-### What it did not establish
+### What the tail figure is worth
 
-**The tail latency is not a property of this service on this hardware.** The load
-generator, the database, Redis and the server all share one laptop, and p95 for the
-tenant read moved between 5 ms and 2.39 s across runs while the median stayed in its
-4-10 ms band. Plotted against the system load average — 10 to 17 on a 15-core machine,
-with nine unrelated containers running — the tail tracks the machine, not the code.
+The p95 above was measured with the generator on the same machine as the service, so it
+includes whatever that machine was doing at the time. That is a real limit, and it used to
+be worse: on a busy host the same profile moved the p95 between 5 ms and 2.39 s while the
+median stayed in its 4-10 ms band. The tail tracked the load average, not the code.
 
-So there is no P95 figure here. Publishing the best run would be exactly the kind of
-unverified number the rest of this repository exists to avoid. What is published is the
-part that held steady regardless of load, and the script that lets anyone produce the
-rest on hardware where it would mean something.
+Rather than leaving that to the reader, the run measures it. `scripts/loadtest.sh` records
+the core count and the load average, and when the generator shares a busy host with the
+service it tells k6 to report the tail without asserting it. A threshold that fails for a
+reason outside the code teaches a team to ignore thresholds.
 
-Conditions for the numbers above: Apple M5 Pro, 15 cores, 24 GB, macOS 26.6.1,
-PostgreSQL 16 and Redis 7 in Docker, k6 2.2.0, everything on one host, `RATE=100` for
-60 s with a `BURST_RATE=300` for 10 s.
+The stronger measurement is the one this repository cannot take for you: run the service on
+one host and the generator on another.
+
+```bash
+TARGET_URL=https://keystone.example.com scripts/loadtest.sh
+```
+
+With `TARGET_URL` set nothing is built, seeded or started locally. The run logs in against
+that host, generates the load from this one, and asserts the tail, because the two are no
+longer competing for the same cores.
+
+Conditions for the numbers above: Apple M5 Pro, 15 cores, 24 GB, macOS 26.6.1, load average
+5.8 at the start of the run, PostgreSQL 16 and Redis 7 in Docker, k6 v2.2.0, service and
+generator on one host, `RATE=100` for 60 s with a `BURST_RATE=300` for 10 s.
 
 ## Metrics
 
@@ -522,8 +534,9 @@ transaction as the change they describe, a REST and a gRPC surface over the same
 repositories, metrics, tracing, and a migration runner. The vertical modules sit in
 `examples/verticals` as a reference application.
 
-Open: audit entries for changes other than provisioning, and a load measurement taken
-somewhere the load generator is not sharing a machine with the service. See [docs/ROADMAP.md](docs/ROADMAP.md).
+Open: a load measurement with the generator on a separate host, which the load script now
+supports but this machine cannot produce, and audit entries for creating members, password
+changes and branding. See [docs/ROADMAP.md](docs/ROADMAP.md).
 
 ## License
 

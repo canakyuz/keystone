@@ -12,6 +12,9 @@ the entry says so under **Changed**.
 
 ### Added
 
+- `GET /api/v1/audit`: the tenant's own trail, newest first, with a cursor. Open to the
+  owner and admin roles, scoped by the same tenant policy as the table underneath it.
+- Console pages for the history and for the tenant's own details.
 - `TARGET_URL` in the load script: run the generator on one host and the service on
   another, which is the only setup where the tail describes the service. The run also
   measures the host it is on and tells k6 whether the tail is worth asserting.

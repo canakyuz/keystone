@@ -18,6 +18,7 @@ import (
 
 	"github.com/canakyuz/keystone/internal/config"
 	keystonegrpc "github.com/canakyuz/keystone/internal/grpc"
+	auditHandler "github.com/canakyuz/keystone/internal/handler/audit"
 	authHandler "github.com/canakyuz/keystone/internal/handler/auth"
 	operationHandler "github.com/canakyuz/keystone/internal/handler/operation"
 	registryHandler "github.com/canakyuz/keystone/internal/handler/registry"
@@ -302,6 +303,7 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 	// The handler layer: it takes HTTP requests, calls the services and writes
 	// responses.
 	authHTTPHandler := authHandler.NewHandler(userService)
+	auditHTTPHandler := auditHandler.NewHandler(auditRepo.NewReader(db))
 	tenantHTTPHandler := tenantHandler.NewHandler(tenantService)
 	userHTTPHandler := userHandler.NewHandler(userService)
 
@@ -313,7 +315,7 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 	activationHTTPHandler := registryHandler.NewActivationHandler(tenantActivationService, dependencyCheckerService)
 
 	// Wire the routes.
-	setupRoutes(app, cfg, authHTTPHandler, tenantHTTPHandler, userHTTPHandler, uploadHTTPHandler,
+	setupRoutes(app, cfg, authHTTPHandler, auditHTTPHandler, tenantHTTPHandler, userHTTPHandler, uploadHTTPHandler,
 		moduleCatalogHTTPHandler, toolCatalogHTTPHandler, activationHTTPHandler,
 		tenantContextMiddleware, tenantScopeMiddleware, planRateLimit, membership, platformOnly)
 

@@ -365,8 +365,9 @@ go test ./test/architecture/
 ## Console
 
 `console/` is a web interface to the same API: sign in, see the tenant as its own record
-describes it, manage its members, and create a tenant while watching the worker provision
-it. It is set in the visual language of [canakyuz.co](https://canakyuz.co).
+describes it, manage its members, read the history of what changed and who changed it,
+rename the tenant, and create a new one while watching the worker provision it. It is set
+in the visual language of [canakyuz.co](https://canakyuz.co).
 
 It holds no rules of its own. Every page reads through the API a client would use and meets
 the same checks, so a refusal on screen is the API's refusal, in the API's words. The access

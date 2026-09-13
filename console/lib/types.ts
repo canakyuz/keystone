@@ -30,6 +30,7 @@ export interface Tenant {
   name: string;
   slug: string;
   email: string;
+  phone?: string;
   schema_name: string;
   status: string;
   plan: string;
@@ -57,6 +58,23 @@ export interface Operation {
   error_detail?: string;
   created_at: string;
   completed_at?: string;
+}
+
+export interface AuditEntry {
+  id: string;
+  action: string;
+  actor_id?: string;
+  actor_email?: string;
+  actor_type: 'user' | 'system' | 'api';
+  subject_type: string;
+  subject_id: string;
+  metadata: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface AuditPage {
+  entries: AuditEntry[];
+  next_before?: string;
 }
 
 export interface LoginResult {

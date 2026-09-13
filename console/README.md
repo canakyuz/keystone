@@ -21,6 +21,9 @@ would, and meets the same checks.
   1.5 seconds until it ends.
 - **One idempotency key per form.** A double click or a retry returns the same operation
   instead of a second tenant.
+- **The history is the trail, not a log.** Each line was written in the transaction that
+  made the change, and the table underneath accepts inserts and nothing else. Reading it
+  needs the owner or admin role, because a suspended member would like to read it too.
 
 ## How it talks to Keystone
 

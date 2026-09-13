@@ -3,6 +3,7 @@ package app
 import (
 	"github.com/canakyuz/keystone/internal/config"
 	"github.com/canakyuz/keystone/internal/domain/user"
+	auditHandler "github.com/canakyuz/keystone/internal/handler/audit"
 	authHandler "github.com/canakyuz/keystone/internal/handler/auth"
 	registryHandler "github.com/canakyuz/keystone/internal/handler/registry"
 	tenantHandler "github.com/canakyuz/keystone/internal/handler/tenant"
@@ -18,6 +19,7 @@ func setupRoutes(
 	app *fiber.App,
 	cfg *config.Config,
 	authH *authHandler.Handler,
+	auditH *auditHandler.Handler,
 	tenantH *tenantHandler.Handler,
 	userH *userHandler.Handler,
 	uploadH *uploadHandler.Handler,
@@ -147,6 +149,11 @@ func setupRoutes(
 	users.Post("/:id/activate", admins, userH.Activate)
 	users.Post("/:id/verify-email", admins, userH.VerifyEmail)
 	users.Delete("/:id", admins, userH.Delete)
+
+	// The trail, for this tenant's administrators. A member who was suspended would like to
+	// read who suspended them; that is the history, not their business.
+	trail := v1.Group("/audit", chain(authenticated, tenantContextMiddleware, tenantScope)...)
+	trail.Get("/", admins, auditH.List)
 
 	// The example business modules mount their own routes; see examples/verticals.
 	// They are registered from cmd/server, after this function returns, because the

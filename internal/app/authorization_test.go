@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/canakyuz/keystone/internal/config"
+	auditHandler "github.com/canakyuz/keystone/internal/handler/audit"
 	authHandler "github.com/canakyuz/keystone/internal/handler/auth"
 	operationHandler "github.com/canakyuz/keystone/internal/handler/operation"
 	tenantHandler "github.com/canakyuz/keystone/internal/handler/tenant"
@@ -73,6 +74,7 @@ func newAuthzHarness(t *testing.T) *authzHarness {
 
 	setupRoutes(app, cfg,
 		authHandler.NewHandler(userService),
+		auditHandler.NewHandler(auditRepo.NewReader(appDB)),
 		tenantHandler.NewHandler(tenantUsecase.NewService(tenants, validator.New(), log, nil)),
 		userHandler.NewHandler(userService),
 		nil, nil, nil, nil,
@@ -364,4 +366,37 @@ func TestAudit_RecordsWhoChangedWhat(t *testing.T) {
 
 	assert.Equal(t, admin.ID, tenantActor)
 	assert.Equal(t, "tenant.suspended", tenantAction)
+}
+
+// TestAudit_IsReadOnlyByThisTenantsAdministrators: the trail is readable, by the people whose
+// tenant it describes and by nobody else.
+func TestAudit_IsReadOnlyByThisTenantsAdministrators(t *testing.T) {
+	h := newAuthzHarness(t)
+
+	tenantID := helpers.CreateTestTenant(t, h.admin, "authz-trail-read").ID
+	other := helpers.CreateTestTenant(t, h.admin, "authz-trail-other").ID
+	admin := helpers.CreateTestUser(t, h.admin, tenantID, "admin@authz-trail-read.test", "admin")
+	editor := helpers.CreateTestUser(t, h.admin, tenantID, "editor@authz-trail-read.test", "editor")
+	viewer := helpers.CreateTestUser(t, h.admin, tenantID, "viewer@authz-trail-read.test", "viewer")
+	outsider := helpers.CreateTestUser(t, h.admin, other, "admin@authz-trail-other.test", "admin")
+
+	adminToken := tokenFor(t, tenantID, admin.ID, "admin")
+
+	status, body := h.send(t, http.MethodPost, "/api/v1/users/"+editor.ID+"/role", adminToken, `{"role":"viewer"}`)
+	require.Equal(t, http.StatusOK, status, "the role change was refused: %s", body)
+
+	status, body = h.send(t, http.MethodGet, "/api/v1/audit", adminToken, "")
+	require.Equal(t, http.StatusOK, status, "an administrator could not read the trail: %s", body)
+	assert.Contains(t, body, "user.role_changed")
+	assert.Contains(t, body, admin.Email, "the trail does not name the actor")
+
+	status, body = h.send(t, http.MethodGet, "/api/v1/audit", tokenFor(t, tenantID, viewer.ID, "viewer"), "")
+	assert.Equal(t, http.StatusForbidden, status, "a viewer read the trail: %s", body)
+
+	// Another tenant's administrator sees their own history, which here is empty, and not
+	// this one's.
+	status, body = h.send(t, http.MethodGet, "/api/v1/audit", tokenFor(t, other, outsider.ID, "admin"), "")
+	require.Equal(t, http.StatusOK, status, body)
+	assert.NotContains(t, body, "user.role_changed", "another tenant's trail leaked")
+	assert.NotContains(t, body, editor.ID)
 }

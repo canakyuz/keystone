@@ -426,22 +426,58 @@ matters is in [SECURITY.md](SECURITY.md).
 
 ## Quick start
 
+Three processes, each in its own terminal: the API, the worker, and the console. The worker
+is separate on purpose; provisioning does not run inside a request.
+
 ```bash
 git clone https://github.com/canakyuz/keystone.git
 cd keystone
 cp .env.example .env
 
-docker compose up -d postgres
-go run ./cmd/server      # API
-go run ./cmd/worker      # provisioning worker, separate process
+docker compose up -d postgres redis   # PostgreSQL on 5432, Redis on 6379
+make migrate-up                       # apply migrations to keystone_dev
+make seed-dev                         # two tenants and their accounts
 
-cd console && bun install && bun run dev   # web console, needs the API
+make dev        # API on :8080
+make worker     # provisioning worker, separate process
+make console    # web console on :3000, needs the API
 ```
 
-Health check:
+`PORT` moves the API, `KEYSTONE_API_URL` tells the console where it is, and `PORT` in the
+console directory moves the console. Use them when something already holds a port:
 
 ```bash
-curl localhost:8080/health
+PORT=8099 make dev
+cd console && PORT=3100 KEYSTONE_API_URL=http://127.0.0.1:8099 bun run dev
+```
+
+Check it is up:
+
+```bash
+curl localhost:8080/health          # the process answers
+curl localhost:8080/ready           # database and Redis answer too
+```
+
+Sign in to the console with an account from the seed. They exist only for development;
+the password is the same for all of them.
+
+| Account | Role | Tenant |
+|---|---|---|
+| `owner@dev.local` | owner | Dev Academy |
+| `edu.admin@dev.local` | admin | Dev Workspace |
+| `edu.editor@dev.local` | editor | Dev Workspace |
+| `edu.viewer@dev.local` | viewer | Dev Workspace |
+
+Password: `DevPass123!`. The rest of the seed follows the same pattern: `hotel.*`,
+`shop.*`, `crm.admin`, `ops.admin`, `erp.admin`, `content.editor`.
+
+Useful afterwards:
+
+```bash
+make db-reset       # drop keystone_dev, recreate it, migrate
+make migrate-status # what exists on disk
+make db-shell       # psql into keystone_dev
+make help           # every target
 ```
 
 ## Tests

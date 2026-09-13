@@ -28,6 +28,7 @@ func setupRoutes(
 	tenantScope fiber.Handler,
 	planRateLimit fiber.Handler,
 	membership fiber.Handler,
+	platformOnly fiber.Handler,
 ) {
 	// Authentication, then membership, then the plan-based limit, in that order.
 	//
@@ -49,14 +50,13 @@ func setupRoutes(
 	// Route guards. The role they check is the one Membership read from the database, not
 	// the token's claim.
 	var (
-		owner        = string(user.RoleOwner)
-		admin        = string(user.RoleAdmin)
-		editor       = string(user.RoleEditor)
-		admins       = middleware.RequireRole(owner, admin)
-		editors      = middleware.RequireRole(owner, admin, editor)
-		ownerOnly    = middleware.RequireRole(owner)
-		ownTenant    = middleware.SameTenant("id")
-		platformOnly = middleware.PlatformOnly()
+		owner     = string(user.RoleOwner)
+		admin     = string(user.RoleAdmin)
+		editor    = string(user.RoleEditor)
+		admins    = middleware.RequireRole(owner, admin)
+		editors   = middleware.RequireRole(owner, admin, editor)
+		ownerOnly = middleware.RequireRole(owner)
+		ownTenant = middleware.SameTenant("id")
 	)
 
 	// /docs serves the static Swagger/OpenAPI documentation page.

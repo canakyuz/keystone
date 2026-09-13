@@ -522,9 +522,8 @@ transaction as the change they describe, a REST and a gRPC surface over the same
 repositories, metrics, tracing, and a migration runner. The vertical modules sit in
 `examples/verticals` as a reference application.
 
-Open: a platform permission model for the routes that act across tenants, audit entries
-for changes other than provisioning, and a load measurement taken somewhere the load
-generator is not sharing a machine with the service. See [docs/ROADMAP.md](docs/ROADMAP.md).
+Open: audit entries for changes other than provisioning, and a load measurement taken
+somewhere the load generator is not sharing a machine with the service. See [docs/ROADMAP.md](docs/ROADMAP.md).
 
 ## License
 

@@ -189,3 +189,12 @@ INSERT INTO students (
     NOW()
 ) ON CONFLICT (tenant_id, email) DO NOTHING;
 
+-- 6. The platform permission for the development owner
+--
+-- Acting across tenants is not a tenant role; it is a row in platform_operators. The seed
+-- grants it to the founder account so the console's platform pages work locally.
+INSERT INTO platform_operators (user_id, note)
+SELECT id, 'development seed'
+FROM users
+WHERE email = 'owner@dev.local'
+ON CONFLICT (user_id) DO NOTHING;

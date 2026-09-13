@@ -105,7 +105,7 @@ relevant migration files.
 | The tenant endpoints acted on the tenant id in the path | The owner of any tenant could read, change or delete any other tenant, and suspend it, by putting its id in the URL | `internal/middleware`, `SameTenant` |
 | No route checked a role | A viewer could grant roles, including owner, and create or delete users in its tenant | `internal/app/routes.go` |
 | The token was trusted after the membership behind it ended | A suspended or deleted user kept access for the rest of the token's lifetime, up to 24 hours, and a demoted administrator kept administering | `internal/authz` |
-| Routes that act across tenants had no guard | Any authenticated caller could list every tenant, read counts across all of them, and change any tenant's plan or status | `internal/middleware`, `PlatformOnly` |
+| Routes that act across tenants had no guard | Any authenticated caller could list every tenant, read counts across all of them, and change any tenant's plan or status. They are now admitted only for a subject recorded in `platform_operators` | `040`, `internal/middleware` |
 | The worker had no role of its own and worked only as a superuser | Its claims read queue tables that carry the tenant policy, so under any other role it found no work. The process that delivers webhooks to addresses tenants supply therefore held a credential that ignores every policy in the database | `039` |
 
 ## Testing it

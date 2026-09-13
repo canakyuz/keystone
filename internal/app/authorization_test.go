@@ -21,6 +21,7 @@ import (
 	userHandler "github.com/canakyuz/keystone/internal/handler/user"
 	"github.com/canakyuz/keystone/internal/middleware"
 	operationRepo "github.com/canakyuz/keystone/internal/repository/operation"
+	platformRepo "github.com/canakyuz/keystone/internal/repository/platform"
 	tenantRepo "github.com/canakyuz/keystone/internal/repository/tenant"
 	userRepo "github.com/canakyuz/keystone/internal/repository/user"
 	tenantUsecase "github.com/canakyuz/keystone/internal/usecase/tenant"
@@ -60,11 +61,12 @@ func newAuthzHarness(t *testing.T) *authzHarness {
 	users := userRepo.NewPostgresRepository(appDB, database.NewTenantConnectionManager(appDB, nil))
 	userService := userUsecase.NewService(users, validator.New(), log, authzSecret)
 	membership := middleware.Membership(users)
+	platformOnly := middleware.PlatformOnly(platformRepo.New(appDB))
 
 	app := fiber.New(fiber.Config{DisableStartupMessage: true})
 	planRateLimit := func(c *fiber.Ctx) error { return c.Next() }
 
-	registerOperationRoutes(app, authzSecret, membership,
+	registerOperationRoutes(app, authzSecret, membership, platformOnly,
 		operationHandler.New(operationRepo.New(appDB), log))
 
 	setupRoutes(app, cfg,
@@ -76,6 +78,7 @@ func newAuthzHarness(t *testing.T) *authzHarness {
 		middleware.TenantScope(tenants, database.NewTenantManager(appDB)),
 		planRateLimit,
 		membership,
+		platformOnly,
 	)
 
 	return &authzHarness{app: app, admin: admin}
@@ -95,6 +98,16 @@ func (h *authzHarness) send(t *testing.T, method, path, token, body string) (int
 	raw, _ := io.ReadAll(resp.Body)
 
 	return resp.StatusCode, string(raw)
+}
+
+// grantPlatform records the subject in platform_operators, the way an operator would be
+// given the permission outside the API.
+func (h *authzHarness) grantPlatform(t *testing.T, userID string) {
+	t.Helper()
+
+	_, err := h.admin.Exec(
+		`INSERT INTO platform_operators (user_id, note) VALUES ($1, 'authorization test')`, userID)
+	require.NoError(t, err)
 }
 
 func (h *authzHarness) roleOf(t *testing.T, userID string) string {
@@ -163,27 +176,50 @@ func TestAuthorization_TenantPathIsTheCallersOwn(t *testing.T) {
 	assert.False(t, deletedAt.Valid, "another tenant was deleted")
 }
 
-// TestAuthorization_CrossTenantRoutesAreClosed: listing, counting and lifecycle changes
-// act across tenants. Until a platform permission exists they are refused to everyone,
-// including an owner acting on its own tenant.
-func TestAuthorization_CrossTenantRoutesAreClosed(t *testing.T) {
+// TestAuthorization_PlatformRoutesNeedTheGrant: listing, counting and lifecycle changes act
+// across tenants. No tenant role opens them, and the grant in platform_operators does.
+func TestAuthorization_PlatformRoutesNeedTheGrant(t *testing.T) {
 	h := newAuthzHarness(t)
 
 	own := helpers.CreateTestTenant(t, h.admin, "authz-platform").ID
+	other := helpers.CreateTestTenant(t, h.admin, "authz-platform-other").ID
 	owner := helpers.CreateTestUser(t, h.admin, own, "owner@authz-platform.test", "owner")
 	token := tokenFor(t, own, owner.ID, "owner")
 
-	for _, p := range []probe{
+	const provision = `{"name":"Operator Made","slug":"authz-operator-made","email":"made@example.com"}`
+
+	platform := []probe{
 		{http.MethodGet, "/api/v1/tenants", ""},
 		{http.MethodGet, "/api/v1/tenants/stats", ""},
 		{http.MethodGet, "/api/v1/tenants/slug/authz-platform", ""},
 		{http.MethodPost, "/api/v1/tenants/" + own + "/suspend", `{"reason":"x"}`},
 		{http.MethodPost, "/api/v1/tenants/" + own + "/activate", ""},
 		{http.MethodPost, "/api/v1/tenants/" + own + "/upgrade", `{"plan":"enterprise"}`},
-	} {
+		{http.MethodPost, "/api/v1/tenants", provision},
+	}
+
+	// An owner of a tenant is nobody at the platform level.
+	for _, p := range platform {
 		status, body := h.send(t, p.method, p.path, token, p.body)
 		assert.Equal(t, http.StatusForbidden, status, "%s %s: %s", p.method, p.path, body)
 	}
+
+	h.grantPlatform(t, owner.ID)
+
+	status, body := h.send(t, http.MethodGet, "/api/v1/tenants", token, "")
+	assert.Equal(t, http.StatusOK, status, "an operator could not list the tenants: %s", body)
+
+	// Across tenants, which is the whole point of the permission: this is not the
+	// operator's own tenant.
+	status, body = h.send(t, http.MethodPost, "/api/v1/tenants/"+other+"/suspend", token, `{"reason":"checking"}`)
+	assert.Equal(t, http.StatusOK, status, "an operator could not suspend another tenant: %s", body)
+
+	var otherStatus string
+	require.NoError(t, h.admin.QueryRow(`SELECT status FROM tenants WHERE id = $1`, other).Scan(&otherStatus))
+	assert.Equal(t, "suspended", otherStatus)
+
+	status, body = h.send(t, http.MethodPost, "/api/v1/tenants", token, provision)
+	assert.Equal(t, http.StatusAccepted, status, "an operator could not create a tenant: %s", body)
 }
 
 // TestAuthorization_RoleComesFromTheTenantsRecord: the role a guard checks is the one the

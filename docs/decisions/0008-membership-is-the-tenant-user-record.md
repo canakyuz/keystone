@@ -75,9 +75,8 @@ The decision lives in `internal/authz`, apart from both transports, for the reas
 
 ## What this does not guarantee
 
-- No platform permission exists. Routes that act across tenants are closed to everyone
-  rather than granted to an operator.
-- Creating a tenant requires only an active membership somewhere.
+- Nothing about acting across tenants. That is a separate grant, added later in
+  migration 040 and read only on the routes that need it.
 
 ## When this decision becomes wrong
 

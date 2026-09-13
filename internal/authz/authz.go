@@ -59,3 +59,21 @@ func VerifyMember(ctx context.Context, members MemberLookup, tenantID, userID st
 
 	return membership.Role, nil
 }
+
+// PlatformLookup reads the permission to act across tenants. The interface sits here, on
+// the consumer side.
+type PlatformLookup interface {
+	IsOperator(ctx context.Context, userID string) (bool, error)
+}
+
+// IsPlatformOperator reports whether the subject may act across tenants.
+//
+// A malformed or absent id is not an operator. Checking it here keeps a bad id from
+// reaching the database as a type error and surfacing as a 500 where a refusal belongs.
+func IsPlatformOperator(ctx context.Context, operators PlatformLookup, userID string) (bool, error) {
+	if uuid.Validate(userID) != nil {
+		return false, nil
+	}
+
+	return operators.IsOperator(ctx, userID)
+}

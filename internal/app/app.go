@@ -26,6 +26,7 @@ import (
 	userHandler "github.com/canakyuz/keystone/internal/handler/user"
 	"github.com/canakyuz/keystone/internal/middleware"
 	operationRepo "github.com/canakyuz/keystone/internal/repository/operation"
+	platformRepo "github.com/canakyuz/keystone/internal/repository/platform"
 	registryRepo "github.com/canakyuz/keystone/internal/repository/registry"
 	templateRepo "github.com/canakyuz/keystone/internal/repository/template"
 	tenantRepo "github.com/canakyuz/keystone/internal/repository/tenant"
@@ -238,6 +239,9 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 	// request, on both transports; see internal/authz.
 	membership := middleware.Membership(userRepository)
 
+	// The permission to act across tenants, read from platform_operators; see migration 040.
+	platformOnly := middleware.PlatformOnly(platformRepo.New(db))
+
 	// Tenant provisioning and operation lookup endpoints.
 	//
 	// Registered here, after the global middleware, so they are traced, counted, logged
@@ -250,7 +254,7 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 	// rather than globally. That exemption is the real constraint — the tenant does not
 	// exist yet, so resolving its schema would fail — and it survives this move.
 	operationRepository := operationRepo.New(db)
-	registerOperationRoutes(app, cfg.Auth.JWTSecret, membership,
+	registerOperationRoutes(app, cfg.Auth.JWTSecret, membership, platformOnly,
 		operationHandler.New(operationRepository, appLogger))
 
 	// Repository for the payment module.
@@ -307,7 +311,7 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 	// Wire the routes.
 	setupRoutes(app, cfg, authHTTPHandler, tenantHTTPHandler, userHTTPHandler, uploadHTTPHandler,
 		moduleCatalogHTTPHandler, toolCatalogHTTPHandler, activationHTTPHandler,
-		tenantContextMiddleware, tenantScopeMiddleware, planRateLimit, membership)
+		tenantContextMiddleware, tenantScopeMiddleware, planRateLimit, membership, platformOnly)
 
 	// The typed surface runs in this process, on its own port. It calls the same
 	// repositories as the REST handlers, so the guarantees have one implementation and two

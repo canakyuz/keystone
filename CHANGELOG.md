@@ -12,6 +12,9 @@ the entry says so under **Changed**.
 
 ### Added
 
+- `platform_operators`: acting across tenants is a grant of its own, held by nobody by
+  default. Listing, counting, suspending, reactivating, repricing and creating tenants are
+  admitted only for a subject recorded there, whatever its role in its own tenant.
 - `console/`, a web console over the API: sign-in, the tenant's record, member management,
   and tenant provisioning with a live view of the operation. It keeps the token in an
   httpOnly cookie on its server and holds no authorization rules of its own.

@@ -52,11 +52,20 @@ first three:
 - Listing every tenant, counting them, and changing any tenant's plan or status had
   no guard at all in the route table.
 
-**What this does not cover:** there is no platform permission model. The routes that
-act across tenants are closed to everyone (`middleware.PlatformOnly`) rather than
-granted to an operator, and `POST /api/v1/tenants` requires only an active membership
-in some tenant. A membership is one user row per tenant, so the same person in two
-tenants is two rows with two passwords. See
+Acting across tenants is a separate permission, held by nobody by default. Listing or
+counting every tenant, looking one up by slug, suspending, reactivating or repricing one,
+and creating a new one are admitted only for a subject recorded in `platform_operators`.
+No tenant role reaches them: an owner is nobody at that level until a row grants it.
+
+- Schema: `migrations/040_create_platform_operators.up.sql`
+- Code: `internal/middleware/authorization.go`, `PlatformOnly`; `internal/authz`,
+  `IsPlatformOperator`; `internal/repository/platform`
+- Test: `internal/app/authorization_test.go`,
+  `TestAuthorization_PlatformRoutesNeedTheGrant`, which refuses an owner and then admits
+  the same subject once the grant exists
+
+**What this does not cover:** a membership is one user row per tenant, so the same person
+in two tenants is two rows with two passwords. See
 [decisions/0008-membership-is-the-tenant-user-record.md](decisions/0008-membership-is-the-tenant-user-record.md).
 
 ---

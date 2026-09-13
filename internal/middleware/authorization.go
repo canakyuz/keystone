@@ -47,16 +47,26 @@ func SameTenant(param string) fiber.Handler {
 	}
 }
 
-// PlatformOnly closes a route that acts across tenants.
+// PlatformOnly admits only a subject recorded in platform_operators.
 //
 // Listing every tenant, looking one up by slug, suspending, reactivating and changing a
 // plan are operator actions. None of them is something a tenant's own administrator should
-// do, to its own tenant or to anyone else's. No platform permission model exists yet to
-// grant them to, so they are closed rather than left open to every authenticated caller,
-// which is what they were. See docs/INVARIANTS.md, rule 1.
-func PlatformOnly() fiber.Handler {
+// do, to its own tenant or to anyone else's, so no tenant role opens them: an owner is
+// nobody at this level until a row grants it. See migration 040.
+func PlatformOnly(operators authz.PlatformLookup) fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "requires a platform permission"})
+		allowed, err := authz.IsPlatformOperator(c.UserContext(), operators, GetUserID(c))
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error": "could not verify the platform permission",
+			})
+		}
+
+		if !allowed {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "requires a platform permission"})
+		}
+
+		return c.Next()
 	}
 }
 

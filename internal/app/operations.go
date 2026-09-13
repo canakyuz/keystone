@@ -20,14 +20,16 @@ import (
 // there and the request would fail with a 404.
 //
 // Authorization on this endpoint therefore stops short of the new tenant: the caller must
-// be an active member of the tenant its token names, and nothing more. Creating a tenant
-// should be a platform-level permission; no such permission exists yet, and that gap is
-// recorded in INVARIANTS.md.
-func registerOperationRoutes(app *fiber.App, jwtSecret string, membership fiber.Handler, h *operationHandler.Handler) {
+// be an active member of the tenant its token names, and must hold the platform permission
+// that migration 040 records. Creating a tenant for somebody else is an operator action,
+// and no tenant role grants it.
+func registerOperationRoutes(
+	app *fiber.App, jwtSecret string, membership, platformOnly fiber.Handler, h *operationHandler.Handler,
+) {
 	authenticated := []fiber.Handler{middleware.AuthMiddleware(jwtSecret), membership}
 
 	v1 := app.Group("/api/v1")
 
-	v1.Post("/tenants", chain(authenticated, h.CreateTenant)...)
+	v1.Post("/tenants", chain(authenticated, platformOnly, h.CreateTenant)...)
 	v1.Get("/operations/:id", chain(authenticated, h.GetOperation)...)
 }

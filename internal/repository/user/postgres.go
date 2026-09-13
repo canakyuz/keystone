@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/canakyuz/keystone/internal/domain/user"
+	auditrepo "github.com/canakyuz/keystone/internal/repository/audit"
 	"github.com/canakyuz/keystone/pkg/database"
 	"github.com/canakyuz/keystone/pkg/tenantctx"
 )
@@ -18,6 +19,11 @@ import (
 type PostgresRepository struct {
 	db                      *sql.DB
 	tenantConnectionManager database.TenantConnectionManager
+
+	// trail is set by WithAudit. Nil means the audited paths are unavailable rather than
+	// silently untracked: a change that should leave a record and does not is the failure
+	// the audit trail exists to prevent.
+	trail *auditrepo.Repository
 }
 
 // NewPostgresRepository returns the PostgreSQL user repository. Queries that need a tenant
@@ -268,29 +274,7 @@ func (r *PostgresRepository) Update(ctx context.Context, u *user.User) error {
 		return fmt.Errorf("tenant schema not found in context")
 	}
 
-	query := `
-		UPDATE users SET
-			email = $3,
-			password_hash = $4,
-			first_name = $5,
-			last_name = $6,
-			role = $7,
-			status = $8,
-			email_verified = $9,
-			email_verified_at = $10,
-			last_login_at = $11,
-			avatar = $12,
-			phone = $13,
-			timezone = $14,
-			locale = $15,
-			two_factor_enabled = $16,
-			password_changed_at = $17,
-			preferences = $18,
-			metadata = $19,
-			updated_at = $20,
-			updated_by = $21
-		WHERE id = $1 AND tenant_id = $2
-	`
+	query := updateUserQuery
 
 	preferencesJSON, err := json.Marshal(u.Preferences)
 	if err != nil {
@@ -345,11 +329,7 @@ func (r *PostgresRepository) Delete(ctx context.Context, tenantID, userID string
 	// the same predicate, those indexes are now genuinely usable.
 	// The previous version only wrote status = 'inactive', which made a deleted user
 	// indistinguishable from one legitimately deactivated.
-	query := `
-		UPDATE users
-		SET deleted_at = NOW(), status = 'inactive'
-		WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL
-	`
+	query := deleteUserQuery
 
 	return r.tenantConnectionManager.ExecuteInTenantContext(ctx, schema, func(conn *sql.Conn) error {
 		result, err := conn.ExecContext(ctx, query, userID, tenantID)

@@ -82,6 +82,9 @@ func TenantContextMiddleware(schemaCache *TenantSchemaCache) fiber.Handler {
 		// Also put it on the Go context, for the repository layer.
 		ctx := context.WithValue(c.Context(), TenantIDKey, tenantID)
 		ctx = context.WithValue(ctx, TenantSchemaKey, schemaName)
+		// The acting subject travels with the tenant, because the repositories that write
+		// the audit trail run far from the request and cannot ask who made it.
+		ctx = tenantctx.WithSubject(ctx, GetUserID(c))
 		c.SetUserContext(ctx)
 
 		if schemaCache.logger != nil {

@@ -21,6 +21,9 @@ const (
 	SchemaKey Key = "tenant_schema"
 	// IDKey carries the tenant's identifier.
 	IDKey Key = "tenant_id"
+	// SubjectKey carries the identifier of the subject making the request. The audit trail
+	// needs it: a record of a change with no actor answers half the question it exists for.
+	SubjectKey Key = "subject_id"
 )
 
 // WithSchema places the schema name into the context.
@@ -31,6 +34,17 @@ func WithSchema(ctx context.Context, schemaName string) context.Context {
 // WithID places the tenant identifier into the context.
 func WithID(ctx context.Context, tenantID string) context.Context {
 	return context.WithValue(ctx, IDKey, tenantID)
+}
+
+// WithSubject places the acting subject's identifier into the context.
+func WithSubject(ctx context.Context, subjectID string) context.Context {
+	return context.WithValue(ctx, SubjectKey, subjectID)
+}
+
+// Subject returns the acting subject from the context, or the empty string.
+func Subject(ctx context.Context) string {
+	subject, _ := ctx.Value(SubjectKey).(string)
+	return subject
 }
 
 // Schema returns the schema name from the context, or the empty string.

@@ -219,8 +219,21 @@ asking.
   worker writes the trail, and its role can insert into it but not read, change or
   delete it.
 
-**Limit:** only the provisioning path writes to it so far. Tenant suspension, plan
-changes and user role changes all belong in the trail and are not there yet.
+The changes an operator or an administrator makes through the API are written the same
+way. A role change, a suspension, a reactivation and a deletion each go in the transaction
+that performs them, with the actor read from the request rather than passed in by the call
+site, so a call site cannot record the wrong one by forgetting.
+
+- Code: `internal/repository/user/audited.go`, `internal/repository/tenant/audited.go`,
+  `internal/repository/audit`, `ActorFrom`
+- Test: `internal/app/authorization_test.go`, `TestAudit_RecordsWhoChangedWhat`
+
+Actions recorded: `user.role_changed`, `user.suspended`, `user.reactivated`,
+`user.deleted`, `tenant.suspended`, `tenant.reactivated`, `tenant.plan_changed`,
+`tenant.deleted`, and `tenant.activated` from the worker.
+
+**Limit:** creating a member, changing a password, updating a profile, branding and custom
+domains are not in the trail yet.
 
 ---
 

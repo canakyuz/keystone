@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/canakyuz/keystone/internal/domain/user"
+	auditrepo "github.com/canakyuz/keystone/internal/repository/audit"
 	userRepo "github.com/canakyuz/keystone/internal/repository/user"
 	"github.com/canakyuz/keystone/pkg/logger"
 	"github.com/canakyuz/keystone/pkg/validator"
@@ -317,13 +318,16 @@ func (s *Service) UpdateRole(ctx context.Context, tenantID, userID string, req *
 		return nil, user.ErrCannotModifyOwner
 	}
 
+	previous := u.Role
+
 	// Update role
 	if err := u.UpdateRole(user.UserRole(req.Role)); err != nil {
 		return nil, err
 	}
 
 	// Save to repository
-	if err := s.repo.Update(ctx, u); err != nil {
+	if err := s.repo.UpdateAudited(ctx, u, s.entry(ctx, u.TenantID, "user.role_changed", u.ID,
+		map[string]any{"from": string(previous), "to": string(u.Role)})); err != nil {
 		s.logger.ErrorWithErr(err, "failed to update role")
 		return nil, fmt.Errorf("failed to update role: %w", err)
 	}
@@ -353,7 +357,8 @@ func (s *Service) Suspend(ctx context.Context, tenantID, userID, reason string) 
 		return err
 	}
 
-	if err := s.repo.Update(ctx, u); err != nil {
+	if err := s.repo.UpdateAudited(ctx, u, s.entry(ctx, u.TenantID, "user.suspended", u.ID,
+		map[string]any{"reason": reason})); err != nil {
 		s.logger.ErrorWithErr(err, "failed to suspend user")
 		return fmt.Errorf("failed to suspend user: %w", err)
 	}
@@ -378,7 +383,7 @@ func (s *Service) Activate(ctx context.Context, tenantID, userID string) error {
 		return err
 	}
 
-	if err := s.repo.Update(ctx, u); err != nil {
+	if err := s.repo.UpdateAudited(ctx, u, s.entry(ctx, u.TenantID, "user.reactivated", u.ID, nil)); err != nil {
 		s.logger.ErrorWithErr(err, "failed to activate user")
 		return fmt.Errorf("failed to activate user: %w", err)
 	}
@@ -427,7 +432,8 @@ func (s *Service) Delete(ctx context.Context, tenantID, userID string) error {
 		return user.ErrCannotModifyOwner
 	}
 
-	if err := s.repo.Delete(ctx, tenantID, userID); err != nil {
+	if err := s.repo.DeleteAudited(ctx, tenantID, userID,
+		s.entry(ctx, tenantID, "user.deleted", userID, map[string]any{"email": u.Email})); err != nil {
 		s.logger.ErrorWithErr(err, "failed to delete user")
 		return fmt.Errorf("failed to delete user: %w", err)
 	}
@@ -493,4 +499,23 @@ func (s *Service) generateToken(u *user.User) (string, int64, error) {
 	}
 
 	return tokenString, expiresIn, nil
+}
+
+// entry builds one line of the audit trail for a change to a member.
+//
+// The actor comes from the request context rather than from an argument, so a call site
+// cannot record the wrong one by forgetting to pass it. An absent subject is recorded as
+// the system, which is a different answer from an unknown user; see audit.ActorFrom.
+func (s *Service) entry(ctx context.Context, tenantID, action, subjectID string, metadata map[string]any) auditrepo.Entry {
+	actorID, actorType := auditrepo.ActorFrom(ctx)
+
+	return auditrepo.Entry{
+		TenantID:    tenantID,
+		ActorID:     actorID,
+		ActorType:   actorType,
+		Action:      action,
+		SubjectType: "user",
+		SubjectID:   subjectID,
+		Metadata:    metadata,
+	}
 }

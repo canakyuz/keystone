@@ -20,6 +20,7 @@ import (
 	tenantHandler "github.com/canakyuz/keystone/internal/handler/tenant"
 	userHandler "github.com/canakyuz/keystone/internal/handler/user"
 	"github.com/canakyuz/keystone/internal/middleware"
+	auditRepo "github.com/canakyuz/keystone/internal/repository/audit"
 	operationRepo "github.com/canakyuz/keystone/internal/repository/operation"
 	platformRepo "github.com/canakyuz/keystone/internal/repository/platform"
 	tenantRepo "github.com/canakyuz/keystone/internal/repository/tenant"
@@ -57,8 +58,9 @@ func newAuthzHarness(t *testing.T) *authzHarness {
 	cfg.Auth.JWTSecret = authzSecret
 
 	log := logger.Default()
-	tenants := tenantRepo.NewPostgresRepository(appDB)
-	users := userRepo.NewPostgresRepository(appDB, database.NewTenantConnectionManager(appDB, nil))
+	trail := auditRepo.New()
+	tenants := tenantRepo.NewPostgresRepository(appDB).WithAudit(trail)
+	users := userRepo.NewPostgresRepository(appDB, database.NewTenantConnectionManager(appDB, nil)).WithAudit(trail)
 	userService := userUsecase.NewService(users, validator.New(), log, authzSecret)
 	membership := middleware.Membership(users)
 	platformOnly := middleware.PlatformOnly(platformRepo.New(appDB))
@@ -310,4 +312,56 @@ func TestAuthorization_AccessEndsWithTheMembership(t *testing.T) {
 	// A real subject of another tenant, carrying a genuine token that names this one.
 	status, body = h.send(t, http.MethodGet, "/api/v1/users", tokenFor(t, tenantID, outsider.ID, "admin"), "")
 	assert.Equal(t, http.StatusForbidden, status, "a subject of another tenant was let in: %s", body)
+}
+
+// TestAudit_RecordsWhoChangedWhat: a change made through the API leaves a record in the
+// transaction that made it, with the actor read from the request rather than passed in by
+// the call site.
+func TestAudit_RecordsWhoChangedWhat(t *testing.T) {
+	h := newAuthzHarness(t)
+
+	tenantID := helpers.CreateTestTenant(t, h.admin, "authz-trail").ID
+	admin := helpers.CreateTestUser(t, h.admin, tenantID, "admin@authz-trail.test", "admin")
+	editor := helpers.CreateTestUser(t, h.admin, tenantID, "editor@authz-trail.test", "editor")
+	token := tokenFor(t, tenantID, admin.ID, "admin")
+
+	status, body := h.send(t, http.MethodPost, "/api/v1/users/"+editor.ID+"/role", token, `{"role":"viewer"}`)
+	require.Equal(t, http.StatusOK, status, "the role change was refused: %s", body)
+
+	status, body = h.send(t, http.MethodPost, "/api/v1/users/"+editor.ID+"/suspend", token, `{"reason":"left the team"}`)
+	require.Equal(t, http.StatusOK, status, "the suspension was refused: %s", body)
+
+	var actor, subject, metadata string
+	require.NoError(t, h.admin.QueryRow(`
+		SELECT actor_id::text, subject_id::text, metadata::text
+		FROM audit_log
+		WHERE tenant_id = $1 AND action = 'user.role_changed'`, tenantID,
+	).Scan(&actor, &subject, &metadata))
+
+	assert.Equal(t, admin.ID, actor, "the trail does not say who made the change")
+	assert.Equal(t, editor.ID, subject)
+	assert.Contains(t, metadata, "editor", "the trail does not say what the role was")
+	assert.Contains(t, metadata, "viewer", "the trail does not say what the role became")
+
+	var suspensions int
+	require.NoError(t, h.admin.QueryRow(
+		`SELECT count(*) FROM audit_log WHERE tenant_id = $1 AND action = 'user.suspended'`, tenantID,
+	).Scan(&suspensions))
+	assert.Equal(t, 1, suspensions, "the suspension left no record")
+
+	// The operator path records the tenant itself as the subject.
+	h.grantPlatform(t, admin.ID)
+
+	status, body = h.send(t, http.MethodPost, "/api/v1/tenants/"+tenantID+"/suspend", token, `{"reason":"unpaid"}`)
+	require.Equal(t, http.StatusOK, status, "the tenant suspension was refused: %s", body)
+
+	var tenantActor, tenantAction string
+	require.NoError(t, h.admin.QueryRow(`
+		SELECT actor_id::text, action
+		FROM audit_log
+		WHERE tenant_id = $1 AND subject_type = 'tenant'`, tenantID,
+	).Scan(&tenantActor, &tenantAction))
+
+	assert.Equal(t, admin.ID, tenantActor)
+	assert.Equal(t, "tenant.suspended", tenantAction)
 }

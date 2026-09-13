@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/canakyuz/keystone/internal/domain/tenant"
+	auditrepo "github.com/canakyuz/keystone/internal/repository/audit"
 	tenantRepo "github.com/canakyuz/keystone/internal/repository/tenant"
 	"github.com/canakyuz/keystone/pkg/logger"
 	"github.com/canakyuz/keystone/pkg/validator"
@@ -225,7 +226,8 @@ func (s *Service) Suspend(ctx context.Context, id, reason string) error {
 		return err
 	}
 
-	if err := s.repo.Update(ctx, t); err != nil {
+	if err := s.repo.UpdateAudited(ctx, t, s.entry(ctx, t.ID, "tenant.suspended",
+		map[string]any{"reason": reason})); err != nil {
 		s.logger.ErrorWithErr(err, "failed to suspend tenant")
 		return fmt.Errorf("failed to suspend tenant: %w", err)
 	}
@@ -249,7 +251,7 @@ func (s *Service) Activate(ctx context.Context, id string) error {
 		return err
 	}
 
-	if err := s.repo.Update(ctx, t); err != nil {
+	if err := s.repo.UpdateAudited(ctx, t, s.entry(ctx, t.ID, "tenant.reactivated", nil)); err != nil {
 		s.logger.ErrorWithErr(err, "failed to activate tenant")
 		return fmt.Errorf("failed to activate tenant: %w", err)
 	}
@@ -273,11 +275,14 @@ func (s *Service) UpgradePlan(ctx context.Context, id string, req *UpgradePlanRe
 		return nil, err
 	}
 
+	previous := t.Plan
+
 	if err := t.UpgradePlan(tenant.SubscriptionPlan(req.Plan)); err != nil {
 		return nil, err
 	}
 
-	if err := s.repo.Update(ctx, t); err != nil {
+	if err := s.repo.UpdateAudited(ctx, t, s.entry(ctx, t.ID, "tenant.plan_changed",
+		map[string]any{"from": string(previous), "to": string(t.Plan)})); err != nil {
 		s.logger.ErrorWithErr(err, "failed to upgrade plan")
 		return nil, fmt.Errorf("failed to upgrade plan: %w", err)
 	}
@@ -355,7 +360,7 @@ func (s *Service) VerifyCustomDomain(ctx context.Context, id string) (*TenantRes
 
 // Delete soft deletes a tenant
 func (s *Service) Delete(ctx context.Context, id string) error {
-	if err := s.repo.Delete(ctx, id); err != nil {
+	if err := s.repo.DeleteAudited(ctx, id, s.entry(ctx, id, "tenant.deleted", nil)); err != nil {
 		s.logger.ErrorWithErr(err, "failed to delete tenant")
 		return fmt.Errorf("failed to delete tenant: %w", err)
 	}
@@ -466,4 +471,22 @@ func (s *Service) GetStats(ctx context.Context) (map[string]int64, error) {
 	}
 
 	return stats, nil
+}
+
+// entry builds one line of the audit trail for a change to a tenant.
+//
+// The subject is the tenant itself: these are the operator actions, and the question the
+// trail answers about them is which tenant was suspended, repriced or removed, by whom.
+func (s *Service) entry(ctx context.Context, tenantID, action string, metadata map[string]any) auditrepo.Entry {
+	actorID, actorType := auditrepo.ActorFrom(ctx)
+
+	return auditrepo.Entry{
+		TenantID:    tenantID,
+		ActorID:     actorID,
+		ActorType:   actorType,
+		Action:      action,
+		SubjectType: "tenant",
+		SubjectID:   tenantID,
+		Metadata:    metadata,
+	}
 }

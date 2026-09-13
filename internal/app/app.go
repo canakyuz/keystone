@@ -25,6 +25,7 @@ import (
 	uploadHandler "github.com/canakyuz/keystone/internal/handler/upload"
 	userHandler "github.com/canakyuz/keystone/internal/handler/user"
 	"github.com/canakyuz/keystone/internal/middleware"
+	auditRepo "github.com/canakyuz/keystone/internal/repository/audit"
 	operationRepo "github.com/canakyuz/keystone/internal/repository/operation"
 	platformRepo "github.com/canakyuz/keystone/internal/repository/platform"
 	registryRepo "github.com/canakyuz/keystone/internal/repository/registry"
@@ -226,14 +227,17 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 	appValidator := validator.New()
 
 	// The repository layer, which talks to the database directly.
-	tenantRepository := tenantRepo.NewPostgresRepository(db)
+	// Both repositories write the audit trail in the transaction that makes the change;
+	// see rule 7 in docs/INVARIANTS.md.
+	trail := auditRepo.New()
+	tenantRepository := tenantRepo.NewPostgresRepository(db).WithAudit(trail)
 	tenantConnectionManager := database.NewTenantConnectionManager(db, appLogger)
 
 	// Tenant schema cache: Redis with a database fallback.
 	// TTL is 10 minutes: a tenant's schema rarely changes.
 	tenantSchemaCache := middleware.NewTenantSchemaCache(redisClient, db, appLogger, metricsRegistry)
 
-	userRepository := userRepo.NewPostgresRepository(db, tenantConnectionManager)
+	userRepository := userRepo.NewPostgresRepository(db, tenantConnectionManager).WithAudit(trail)
 
 	// Membership is checked against the tenant's own record on every authenticated
 	// request, on both transports; see internal/authz.

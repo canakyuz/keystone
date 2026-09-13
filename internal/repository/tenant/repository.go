@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/canakyuz/keystone/internal/domain/tenant"
+	auditrepo "github.com/canakyuz/keystone/internal/repository/audit"
 )
 
 // Repository defines the interface for tenant data operations
@@ -29,8 +30,14 @@ type Repository interface {
 	// Update updates an existing tenant
 	Update(ctx context.Context, t *tenant.Tenant) error
 
+	// UpdateAudited writes the tenant and one audit entry in the same transaction.
+	UpdateAudited(ctx context.Context, t *tenant.Tenant, entry auditrepo.Entry) error
+
 	// Delete soft deletes a tenant
 	Delete(ctx context.Context, id string) error
+
+	// DeleteAudited soft deletes the tenant and records it in the same transaction.
+	DeleteAudited(ctx context.Context, id string, entry auditrepo.Entry) error
 
 	// ExistsBySlug checks if a tenant with the given slug exists
 	ExistsBySlug(ctx context.Context, slug string) (bool, error)

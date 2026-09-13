@@ -9,11 +9,16 @@ import (
 	"time"
 
 	"github.com/canakyuz/keystone/internal/domain/tenant"
+	auditrepo "github.com/canakyuz/keystone/internal/repository/audit"
 )
 
 // PostgresRepository implements Repository using PostgreSQL
 type PostgresRepository struct {
 	db *sql.DB
+
+	// trail is set by WithAudit. Nil means the audited paths are unavailable rather than
+	// silently untracked.
+	trail *auditrepo.Repository
 }
 
 // NewPostgresRepository creates a new PostgreSQL repository
@@ -321,26 +326,7 @@ func (r *PostgresRepository) List(ctx context.Context, filters ListFilters) ([]*
 
 // Update updates an existing tenant
 func (r *PostgresRepository) Update(ctx context.Context, t *tenant.Tenant) error {
-	query := `
-		UPDATE tenants SET
-			name = $2,
-			slug = $3,
-			email = $4,
-			phone = $5,
-			status = $6,
-			plan = $7,
-			subscription_start = $8,
-			subscription_end = $9,
-			trial_ends_at = $10,
-			custom_domain = $11,
-			custom_domain_verified = $12,
-			custom_domain_verified_at = $13,
-			settings = $14,
-			metadata = $15,
-			updated_at = $16,
-			updated_by = $17
-		WHERE id = $1 AND deleted_at IS NULL
-	`
+	query := updateTenantQuery
 
 	settingsJSON, err := json.Marshal(t.Settings)
 	if err != nil {
@@ -382,11 +368,7 @@ func (r *PostgresRepository) Update(ctx context.Context, t *tenant.Tenant) error
 
 // Delete soft deletes a tenant
 func (r *PostgresRepository) Delete(ctx context.Context, id string) error {
-	query := `
-		UPDATE tenants
-		SET deleted_at = $2
-		WHERE id = $1 AND deleted_at IS NULL
-	`
+	query := deleteTenantQuery
 
 	result, err := r.db.ExecContext(ctx, query, id, time.Now())
 	if err != nil {

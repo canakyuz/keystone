@@ -30,7 +30,7 @@ func (h *Handler) Create(c *fiber.Ctx) error {
 		})
 	}
 
-	result, err := h.tenantService.Create(c.Context(), &req)
+	result, err := h.tenantService.Create(c.UserContext(), &req)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": err.Error(),
@@ -47,7 +47,7 @@ func (h *Handler) Create(c *fiber.Ctx) error {
 func (h *Handler) GetByID(c *fiber.Ctx) error {
 	id := c.Params("id")
 
-	result, err := h.tenantService.GetByID(c.Context(), id)
+	result, err := h.tenantService.GetByID(c.UserContext(), id)
 	if err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 			"error": err.Error(),
@@ -64,7 +64,7 @@ func (h *Handler) GetByID(c *fiber.Ctx) error {
 func (h *Handler) GetBySlug(c *fiber.Ctx) error {
 	slug := c.Params("slug")
 
-	result, err := h.tenantService.GetBySlug(c.Context(), slug)
+	result, err := h.tenantService.GetBySlug(c.UserContext(), slug)
 	if err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 			"error": err.Error(),
@@ -86,7 +86,7 @@ func (h *Handler) GetCurrent(c *fiber.Ctx) error {
 		})
 	}
 
-	result, err := h.tenantService.GetByID(c.Context(), tenantID)
+	result, err := h.tenantService.GetByID(c.UserContext(), tenantID)
 	if err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 			"error": err.Error(),
@@ -107,7 +107,7 @@ func (h *Handler) List(c *fiber.Ctx) error {
 	plan := c.Query("plan")
 	search := c.Query("search")
 
-	result, err := h.tenantService.List(c.Context(), page, perPage, status, plan, search)
+	result, err := h.tenantService.List(c.UserContext(), page, perPage, status, plan, search)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": err.Error(),
@@ -131,7 +131,7 @@ func (h *Handler) Update(c *fiber.Ctx) error {
 		})
 	}
 
-	result, err := h.tenantService.Update(c.Context(), id, &req)
+	result, err := h.tenantService.Update(c.UserContext(), id, &req)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": err.Error(),
@@ -157,7 +157,7 @@ func (h *Handler) Suspend(c *fiber.Ctx) error {
 		})
 	}
 
-	if err := h.tenantService.Suspend(c.Context(), id, req.Reason); err != nil {
+	if err := h.tenantService.Suspend(c.UserContext(), id, req.Reason); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": err.Error(),
 		})
@@ -173,7 +173,7 @@ func (h *Handler) Suspend(c *fiber.Ctx) error {
 func (h *Handler) Activate(c *fiber.Ctx) error {
 	id := c.Params("id")
 
-	if err := h.tenantService.Activate(c.Context(), id); err != nil {
+	if err := h.tenantService.Activate(c.UserContext(), id); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": err.Error(),
 		})
@@ -196,7 +196,7 @@ func (h *Handler) UpgradePlan(c *fiber.Ctx) error {
 		})
 	}
 
-	result, err := h.tenantService.UpgradePlan(c.Context(), id, &req)
+	result, err := h.tenantService.UpgradePlan(c.UserContext(), id, &req)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": err.Error(),
@@ -220,7 +220,7 @@ func (h *Handler) SetCustomDomain(c *fiber.Ctx) error {
 		})
 	}
 
-	result, err := h.tenantService.SetCustomDomain(c.Context(), id, &req)
+	result, err := h.tenantService.SetCustomDomain(c.UserContext(), id, &req)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": err.Error(),
@@ -237,7 +237,7 @@ func (h *Handler) SetCustomDomain(c *fiber.Ctx) error {
 func (h *Handler) VerifyCustomDomain(c *fiber.Ctx) error {
 	id := c.Params("id")
 
-	result, err := h.tenantService.VerifyCustomDomain(c.Context(), id)
+	result, err := h.tenantService.VerifyCustomDomain(c.UserContext(), id)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": err.Error(),
@@ -254,7 +254,7 @@ func (h *Handler) VerifyCustomDomain(c *fiber.Ctx) error {
 func (h *Handler) Delete(c *fiber.Ctx) error {
 	id := c.Params("id")
 
-	if err := h.tenantService.Delete(c.Context(), id); err != nil {
+	if err := h.tenantService.Delete(c.UserContext(), id); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": err.Error(),
 		})
@@ -275,7 +275,7 @@ func (h *Handler) UpdateBranding(c *fiber.Ctx) error {
 		})
 	}
 
-	result, err := h.tenantService.UpdateBranding(c.Context(), id, &req)
+	result, err := h.tenantService.UpdateBranding(c.UserContext(), id, &req)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": err.Error(),
@@ -290,7 +290,7 @@ func (h *Handler) UpdateBranding(c *fiber.Ctx) error {
 // GetStats retrieves tenant statistics
 // GET /api/v1/tenants/stats
 func (h *Handler) GetStats(c *fiber.Ctx) error {
-	stats, err := h.tenantService.GetStats(c.Context())
+	stats, err := h.tenantService.GetStats(c.UserContext())
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": err.Error(),

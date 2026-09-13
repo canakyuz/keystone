@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/canakyuz/keystone/internal/domain/user"
+	auditrepo "github.com/canakyuz/keystone/internal/repository/audit"
 )
 
 // Repository defines the interface for user data operations
@@ -26,8 +27,14 @@ type Repository interface {
 	// Update updates an existing user
 	Update(ctx context.Context, u *user.User) error
 
+	// UpdateAudited writes the user and one audit entry in the same transaction.
+	UpdateAudited(ctx context.Context, u *user.User, entry auditrepo.Entry) error
+
 	// Delete soft deletes a user
 	Delete(ctx context.Context, tenantID, userID string) error
+
+	// DeleteAudited soft deletes the user and records it in the same transaction.
+	DeleteAudited(ctx context.Context, tenantID, userID string, entry auditrepo.Entry) error
 
 	// ExistsByEmail checks if a user with the given email exists in tenant
 	ExistsByEmail(ctx context.Context, tenantID, email string) (bool, error)

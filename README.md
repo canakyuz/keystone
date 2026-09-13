@@ -21,9 +21,9 @@ things.
 
 ## Why it is interesting
 
-This repository does not merely claim tenant isolation, it tests it. Writing the
-tests that actually measure isolation surfaced six separate bugs, all of them on the
-record.
+This repository does not merely claim tenant isolation, it tests it. Writing the tests
+that actually measure it surfaced seventeen separate defects, all of them on the record,
+several of which meant the system did not work at all under the role it requires.
 
 The most striking one: the `users` table carried two permissive policies.
 

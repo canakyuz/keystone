@@ -46,23 +46,7 @@ func (r *PostgresRepository) Create(ctx context.Context, u *user.User) error {
 		return fmt.Errorf("tenant schema not found in context")
 	}
 
-	query := `
-          INSERT INTO users (
-              id, tenant_id, email, password_hash, first_name, last_name, role, status,
-              email_verified, email_verified_at, last_login_at,
-              avatar, phone, timezone, locale,
-              two_factor_enabled, password_changed_at,
-              preferences, metadata,
-              created_at, updated_at, created_by, updated_by
-          ) VALUES (
-              $1, $2, $3, $4, $5, $6, $7, $8,
-              $9, $10, $11,
-              $12, $13, $14, $15,
-              $16, $17,
-              $18, $19,
-              $20, $21, $22, $23
-          )
-      `
+	query := insertUserQuery
 
 	// JSON marshalling, unchanged.
 	preferencesJSON, err := json.Marshal(u.Preferences)

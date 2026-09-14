@@ -13,12 +13,19 @@ export const metadata: Metadata = { title: 'History' };
 // What each action did, in the words a reader of the history would use.
 const ACTIONS: Record<string, string> = {
   'user.role_changed': 'Role changed',
+  'user.created': 'Member added',
+  'user.password_changed': 'Password changed',
+  'user.profile_updated': 'Profile updated',
   'user.suspended': 'Member suspended',
   'user.reactivated': 'Member reactivated',
   'user.deleted': 'Member removed',
   'tenant.suspended': 'Tenant suspended',
   'tenant.reactivated': 'Tenant reactivated',
   'tenant.plan_changed': 'Plan changed',
+  'tenant.updated': 'Details updated',
+  'tenant.branding_updated': 'Branding updated',
+  'tenant.domain_set': 'Custom domain set',
+  'tenant.domain_verified': 'Custom domain verified',
   'tenant.deleted': 'Tenant removed',
   'tenant.activated': 'Tenant provisioned',
 };

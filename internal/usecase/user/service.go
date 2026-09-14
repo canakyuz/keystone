@@ -121,7 +121,8 @@ func (s *Service) Create(ctx context.Context, tenantID string, req *CreateUserRe
 	}
 
 	// Save to repository
-	if err := s.repo.Create(ctx, u); err != nil {
+	if err := s.repo.CreateAudited(ctx, u, s.entry(ctx, tenantID, "user.created", u.ID,
+		map[string]any{"email": u.Email, "role": string(u.Role)})); err != nil {
 		s.logger.ErrorWithErr(err, "failed to create user")
 		return nil, fmt.Errorf("failed to create user: %w", err)
 	}
@@ -212,7 +213,8 @@ func (s *Service) Update(ctx context.Context, tenantID, userID string, req *Upda
 	u.UpdateProfile(req.FirstName, req.LastName, req.Phone, req.Timezone, req.Locale)
 
 	// Save to repository
-	if err := s.repo.Update(ctx, u); err != nil {
+	if err := s.repo.UpdateAudited(ctx, u, s.entry(ctx, tenantID, "user.profile_updated", u.ID,
+		map[string]any{"fields": profileFields(req)})); err != nil {
 		s.logger.ErrorWithErr(err, "failed to update user")
 		return nil, fmt.Errorf("failed to update user: %w", err)
 	}
@@ -249,7 +251,9 @@ func (s *Service) UpdatePassword(ctx context.Context, tenantID, userID string, r
 	}
 
 	// Save to repository
-	if err := s.repo.Update(ctx, u); err != nil {
+	// Recorded without a single detail. The trail says the password changed and who changed
+	// it; anything more about a password in an append-only table is a leak nobody can undo.
+	if err := s.repo.UpdateAudited(ctx, u, s.entry(ctx, tenantID, "user.password_changed", u.ID, nil)); err != nil {
 		s.logger.ErrorWithErr(err, "failed to update password")
 		return fmt.Errorf("failed to update password: %w", err)
 	}
@@ -480,4 +484,27 @@ func (s *Service) entry(ctx context.Context, tenantID, action, subjectID string,
 		SubjectID:   subjectID,
 		Metadata:    metadata,
 	}
+}
+
+// profileFields names the profile fields a request changes.
+//
+// The names go in the trail and the values do not. A phone number written to an append-only
+// table is a phone number that can never be removed, whatever the person later asks for.
+func profileFields(req *UpdateUserRequest) []string {
+	candidates := []struct{ name, value string }{
+		{"first_name", req.FirstName},
+		{"last_name", req.LastName},
+		{"phone", req.Phone},
+		{"timezone", req.Timezone},
+		{"locale", req.Locale},
+	}
+
+	fields := make([]string, 0, len(candidates))
+	for _, candidate := range candidates {
+		if candidate.value != "" {
+			fields = append(fields, candidate.name)
+		}
+	}
+
+	return fields
 }

@@ -27,6 +27,9 @@ type Repository interface {
 	// Update updates an existing user
 	Update(ctx context.Context, u *user.User) error
 
+	// CreateAudited inserts the user and one audit entry in the same transaction.
+	CreateAudited(ctx context.Context, u *user.User, entry auditrepo.Entry) error
+
 	// UpdateAudited writes the user and one audit entry in the same transaction.
 	UpdateAudited(ctx context.Context, u *user.User, entry auditrepo.Entry) error
 

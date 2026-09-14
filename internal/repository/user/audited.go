@@ -18,6 +18,24 @@ import (
 // trail in, and the plain path runs on the tenant-pinned connection. Copying the SQL would
 // mean a schema change that updates one of them and leaves the other behind.
 const (
+	insertUserQuery = `
+		INSERT INTO users (
+			id, tenant_id, email, password_hash, first_name, last_name, role, status,
+			email_verified, email_verified_at, last_login_at,
+			avatar, phone, timezone, locale,
+			two_factor_enabled, password_changed_at,
+			preferences, metadata,
+			created_at, updated_at, created_by, updated_by
+		) VALUES (
+			$1, $2, $3, $4, $5, $6, $7, $8,
+			$9, $10, $11,
+			$12, $13, $14, $15,
+			$16, $17,
+			$18, $19,
+			$20, $21, $22, $23
+		)
+	`
+
 	updateUserQuery = `
 		UPDATE users SET
 			email = $3,
@@ -63,6 +81,35 @@ func (r *PostgresRepository) WithAudit(trail *auditrepo.Repository) *PostgresRep
 	clone.trail = trail
 
 	return &clone
+}
+
+// CreateAudited inserts the user and records who added it, in one transaction.
+func (r *PostgresRepository) CreateAudited(ctx context.Context, u *user.User, entry auditrepo.Entry) error {
+	preferencesJSON, err := json.Marshal(u.Preferences)
+	if err != nil {
+		return fmt.Errorf("failed to marshal preferences: %w", err)
+	}
+
+	metadataJSON, err := json.Marshal(u.Metadata)
+	if err != nil {
+		return fmt.Errorf("failed to marshal metadata: %w", err)
+	}
+
+	return r.inTenantTx(ctx, u.TenantID, entry, func(tx *sql.Tx) error {
+		_, err := tx.ExecContext(ctx, insertUserQuery,
+			u.ID, u.TenantID, u.Email, u.Password, u.FirstName, u.LastName, u.Role, u.Status,
+			u.EmailVerified, u.EmailVerifiedAt, u.LastLoginAt,
+			nullable(u.Avatar), nullable(u.Phone), nullable(u.Timezone), nullable(u.Locale),
+			u.TwoFactorEnabled, u.PasswordChangedAt,
+			preferencesJSON, metadataJSON,
+			u.CreatedAt, u.UpdatedAt, nullable(u.CreatedBy), nullable(u.UpdatedBy),
+		)
+		if err != nil {
+			return fmt.Errorf("failed to create user: %w", err)
+		}
+
+		return nil
+	})
 }
 
 // UpdateAudited writes the user and its audit entry in one transaction.

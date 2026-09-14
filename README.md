@@ -536,8 +536,7 @@ repositories, metrics, tracing, and a migration runner. The vertical modules sit
 `examples/verticals` as a reference application.
 
 Open: a load measurement with the generator on a separate host, which the load script now
-supports but this machine cannot produce, and audit entries for creating members, password
-changes and branding. See [docs/ROADMAP.md](docs/ROADMAP.md).
+supports but this machine cannot produce. See [docs/ROADMAP.md](docs/ROADMAP.md).
 
 ## License
 

@@ -226,14 +226,22 @@ site, so a call site cannot record the wrong one by forgetting.
 
 - Code: `internal/repository/user/audited.go`, `internal/repository/tenant/audited.go`,
   `internal/repository/audit`, `ActorFrom`
-- Test: `internal/app/authorization_test.go`, `TestAudit_RecordsWhoChangedWhat`
+- Test: `internal/app/authorization_test.go`, `TestAudit_RecordsWhoChangedWhat` and
+  `TestAudit_RecordsMembersAndSettings`
 
-Actions recorded: `user.role_changed`, `user.suspended`, `user.reactivated`,
-`user.deleted`, `tenant.suspended`, `tenant.reactivated`, `tenant.plan_changed`,
+Actions recorded: `user.created`, `user.role_changed`, `user.suspended`,
+`user.reactivated`, `user.password_changed`, `user.profile_updated`, `user.deleted`,
+`tenant.updated`, `tenant.branding_updated`, `tenant.domain_set`,
+`tenant.domain_verified`, `tenant.suspended`, `tenant.reactivated`, `tenant.plan_changed`,
 `tenant.deleted`, and `tenant.activated` from the worker.
 
-**Limit:** creating a member, changing a password, updating a profile, branding and custom
-domains are not in the trail yet.
+A value that is a secret or personal data is recorded by the name of its field, never by
+what it became. A password change records that it happened and who made it; a profile edit
+records which fields changed. Anything written to an append-only table stays there, whatever
+the person it describes later asks for, and the test asserts the values are absent.
+
+**Limit:** module and tool activation, uploads, and everything under `examples/` are not in
+the trail.
 
 ---
 

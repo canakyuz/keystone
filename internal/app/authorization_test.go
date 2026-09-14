@@ -400,3 +400,62 @@ func TestAudit_IsReadOnlyByThisTenantsAdministrators(t *testing.T) {
 	assert.NotContains(t, body, "user.role_changed", "another tenant's trail leaked")
 	assert.NotContains(t, body, editor.ID)
 }
+
+// TestAudit_RecordsMembersAndSettings: adding a member, changing a password, editing a
+// profile and editing the tenant each leave a line, and none of those lines holds the
+// secret or the personal data that changed. The trail says which fields changed, not what
+// they became.
+func TestAudit_RecordsMembersAndSettings(t *testing.T) {
+	h := newAuthzHarness(t)
+
+	tenantID := helpers.CreateTestTenant(t, h.admin, "authz-trail-more").ID
+	admin := helpers.CreateTestUser(t, h.admin, tenantID, "admin@authz-trail-more.test", "admin")
+	member := helpers.CreateTestUser(t, h.admin, tenantID, "member@authz-trail-more.test", "viewer")
+	adminToken := tokenFor(t, tenantID, admin.ID, "admin")
+	memberToken := tokenFor(t, tenantID, member.ID, "viewer")
+
+	const newPassword = "a-new-password-9"
+
+	for _, step := range []struct{ token, method, path, body string }{
+		{adminToken, http.MethodPost, "/api/v1/users",
+			`{"email":"new@authz-trail-more.test","password":"password123","first_name":"New","last_name":"Member","role":"viewer"}`},
+		{memberToken, http.MethodPost, "/api/v1/users/" + member.ID + "/password",
+			`{"current_password":"password123","new_password":"` + newPassword + `"}`},
+		{adminToken, http.MethodPatch, "/api/v1/users/" + member.ID, `{"first_name":"Renamed","phone":"+44 20 0000 0000"}`},
+		{adminToken, http.MethodPatch, "/api/v1/tenants/" + tenantID, `{"name":"Renamed Tenant"}`},
+		{adminToken, http.MethodPatch, "/api/v1/tenants/" + tenantID + "/branding", `{"primary_color":"#112233"}`},
+	} {
+		status, body := h.send(t, step.method, step.path, step.token, step.body)
+		require.Truef(t, status >= 200 && status < 300, "%s %s: %d %s", step.method, step.path, status, body)
+	}
+
+	rows, err := h.admin.Query(
+		`SELECT action, coalesce(actor_id::text, ''), metadata::text FROM audit_log WHERE tenant_id = $1`, tenantID)
+	require.NoError(t, err)
+	defer rows.Close()
+
+	actors := map[string]string{}
+	var trail strings.Builder
+
+	for rows.Next() {
+		var action, actor, metadata string
+		require.NoError(t, rows.Scan(&action, &actor, &metadata))
+		actors[action] = actor
+		trail.WriteString(metadata)
+	}
+	require.NoError(t, rows.Err())
+
+	for action, actor := range map[string]string{
+		"user.created":            admin.ID,
+		"user.password_changed":   member.ID,
+		"user.profile_updated":    admin.ID,
+		"tenant.updated":          admin.ID,
+		"tenant.branding_updated": admin.ID,
+	} {
+		assert.Equalf(t, actor, actors[action], "%s is missing, or names the wrong actor", action)
+	}
+
+	assert.NotContains(t, trail.String(), newPassword, "a password reached the trail")
+	assert.NotContains(t, trail.String(), "password123", "a password reached the trail")
+	assert.NotContains(t, trail.String(), "+44 20", "a phone number reached the trail")
+}

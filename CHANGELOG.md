@@ -18,9 +18,11 @@ the entry says so under **Changed**.
 - `TARGET_URL` in the load script: run the generator on one host and the service on
   another, which is the only setup where the tail describes the service. The run also
   measures the host it is on and tells k6 whether the tail is worth asserting.
-- Audit entries for the changes made through the API, not only for provisioning: role
-  changes, suspensions, reactivations and deletions of members and tenants, each written in
-  the transaction that makes the change, with the actor taken from the request.
+- Audit entries for the changes made through the API, not only for provisioning: members
+  added, roles changed, passwords changed, profiles edited, members and tenants suspended,
+  reactivated and deleted, tenant details, branding and custom domains changed. Each is
+  written in the transaction that makes the change, with the actor taken from the request.
+  Secrets and personal data are recorded by field name, never by value.
 - `platform_operators`: acting across tenants is a grant of its own, held by nobody by
   default. Listing, counting, suspending, reactivating, repricing and creating tenants are
   admitted only for a subject recorded there, whatever its role in its own tenant.

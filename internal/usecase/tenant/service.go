@@ -203,7 +203,8 @@ func (s *Service) Update(ctx context.Context, id string, req *UpdateTenantReques
 	}
 
 	// Save to repository
-	if err := s.repo.Update(ctx, t); err != nil {
+	if err := s.repo.UpdateAudited(ctx, t, s.entry(ctx, t.ID, "tenant.updated",
+		map[string]any{"fields": tenantFields(req)})); err != nil {
 		s.logger.ErrorWithErr(err, "failed to update tenant")
 		return nil, fmt.Errorf("failed to update tenant: %w", err)
 	}
@@ -321,7 +322,8 @@ func (s *Service) SetCustomDomain(ctx context.Context, id string, req *SetCustom
 		return nil, err
 	}
 
-	if err := s.repo.Update(ctx, t); err != nil {
+	if err := s.repo.UpdateAudited(ctx, t, s.entry(ctx, t.ID, "tenant.domain_set",
+		map[string]any{"domain": req.Domain})); err != nil {
 		s.logger.ErrorWithErr(err, "failed to set custom domain")
 		return nil, fmt.Errorf("failed to set custom domain: %w", err)
 	}
@@ -345,7 +347,8 @@ func (s *Service) VerifyCustomDomain(ctx context.Context, id string) (*TenantRes
 		return nil, err
 	}
 
-	if err := s.repo.Update(ctx, t); err != nil {
+	if err := s.repo.UpdateAudited(ctx, t, s.entry(ctx, t.ID, "tenant.domain_verified",
+		map[string]any{"domain": t.CustomDomain})); err != nil {
 		s.logger.ErrorWithErr(err, "failed to verify custom domain")
 		return nil, fmt.Errorf("failed to verify custom domain: %w", err)
 	}
@@ -424,7 +427,8 @@ func (s *Service) UpdateBranding(ctx context.Context, id string, req *UpdateBran
 	t.UpdateSettings("branding", branding)
 
 	// Save to repository
-	if err := s.repo.Update(ctx, t); err != nil {
+	if err := s.repo.UpdateAudited(ctx, t, s.entry(ctx, t.ID, "tenant.branding_updated",
+		map[string]any{"fields": brandingFields(req)})); err != nil {
 		s.logger.ErrorWithErr(err, "failed to update branding")
 		return nil, fmt.Errorf("failed to update branding: %w", err)
 	}
@@ -489,4 +493,49 @@ func (s *Service) entry(ctx context.Context, tenantID, action string, metadata m
 		SubjectID:   tenantID,
 		Metadata:    metadata,
 	}
+}
+
+// tenantFields names the details a request changes. The contact email and phone are
+// recorded by name only, for the reason profileFields gives.
+func tenantFields(req *UpdateTenantRequest) []string {
+	candidates := []struct{ name, value string }{
+		{"name", req.Name},
+		{"email", req.Email},
+		{"phone", req.Phone},
+	}
+
+	fields := make([]string, 0, len(candidates))
+	for _, candidate := range candidates {
+		if candidate.value != "" {
+			fields = append(fields, candidate.name)
+		}
+	}
+
+	return fields
+}
+
+// brandingFields names the branding settings a request changes. Custom CSS can run to fifty
+// thousand characters, and the trail is not the place to keep a copy of it.
+func brandingFields(req *UpdateBrandingRequest) []string {
+	candidates := []struct {
+		name  string
+		value *string
+	}{
+		{"logo", req.Logo},
+		{"favicon", req.Favicon},
+		{"primary_color", req.PrimaryColor},
+		{"secondary_color", req.SecondaryColor},
+		{"accent_color", req.AccentColor},
+		{"font_family", req.FontFamily},
+		{"custom_css", req.CustomCSS},
+	}
+
+	fields := make([]string, 0, len(candidates))
+	for _, candidate := range candidates {
+		if candidate.value != nil {
+			fields = append(fields, candidate.name)
+		}
+	}
+
+	return fields
 }

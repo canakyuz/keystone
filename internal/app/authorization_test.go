@@ -20,12 +20,14 @@ import (
 	operationHandler "github.com/canakyuz/keystone/internal/handler/operation"
 	tenantHandler "github.com/canakyuz/keystone/internal/handler/tenant"
 	userHandler "github.com/canakyuz/keystone/internal/handler/user"
+	webhookHandler "github.com/canakyuz/keystone/internal/handler/webhook"
 	"github.com/canakyuz/keystone/internal/middleware"
 	auditRepo "github.com/canakyuz/keystone/internal/repository/audit"
 	operationRepo "github.com/canakyuz/keystone/internal/repository/operation"
 	platformRepo "github.com/canakyuz/keystone/internal/repository/platform"
 	tenantRepo "github.com/canakyuz/keystone/internal/repository/tenant"
 	userRepo "github.com/canakyuz/keystone/internal/repository/user"
+	webhookRepo "github.com/canakyuz/keystone/internal/repository/webhook"
 	tenantUsecase "github.com/canakyuz/keystone/internal/usecase/tenant"
 	userUsecase "github.com/canakyuz/keystone/internal/usecase/user"
 	"github.com/canakyuz/keystone/pkg/database"
@@ -75,6 +77,7 @@ func newAuthzHarness(t *testing.T) *authzHarness {
 	setupRoutes(app, cfg,
 		authHandler.NewHandler(userService),
 		auditHandler.NewHandler(auditRepo.NewReader(appDB)),
+		webhookHandler.NewHandler(webhookRepo.New(appDB, trail)),
 		tenantHandler.NewHandler(tenantUsecase.NewService(tenants, validator.New(), log, nil)),
 		userHandler.NewHandler(userService),
 		nil, nil, nil, nil,

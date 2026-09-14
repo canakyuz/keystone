@@ -14,6 +14,7 @@ export function Chrome({ user, tenant }: { user: User; tenant: Tenant }) {
       <nav className="chrome-nav" aria-label="Console">
         <NavLink href="/">Tenant</NavLink>
         <NavLink href="/members">Members</NavLink>
+        <NavLink href="/webhooks">Webhooks</NavLink>
         <NavLink href="/audit">History</NavLink>
         <NavLink href="/settings">Settings</NavLink>
         <NavLink href="/provision">New tenant</NavLink>

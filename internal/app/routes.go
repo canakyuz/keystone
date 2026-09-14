@@ -9,6 +9,7 @@ import (
 	tenantHandler "github.com/canakyuz/keystone/internal/handler/tenant"
 	uploadHandler "github.com/canakyuz/keystone/internal/handler/upload"
 	userHandler "github.com/canakyuz/keystone/internal/handler/user"
+	webhookHandler "github.com/canakyuz/keystone/internal/handler/webhook"
 	"github.com/canakyuz/keystone/internal/middleware"
 	"github.com/gofiber/fiber/v2"
 )
@@ -20,6 +21,7 @@ func setupRoutes(
 	cfg *config.Config,
 	authH *authHandler.Handler,
 	auditH *auditHandler.Handler,
+	webhookH *webhookHandler.Handler,
 	tenantH *tenantHandler.Handler,
 	userH *userHandler.Handler,
 	uploadH *uploadHandler.Handler,
@@ -153,6 +155,14 @@ func setupRoutes(
 	// read who suspended them; that is the history, not their business.
 	trail := v1.Group("/audit", chain(authenticated, tenantContextMiddleware, tenantScope)...)
 	trail.Get("/", admins, auditH.List)
+
+	// Where this tenant wants to be notified. Not under /webhooks: the reference application
+	// mounts public payment callbacks there, and group middleware on that prefix would put
+	// them behind authentication.
+	endpoints := v1.Group("/webhook-endpoints", chain(authenticated, tenantContextMiddleware, tenantScope)...)
+	endpoints.Get("/", admins, webhookH.List)
+	endpoints.Post("/", admins, webhookH.Create)
+	endpoints.Patch("/:id", admins, webhookH.SetActive)
 
 	// The example business modules mount their own routes; see examples/verticals.
 	// They are registered from cmd/server, after this function returns, because the

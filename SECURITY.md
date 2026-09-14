@@ -69,6 +69,13 @@ Migration 037 also constrains stored destinations to https at the database level
 a last line rather than the defence: it catches a row inserted by something that forgot to
 call the validator, and it cannot see anything about where the name points.
 
+Registration now exists. `POST /api/v1/webhook-endpoints` runs the registration check before
+anything is stored, and only for the owner and admin roles. The signing secret is generated
+on the server from 32 random bytes, returned once in the response that created it, and never
+listed again. The audit trail records the destination's host and not its URL, because some
+services put a credential in the path of the address they hand out, and the trail keeps
+whatever it is given.
+
 ## Known and deliberate design decisions
 
 The following are intentional behaviour, not holes.
@@ -100,7 +107,7 @@ relevant migration files.
 | The rate limiter ran before authentication | It read the tenant from a value the authenticator had not written yet, so the branch was never taken. Every authenticated tenant was held to the anonymous quota of 30 requests a minute regardless of the plan it paid for, and the plan table was dead code | `internal/middleware` |
 | Login logged the request email and returned the raw service error | The address went to stderr on every attempt, in an unstructured stream nothing rotates or redacts, and a repository failure would have described the schema to the caller | `internal/handler/auth` |
 | The provisioning endpoints were registered ahead of the global middleware | In Fiber that means the middleware never runs for them, so the endpoint that creates tenants had no rate limit, no metrics and no request log | `internal/app` |
-| Webhook delivery connected to any address a tenant supplied | Server-side request forgery: a registered destination of `http://169.254.169.254/` reaches the cloud metadata credentials, and any internal service is reachable from inside the perimeter. Not exploitable at the time it was found — there is no endpoint for registering a destination yet — but the delivery code that will serve one was unguarded | `pkg/outbound` |
+| Webhook delivery connected to any address a tenant supplied | Server-side request forgery: a registered destination of `http://169.254.169.254/` reaches the cloud metadata credentials, and any internal service is reachable from inside the perimeter. It was not exploitable when found, because nothing could register a destination; the delivery code was guarded before registration was added | `pkg/outbound` |
 | Provisioning wrote to `operations` without tenant context, and the status lookup read it without any | Under the non-superuser role this file requires, the tenant policy refused the insert, so `POST /tenants` failed on every request, and every status poll and idempotent retry answered 404. Development connected as a superuser and saw neither. The lookup is now visible to the subject that created the operation and to no one else | `038` |
 | The tenant endpoints acted on the tenant id in the path | The owner of any tenant could read, change or delete any other tenant, and suspend it, by putting its id in the URL | `internal/middleware`, `SameTenant` |
 | No route checked a role | A viewer could grant roles, including owner, and create or delete users in its tenant | `internal/app/routes.go` |

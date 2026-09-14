@@ -25,6 +25,7 @@ import (
 	tenantHandler "github.com/canakyuz/keystone/internal/handler/tenant"
 	uploadHandler "github.com/canakyuz/keystone/internal/handler/upload"
 	userHandler "github.com/canakyuz/keystone/internal/handler/user"
+	webhookHandler "github.com/canakyuz/keystone/internal/handler/webhook"
 	"github.com/canakyuz/keystone/internal/middleware"
 	auditRepo "github.com/canakyuz/keystone/internal/repository/audit"
 	operationRepo "github.com/canakyuz/keystone/internal/repository/operation"
@@ -33,6 +34,7 @@ import (
 	templateRepo "github.com/canakyuz/keystone/internal/repository/template"
 	tenantRepo "github.com/canakyuz/keystone/internal/repository/tenant"
 	userRepo "github.com/canakyuz/keystone/internal/repository/user"
+	webhookRepo "github.com/canakyuz/keystone/internal/repository/webhook"
 	registryService "github.com/canakyuz/keystone/internal/service/registry"
 	tenantUsecase "github.com/canakyuz/keystone/internal/usecase/tenant"
 	userUsecase "github.com/canakyuz/keystone/internal/usecase/user"
@@ -304,6 +306,7 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 	// responses.
 	authHTTPHandler := authHandler.NewHandler(userService)
 	auditHTTPHandler := auditHandler.NewHandler(auditRepo.NewReader(db))
+	webhookHTTPHandler := webhookHandler.NewHandler(webhookRepo.New(db, trail))
 	tenantHTTPHandler := tenantHandler.NewHandler(tenantService)
 	userHTTPHandler := userHandler.NewHandler(userService)
 
@@ -315,7 +318,7 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 	activationHTTPHandler := registryHandler.NewActivationHandler(tenantActivationService, dependencyCheckerService)
 
 	// Wire the routes.
-	setupRoutes(app, cfg, authHTTPHandler, auditHTTPHandler, tenantHTTPHandler, userHTTPHandler, uploadHTTPHandler,
+	setupRoutes(app, cfg, authHTTPHandler, auditHTTPHandler, webhookHTTPHandler, tenantHTTPHandler, userHTTPHandler, uploadHTTPHandler,
 		moduleCatalogHTTPHandler, toolCatalogHTTPHandler, activationHTTPHandler,
 		tenantContextMiddleware, tenantScopeMiddleware, planRateLimit, membership, platformOnly)
 

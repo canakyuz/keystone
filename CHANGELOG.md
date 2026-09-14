@@ -12,6 +12,11 @@ the entry says so under **Changed**.
 
 ### Added
 
+- `GET`, `POST` and `PATCH /api/v1/webhook-endpoints`, and a console page for them. A
+  tenant's administrators register the https addresses to notify, turn them on and off, and
+  see how many deliveries each has made, is still attempting, or gave up on. The signing
+  secret is generated on the server and shown once. Addresses inside a private network are
+  refused before they are stored, and a tenant keeps at most ten.
 - `GET /api/v1/audit`: the tenant's own trail, newest first, with a cursor. Open to the
   owner and admin roles, scoped by the same tenant policy as the table underneath it.
 - Console pages for the history and for the tenant's own details.

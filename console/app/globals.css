@@ -403,3 +403,6 @@ body {
 
 .signin-title { margin-bottom: 18px; }
 .signin-body .masthead-name { font-size: clamp(56px, 10vw, 136px); }
+
+.secret { margin-top: 8px; font-size: 13px; overflow-wrap: anywhere; user-select: all; }
+.block-gap { margin-bottom: 18px; }

@@ -60,6 +60,19 @@ export interface Operation {
   completed_at?: string;
 }
 
+export interface WebhookEndpoint {
+  id: string;
+  url: string;
+  active: boolean;
+  secret_hint: string;
+  created_at: string;
+  deliveries: { delivered: number; pending: number; dead: number };
+}
+
+export interface CreatedWebhookEndpoint extends WebhookEndpoint {
+  secret: string;
+}
+
 export interface AuditEntry {
   id: string;
   action: string;

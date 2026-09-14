@@ -28,6 +28,9 @@ const ACTIONS: Record<string, string> = {
   'tenant.domain_verified': 'Custom domain verified',
   'tenant.deleted': 'Tenant removed',
   'tenant.activated': 'Tenant provisioned',
+  'webhook.created': 'Webhook added',
+  'webhook.enabled': 'Webhook turned on',
+  'webhook.disabled': 'Webhook turned off',
 };
 
 export default async function AuditPage({ searchParams }: { searchParams: Promise<{ before?: string }> }) {

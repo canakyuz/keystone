@@ -268,6 +268,16 @@ process dies in between.
   `TestClaim_ConcurrentWorkersNeverShareAnEvent`,
   `TestMarkFailed_RetriesUntilExhaustedThenDies`
 
+A tenant's administrators register where they want to be told through
+`POST /api/v1/webhook-endpoints`. A tenant keeps at most ten, because every event is written
+once per active endpoint and an unbounded list would turn one provisioning into as many
+outbound requests as somebody cared to register. There is no delete: turning an endpoint off
+stops its deliveries and keeps the record of what was sent to it.
+
+- Code: `internal/handler/webhook`, `internal/repository/webhook`
+- Tests: `TestWebhookEndpoints_AreManagedByTheirTenantsAdministrators`,
+  `TestWebhookEndpoints_AreCapped`
+
 **Limit:** delivery is at-least-once, not exactly-once, which is not available over HTTP.
 A receiver that accepts a request and fails before answering will be sent it again. Each
 delivery carries a stable `Idempotency-Key` — the event id, unchanged across attempts —

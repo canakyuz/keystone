@@ -42,6 +42,7 @@ const ACTIONS: Record<string, string> = {
   'tool.setup_completed': 'Tool set up',
   'tool.integration_verified': 'Tool integration verified',
   'tool.uninstalled': 'Tool removed',
+  'upload.created': 'File uploaded',
 };
 
 export default async function AuditPage({ searchParams }: { searchParams: Promise<{ before?: string }> }) {

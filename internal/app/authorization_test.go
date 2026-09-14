@@ -29,6 +29,7 @@ import (
 	platformRepo "github.com/canakyuz/keystone/internal/repository/platform"
 	registryRepo "github.com/canakyuz/keystone/internal/repository/registry"
 	tenantRepo "github.com/canakyuz/keystone/internal/repository/tenant"
+	uploadRepo "github.com/canakyuz/keystone/internal/repository/upload"
 	userRepo "github.com/canakyuz/keystone/internal/repository/user"
 	webhookRepo "github.com/canakyuz/keystone/internal/repository/webhook"
 	registryService "github.com/canakyuz/keystone/internal/service/registry"
@@ -93,7 +94,7 @@ func newAuthzHarness(t *testing.T) *authzHarness {
 		webhookHandler.NewHandler(webhookRepo.New(appDB, trail)),
 		tenantHandler.NewHandler(tenantUsecase.NewService(tenants, validator.New(), log, nil)),
 		userHandler.NewHandler(userService),
-		uploadHandler.NewHandler(log),
+		uploadHandler.NewHandler(log, uploadRepo.New(appDB, trail)),
 		registryHandler.NewModuleCatalogHandler(registryService.NewModuleCatalogService(modules)),
 		registryHandler.NewToolCatalogHandler(registryService.NewToolCatalogService(tools)),
 		registryHandler.NewActivationHandler(activation, dependencies),

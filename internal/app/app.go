@@ -33,6 +33,7 @@ import (
 	registryRepo "github.com/canakyuz/keystone/internal/repository/registry"
 	templateRepo "github.com/canakyuz/keystone/internal/repository/template"
 	tenantRepo "github.com/canakyuz/keystone/internal/repository/tenant"
+	uploadRepo "github.com/canakyuz/keystone/internal/repository/upload"
 	userRepo "github.com/canakyuz/keystone/internal/repository/user"
 	webhookRepo "github.com/canakyuz/keystone/internal/repository/webhook"
 	registryService "github.com/canakyuz/keystone/internal/service/registry"
@@ -310,7 +311,7 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 	tenantHTTPHandler := tenantHandler.NewHandler(tenantService)
 	userHTTPHandler := userHandler.NewHandler(userService)
 
-	uploadHTTPHandler := uploadHandler.NewHandler(appLogger)
+	uploadHTTPHandler := uploadHandler.NewHandler(appLogger, uploadRepo.New(db, trail))
 
 	// Registry handlers.
 	moduleCatalogHTTPHandler := registryHandler.NewModuleCatalogHandler(moduleCatalogService)

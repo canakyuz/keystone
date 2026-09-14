@@ -1,6 +1,7 @@
 package upload
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -11,6 +12,7 @@ import (
 	"slices"
 
 	"github.com/canakyuz/keystone/internal/middleware"
+	uploadrepo "github.com/canakyuz/keystone/internal/repository/upload"
 	"github.com/canakyuz/keystone/pkg/logger"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
@@ -54,16 +56,24 @@ var extensions = map[string]string{
 // errTypeNotAllowed is the refusal a client sees for a file that is not an accepted image.
 var errTypeNotAllowed = errors.New("file type not allowed")
 
+// Recorder records a stored file. It is the one thing the handler needs from the upload
+// repository.
+type Recorder interface {
+	Create(ctx context.Context, record *uploadrepo.Record) error
+}
+
 // Handler handles file upload requests
 type Handler struct {
 	logger     *logger.Logger
+	records    Recorder
 	uploadPath string
 }
 
 // NewHandler creates a new upload handler
-func NewHandler(log *logger.Logger) *Handler {
+func NewHandler(log *logger.Logger, records Recorder) *Handler {
 	return &Handler{
 		logger:     log,
+		records:    records,
 		uploadPath: UploadBasePath,
 	}
 }
@@ -86,7 +96,7 @@ func (h *Handler) UploadImage(c *fiber.Ctx) error {
 	return h.accept(c, "image", "images", MaxFileSize)
 }
 
-// accept validates the request's file for category and stores it under subdir.
+// accept validates the request's file for category, stores it under subdir and records it.
 func (h *Handler) accept(c *fiber.Ctx, category, subdir string, maxSize int64) error {
 	tenantID := middleware.GetTenantID(c)
 	if tenantID == "" {
@@ -109,7 +119,7 @@ func (h *Handler) accept(c *fiber.Ctx, category, subdir string, maxSize int64) e
 		})
 	}
 
-	filePath, err := h.saveFile(c, file, tenantID, subdir, contentType)
+	urlPath, diskPath, err := h.saveFile(c, file, tenantID, subdir, contentType)
 	if err != nil {
 		h.logger.ErrorWithErr(err, "failed to save "+category+" file")
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
@@ -117,9 +127,26 @@ func (h *Handler) accept(c *fiber.Ctx, category, subdir string, maxSize int64) e
 		})
 	}
 
+	record := &uploadrepo.Record{
+		TenantID:    tenantID,
+		Category:    category,
+		Path:        urlPath,
+		ContentType: contentType,
+		SizeBytes:   file.Size,
+	}
+	if err := h.records.Create(c.UserContext(), record); err != nil {
+		// The file is on disk with no record of it. Removing it keeps the two in step: a
+		// stored file nobody can account for is what the record exists to rule out.
+		if removeErr := os.Remove(diskPath); removeErr != nil {
+			h.logger.ErrorWithErr(removeErr, "failed to remove an unrecorded upload")
+		}
+		return err
+	}
+
 	return c.JSON(fiber.Map{
 		"data": fiber.Map{
-			"url":          filePath,
+			"id":           record.ID,
+			"url":          urlPath,
 			"filename":     file.Filename,
 			"size":         file.Size,
 			"content_type": contentType,
@@ -161,8 +188,8 @@ func (h *Handler) validateFile(file *multipart.FileHeader, category string, maxS
 }
 
 // saveFile saves uploaded file to disk (tenant-scoped), under a name and extension the
-// server chose.
-func (h *Handler) saveFile(c *fiber.Ctx, file *multipart.FileHeader, tenantID, subdir, contentType string) (string, error) {
+// server chose. It returns the path the file is served from and the path it was written to.
+func (h *Handler) saveFile(c *fiber.Ctx, file *multipart.FileHeader, tenantID, subdir, contentType string) (string, string, error) {
 	filename := uuid.New().String() + extensions[contentType]
 
 	// Create tenant-specific directory path
@@ -171,7 +198,7 @@ func (h *Handler) saveFile(c *fiber.Ctx, file *multipart.FileHeader, tenantID, s
 
 	// Create directory if not exists
 	if err := os.MkdirAll(dirPath, 0755); err != nil {
-		return "", fmt.Errorf("failed to create upload directory: %w", err)
+		return "", "", fmt.Errorf("failed to create upload directory: %w", err)
 	}
 
 	// Full file path
@@ -179,7 +206,7 @@ func (h *Handler) saveFile(c *fiber.Ctx, file *multipart.FileHeader, tenantID, s
 
 	// Save file
 	if err := c.SaveFile(file, fullPath); err != nil {
-		return "", fmt.Errorf("failed to save file: %w", err)
+		return "", "", fmt.Errorf("failed to save file: %w", err)
 	}
 
 	// Return relative URL path
@@ -191,5 +218,5 @@ func (h *Handler) saveFile(c *fiber.Ctx, file *multipart.FileHeader, tenantID, s
 		"file_size": file.Size,
 	}).Info("File uploaded successfully")
 
-	return relativePath, nil
+	return relativePath, fullPath, nil
 }

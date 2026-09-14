@@ -53,14 +53,15 @@ func sendFile(t *testing.T, h *authzHarness, token, path, filename, declaredType
 }
 
 // uploaderFor creates a tenant with one editor, who may upload images, and removes what the
-// test stores. The handler writes under ./uploads, relative to this package.
-func uploaderFor(t *testing.T, h *authzHarness, slug string) (string, string) {
+// test stores. The handler writes under ./uploads, relative to this package. It returns the
+// tenant's id, the editor's id and a token for the editor.
+func uploaderFor(t *testing.T, h *authzHarness, slug string) (string, string, string) {
 	t.Helper()
 	t.Cleanup(func() { _ = os.RemoveAll("./uploads") })
 
 	tenantID := helpers.CreateTestTenant(t, h.admin, slug).ID
 	editor := helpers.CreateTestUser(t, h.admin, tenantID, "editor@"+slug+".test", "editor")
-	return tenantID, tokenFor(t, tenantID, editor.ID, "editor")
+	return tenantID, editor.ID, tokenFor(t, tenantID, editor.ID, "editor")
 }
 
 // TestUpload_StoresOnlyTheImagesItCanRecognise: the type is read from the file, not taken
@@ -68,7 +69,7 @@ func uploaderFor(t *testing.T, h *authzHarness, slug string) (string, string) {
 // origin as text/html, where its script ran for anyone who opened the link.
 func TestUpload_StoresOnlyTheImagesItCanRecognise(t *testing.T) {
 	h := newAuthzHarness(t)
-	_, token := uploaderFor(t, h, "upload-types")
+	_, _, token := uploaderFor(t, h, "upload-types")
 
 	for _, refused := range []struct{ filename, declared, content string }{
 		{"page.html", "image/png", "<html><script>alert(document.domain)</script></html>"},
@@ -93,7 +94,7 @@ func TestUpload_StoresOnlyTheImagesItCanRecognise(t *testing.T) {
 // with this origin's authority.
 func TestUpload_ServesFilesAsPassiveContent(t *testing.T) {
 	h := newAuthzHarness(t)
-	tenantID, token := uploaderFor(t, h, "upload-serving")
+	tenantID, _, token := uploaderFor(t, h, "upload-serving")
 
 	status, body := sendFile(t, h, token, "/api/v1/upload/image", "logo.png", "image/png", pngBytes)
 	require.Equal(t, http.StatusOK, status, body)
@@ -112,5 +113,58 @@ func TestUpload_ServesFilesAsPassiveContent(t *testing.T) {
 		require.Equalf(t, http.StatusOK, resp.StatusCode, path)
 		assert.Equalf(t, "nosniff", resp.Header.Get("X-Content-Type-Options"), path)
 		assert.Containsf(t, resp.Header.Get("Content-Security-Policy"), "sandbox", path)
+	}
+}
+
+// TestUpload_IsRecordedWithWhoStoredIt: a stored file has a row in its tenant and a line in
+// the trail, both naming the member who stored it.
+func TestUpload_IsRecordedWithWhoStoredIt(t *testing.T) {
+	h := newAuthzHarness(t)
+	tenantID, editorID, token := uploaderFor(t, h, "upload-record")
+
+	status, body := sendFile(t, h, token, "/api/v1/upload/image", "photo of me.png", "image/png", pngBytes)
+	require.Equal(t, http.StatusOK, status, body)
+	url := uploadedURL.FindStringSubmatch(body)
+	require.NotNil(t, url, body)
+
+	var uploadID, category, contentType, uploadedBy string
+	var size int64
+	require.NoError(t, h.admin.QueryRow(`
+		SELECT id::text, category, content_type, size_bytes, uploaded_by::text
+		FROM uploads WHERE tenant_id = $1 AND path = $2`, tenantID, url[1],
+	).Scan(&uploadID, &category, &contentType, &size, &uploadedBy))
+	assert.Equal(t, "image", category)
+	assert.Equal(t, "image/png", contentType)
+	assert.Equal(t, int64(len(pngBytes)), size)
+	assert.Equal(t, editorID, uploadedBy)
+
+	var actor, metadata string
+	require.NoError(t, h.admin.QueryRow(`
+		SELECT actor_id::text, metadata::text FROM audit_log
+		WHERE tenant_id = $1 AND action = 'upload.created' AND subject_id = $2`, tenantID, uploadID,
+	).Scan(&actor, &metadata))
+	assert.Equal(t, editorID, actor, "the trail does not say who stored the file")
+	assert.NotContains(t, metadata, "photo of me", "the client's file name reached the append-only trail")
+}
+
+// TestUpload_AFileWithoutItsRecordIsNotKept takes the right to record uploads away from the
+// application's role. The request must fail and leave nothing on disk.
+func TestUpload_AFileWithoutItsRecordIsNotKept(t *testing.T) {
+	h := newAuthzHarness(t)
+	tenantID, _, token := uploaderFor(t, h, "upload-unrecorded")
+
+	var owner string
+	require.NoError(t, h.admin.QueryRow(`SELECT tableowner FROM pg_tables WHERE tablename = 'uploads'`).Scan(&owner))
+	_, err := h.admin.Exec(`REVOKE INSERT ON uploads FROM "` + owner + `"`)
+	require.NoError(t, err)
+
+	status, body := sendFile(t, h, token, "/api/v1/upload/image", "logo.png", "image/png", pngBytes)
+	require.Equal(t, http.StatusInternalServerError, status, body)
+	assert.NotContains(t, body, "permission denied", "the database's refusal reached the client")
+
+	entries, err := os.ReadDir("./uploads/tenants/" + tenantID + "/images")
+	if !os.IsNotExist(err) {
+		require.NoError(t, err)
+		assert.Empty(t, entries, "a file stayed on disk with no record of it")
 	}
 }

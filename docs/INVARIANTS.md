@@ -250,7 +250,19 @@ what it became. A password change records that it happened and who made it; a pr
 records which fields changed. Anything written to an append-only table stays there, whatever
 the person it describes later asks for, and the test asserts the values are absent.
 
-**Limit:** uploads and everything under `examples/` are not in the trail.
+A stored file is recorded the same way, as `upload.created`, beside a row in `uploads`
+(`migrations/041_create_uploads.up.sql`). The file reaches disk first, since a file system
+and a database share no transaction; when the row and its entry cannot be written, the file
+is removed, and a crash in between leaves a file nothing points to rather than a record of a
+file that is not there. The client's file name is kept in neither.
+
+- Code: `internal/repository/upload/postgres.go`, `internal/handler/upload/handler.go`
+- Test: `internal/app/upload_test.go`, `TestUpload_IsRecordedWithWhoStoredIt` and
+  `TestUpload_AFileWithoutItsRecordIsNotKept`
+
+**Limit:** everything under `examples/` is outside the trail. A file written to disk just
+before the process dies stays there unrecorded until something sweeps the directory, and
+nothing does yet.
 
 ---
 

@@ -15,6 +15,10 @@ the entry says so under **Changed**.
 - Module and tool installations write the audit trail. Installing, activating,
   deactivating, finishing setup and uninstalling each record who did it and what it was
   done to, in the transaction that makes the change, and the console's history names them.
+- An `uploads` table (migration 041). Every stored file gets a row in its tenant naming its
+  category, type, size and uploader, written with an `upload.created` audit entry. A file
+  whose record cannot be written is removed from disk, and the response includes the
+  record's id.
 
 ### Security
 

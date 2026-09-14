@@ -1,12 +1,14 @@
 package upload
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"mime/multipart"
+	"net/http"
 	"os"
 	"path/filepath"
-	"strings"
+	"slices"
 
 	"github.com/canakyuz/keystone/internal/middleware"
 	"github.com/canakyuz/keystone/pkg/logger"
@@ -25,28 +27,32 @@ const (
 	UploadBasePath = "./uploads"
 )
 
-// AllowedFileTypes defines allowed MIME types for different file categories
+// AllowedFileTypes lists, per category, the content types a file may be stored as. The type
+// is the one read from the file's own first bytes, never the one the client declares.
+//
+// SVG is not among them. An SVG is a document that can carry script, served from this
+// origin it runs with this origin's authority, and no byte signature tells a harmless one
+// from a hostile one.
 var AllowedFileTypes = map[string][]string{
-	"logo": {
-		"image/png",
-		"image/jpeg",
-		"image/svg+xml",
-		"image/webp",
-	},
-	"favicon": {
-		"image/x-icon",
-		"image/png",
-		"image/vnd.microsoft.icon",
-	},
-	"image": {
-		"image/png",
-		"image/jpeg",
-		"image/jpg",
-		"image/gif",
-		"image/webp",
-		"image/svg+xml",
-	},
+	"logo":    {"image/png", "image/jpeg", "image/webp"},
+	"favicon": {"image/x-icon", "image/png"},
+	"image":   {"image/png", "image/jpeg", "image/gif", "image/webp"},
 }
+
+// extensions gives the extension a file of each accepted type is stored under.
+//
+// The server chooses it. It used to come from the client's file name, so a page named
+// x.html declared as image/png was stored as x.html and served back as text/html.
+var extensions = map[string]string{
+	"image/png":    ".png",
+	"image/jpeg":   ".jpg",
+	"image/gif":    ".gif",
+	"image/webp":   ".webp",
+	"image/x-icon": ".ico",
+}
+
+// errTypeNotAllowed is the refusal a client sees for a file that is not an accepted image.
+var errTypeNotAllowed = errors.New("file type not allowed")
 
 // Handler handles file upload requests
 type Handler struct {
@@ -65,90 +71,23 @@ func NewHandler(log *logger.Logger) *Handler {
 // UploadLogo handles logo file upload
 // POST /api/v1/upload/logo
 func (h *Handler) UploadLogo(c *fiber.Ctx) error {
-	tenantID := middleware.GetTenantID(c)
-	if tenantID == "" {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-			"error": "Unauthorized: tenant ID required",
-		})
-	}
-
-	file, err := c.FormFile("file")
-	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "No file provided",
-		})
-	}
-
-	// Validate file
-	if err := h.validateFile(file, "logo", MaxLogoSize); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": err.Error(),
-		})
-	}
-
-	// Save file
-	filePath, err := h.saveFile(c, file, tenantID, "logo")
-	if err != nil {
-		h.logger.ErrorWithErr(err, "failed to save logo file")
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Failed to save file",
-		})
-	}
-
-	return c.JSON(fiber.Map{
-		"data": fiber.Map{
-			"url":      filePath,
-			"filename": file.Filename,
-			"size":     file.Size,
-		},
-	})
+	return h.accept(c, "logo", "logo", MaxLogoSize)
 }
 
 // UploadFavicon handles favicon file upload
 // POST /api/v1/upload/favicon
 func (h *Handler) UploadFavicon(c *fiber.Ctx) error {
-	tenantID := middleware.GetTenantID(c)
-	if tenantID == "" {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-			"error": "Unauthorized: tenant ID required",
-		})
-	}
-
-	file, err := c.FormFile("file")
-	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "No file provided",
-		})
-	}
-
-	// Validate file
-	if err := h.validateFile(file, "favicon", MaxFaviconSize); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": err.Error(),
-		})
-	}
-
-	// Save file
-	filePath, err := h.saveFile(c, file, tenantID, "favicon")
-	if err != nil {
-		h.logger.ErrorWithErr(err, "failed to save favicon file")
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Failed to save file",
-		})
-	}
-
-	return c.JSON(fiber.Map{
-		"data": fiber.Map{
-			"url":      filePath,
-			"filename": file.Filename,
-			"size":     file.Size,
-		},
-	})
+	return h.accept(c, "favicon", "favicon", MaxFaviconSize)
 }
 
 // UploadImage handles general image upload
 // POST /api/v1/upload/image
 func (h *Handler) UploadImage(c *fiber.Ctx) error {
+	return h.accept(c, "image", "images", MaxFileSize)
+}
+
+// accept validates the request's file for category and stores it under subdir.
+func (h *Handler) accept(c *fiber.Ctx, category, subdir string, maxSize int64) error {
 	tenantID := middleware.GetTenantID(c)
 	if tenantID == "" {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
@@ -163,17 +102,16 @@ func (h *Handler) UploadImage(c *fiber.Ctx) error {
 		})
 	}
 
-	// Validate file
-	if err := h.validateFile(file, "image", MaxFileSize); err != nil {
+	contentType, err := h.validateFile(file, category, maxSize)
+	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": err.Error(),
 		})
 	}
 
-	// Save file
-	filePath, err := h.saveFile(c, file, tenantID, "images")
+	filePath, err := h.saveFile(c, file, tenantID, subdir, contentType)
 	if err != nil {
-		h.logger.ErrorWithErr(err, "failed to save image file")
+		h.logger.ErrorWithErr(err, "failed to save "+category+" file")
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": "Failed to save file",
 		})
@@ -181,64 +119,51 @@ func (h *Handler) UploadImage(c *fiber.Ctx) error {
 
 	return c.JSON(fiber.Map{
 		"data": fiber.Map{
-			"url":      filePath,
-			"filename": file.Filename,
-			"size":     file.Size,
+			"url":          filePath,
+			"filename":     file.Filename,
+			"size":         file.Size,
+			"content_type": contentType,
 		},
 	})
 }
 
-// validateFile validates file type and size
-func (h *Handler) validateFile(file *multipart.FileHeader, category string, maxSize int64) error {
-	// Check file size
+// validateFile checks the file's size and reads its type from its first bytes, returning
+// that type when the category accepts it.
+func (h *Handler) validateFile(file *multipart.FileHeader, category string, maxSize int64) (string, error) {
 	if file.Size > maxSize {
-		return fmt.Errorf("file size exceeds limit (%d bytes)", maxSize)
+		return "", fmt.Errorf("file size exceeds limit (%d bytes)", maxSize)
 	}
 
-	// Check file type
 	allowedTypes, exists := AllowedFileTypes[category]
 	if !exists {
-		return fmt.Errorf("invalid file category: %s", category)
+		return "", fmt.Errorf("invalid file category: %s", category)
 	}
 
-	// Open file to check MIME type
 	src, err := file.Open()
 	if err != nil {
-		return fmt.Errorf("failed to open file: %w", err)
+		return "", fmt.Errorf("failed to open file: %w", err)
 	}
 	defer src.Close()
 
-	// Read first 512 bytes to detect content type
-	buffer := make([]byte, 512)
-	_, err = src.Read(buffer)
-	if err != nil && err != io.EOF {
-		return fmt.Errorf("failed to read file: %w", err)
+	// DetectContentType considers at most the first 512 bytes. A shorter file is read whole.
+	head := make([]byte, 512)
+	n, err := io.ReadFull(src, head)
+	if err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, io.ErrUnexpectedEOF) {
+		return "", fmt.Errorf("failed to read file: %w", err)
 	}
 
-	// Detect content type
-	contentType := file.Header.Get("Content-Type")
-
-	// Validate against allowed types
-	allowed := false
-	for _, allowedType := range allowedTypes {
-		if strings.HasPrefix(contentType, allowedType) {
-			allowed = true
-			break
-		}
+	contentType := http.DetectContentType(head[:n])
+	if !slices.Contains(allowedTypes, contentType) {
+		return "", fmt.Errorf("%w (allowed: %v)", errTypeNotAllowed, allowedTypes)
 	}
 
-	if !allowed {
-		return fmt.Errorf("file type not allowed: %s (allowed: %v)", contentType, allowedTypes)
-	}
-
-	return nil
+	return contentType, nil
 }
 
-// saveFile saves uploaded file to disk (tenant-scoped)
-func (h *Handler) saveFile(c *fiber.Ctx, file *multipart.FileHeader, tenantID, subdir string) (string, error) {
-	// Generate unique filename
-	ext := filepath.Ext(file.Filename)
-	filename := fmt.Sprintf("%s%s", uuid.New().String(), ext)
+// saveFile saves uploaded file to disk (tenant-scoped), under a name and extension the
+// server chose.
+func (h *Handler) saveFile(c *fiber.Ctx, file *multipart.FileHeader, tenantID, subdir, contentType string) (string, error) {
+	filename := uuid.New().String() + extensions[contentType]
 
 	// Create tenant-specific directory path
 	// Format: uploads/tenants/{tenant_id}/{subdir}/

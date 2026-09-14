@@ -53,3 +53,5 @@ docker-compose.override.yml
 .gomode
 .gomodecache
 .gocache
+# Uploaded files, written by the API at runtime
+uploads/

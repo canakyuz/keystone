@@ -133,7 +133,7 @@ func setupRoutes(
 	upload.Post("/image", editors, uploadH.UploadImage)
 
 	// A static path serving uploaded files. Public.
-	app.Static("/uploads", "./uploads")
+	app.Static("/uploads", "./uploads", fiber.Static{ModifyResponse: passiveContent})
 
 	// User routes; authentication required.
 	users := v1.Group("/users", chain(authenticated, tenantContextMiddleware, tenantScope)...)
@@ -226,4 +226,17 @@ func chain(base []fiber.Handler, extra ...fiber.Handler) []fiber.Handler {
 	out = append(out, extra...)
 
 	return out
+}
+
+// passiveContent marks an uploaded file as something to display, never to run.
+//
+// Files are served from the API's own origin, so a document that ran script here would run
+// it with the API's authority. The upload handler now stores only images it recognises, but
+// the directory can hold files written before that check, or by something other than the
+// handler. nosniff stops a browser from treating an image as a page; the sandbox policy
+// gives a page that is opened anyway an opaque origin and no script.
+func passiveContent(c *fiber.Ctx) error {
+	c.Set(fiber.HeaderXContentTypeOptions, "nosniff")
+	c.Set(fiber.HeaderContentSecurityPolicy, "default-src 'none'; sandbox")
+	return nil
 }

@@ -18,6 +18,13 @@ the entry says so under **Changed**.
 
 ### Security
 
+- An upload was stored under the extension from the client's file name, after a type check
+  that read only the type the client declared. An editor could store a page declared as an
+  image, and the API served it back from its own origin as `text/html`, to anyone with the
+  link. The type is now read from the file's first bytes, the server picks the extension,
+  SVG is no longer accepted, and every file under `/uploads` is served with `nosniff` and a
+  sandboxing Content-Security-Policy. A deployment that ran an earlier version should look
+  for files under `uploads/` that are not images.
 - The public module and tool catalogue put `sort_by` into the SQL text as it was sent, so
   anyone could have the database evaluate an expression of their choosing inside the
   ordering. Only the documented sort keys reach the query now; any other value sorts by the

@@ -204,14 +204,7 @@ func (s *TenantActivationService) UninstallModule(ctx context.Context, tenantID,
 
 // CompleteModuleSetup marks module setup as completed
 func (s *TenantActivationService) CompleteModuleSetup(ctx context.Context, tenantID, moduleID string) error {
-	tenantModule, err := s.tenantModuleRepo.GetByTenantAndModule(ctx, tenantID, moduleID)
-	if err != nil {
-		return fmt.Errorf("failed to look up the installation: %w", err)
-	}
-
-	tenantModule.CompleteSetup()
-
-	if err := s.tenantModuleRepo.Update(ctx, tenantModule); err != nil {
+	if err := s.tenantModuleRepo.CompleteSetup(ctx, tenantID, moduleID); err != nil {
 		return fmt.Errorf("failed to complete module setup: %w", err)
 	}
 
@@ -377,14 +370,7 @@ func (s *TenantActivationService) UninstallTool(ctx context.Context, tenantID, t
 
 // CompleteToolSetup marks tool setup as completed
 func (s *TenantActivationService) CompleteToolSetup(ctx context.Context, tenantID, toolID string) error {
-	tenantTool, err := s.tenantToolRepo.GetByTenantAndTool(ctx, tenantID, toolID)
-	if err != nil {
-		return fmt.Errorf("failed to look up the installation: %w", err)
-	}
-
-	tenantTool.CompleteSetup()
-
-	if err := s.tenantToolRepo.Update(ctx, tenantTool); err != nil {
+	if err := s.tenantToolRepo.CompleteSetup(ctx, tenantID, toolID); err != nil {
 		return fmt.Errorf("failed to complete tool setup: %w", err)
 	}
 

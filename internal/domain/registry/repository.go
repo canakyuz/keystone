@@ -47,7 +47,7 @@ type TenantModuleRepository interface {
 	// CRUD operations
 	Create(ctx context.Context, tenantModule *TenantModule) error
 	GetByTenantAndModule(ctx context.Context, tenantID, moduleID string) (*TenantModule, error)
-	Update(ctx context.Context, tenantModule *TenantModule) error
+	CompleteSetup(ctx context.Context, tenantID, moduleID string) error
 	Uninstall(ctx context.Context, tenantID, moduleID string) error
 
 	// Tenant-scoped queries
@@ -69,7 +69,7 @@ type TenantToolRepository interface {
 	// CRUD operations
 	Create(ctx context.Context, tenantTool *TenantTool) error
 	GetByTenantAndTool(ctx context.Context, tenantID, toolID string) (*TenantTool, error)
-	Update(ctx context.Context, tenantTool *TenantTool) error
+	CompleteSetup(ctx context.Context, tenantID, toolID string) error
 	Uninstall(ctx context.Context, tenantID, toolID string) error
 
 	// Tenant-scoped queries

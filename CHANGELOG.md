@@ -10,6 +10,12 @@ the entry says so under **Changed**.
 
 ## [Unreleased]
 
+### Added
+
+- Module and tool installations write the audit trail. Installing, activating,
+  deactivating, finishing setup and uninstalling each record who did it and what it was
+  done to, in the transaction that makes the change, and the console's history names them.
+
 ### Security
 
 - The public module and tool catalogue put `sort_by` into the SQL text as it was sent, so

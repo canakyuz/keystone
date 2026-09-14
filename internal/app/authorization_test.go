@@ -75,8 +75,8 @@ func newAuthzHarness(t *testing.T) *authzHarness {
 	// test has no nil handler behind any route.
 	modules := registryRepo.NewModuleRepository(appDB)
 	tools := registryRepo.NewToolRepository(appDB)
-	tenantModules := registryRepo.NewTenantModuleRepository(appDB)
-	tenantTools := registryRepo.NewTenantToolRepository(appDB)
+	tenantModules := registryRepo.NewTenantModuleRepository(appDB, trail)
+	tenantTools := registryRepo.NewTenantToolRepository(appDB, trail)
 	dependencies := registryService.NewDependencyCheckerService(appDB, modules, tools, tenantModules, tenantTools)
 	activation := registryService.NewTenantActivationService(modules, tools, tenantModules, tenantTools, dependencies)
 	platformOnly := middleware.PlatformOnly(platformRepo.New(appDB))

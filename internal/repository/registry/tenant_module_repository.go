@@ -11,17 +11,21 @@ import (
 	"github.com/lib/pq"
 
 	"github.com/canakyuz/keystone/internal/domain/registry"
+	auditrepo "github.com/canakyuz/keystone/internal/repository/audit"
 )
 
 type tenantModuleRepository struct {
-	db *sql.DB
+	db    *sql.DB
+	trail *auditrepo.Repository
 }
 
 // NewTenantModuleRepository creates a new tenant module repository.
 //
 // Every method runs inside a transaction scoped to the tenant it is given; see inTenant.
-func NewTenantModuleRepository(db *sql.DB) registry.TenantModuleRepository {
-	return &tenantModuleRepository{db: db}
+// Every change made to an installation goes to the trail in that same transaction, so a
+// repository built without one refuses to change anything.
+func NewTenantModuleRepository(db *sql.DB, trail *auditrepo.Repository) registry.TenantModuleRepository {
+	return &tenantModuleRepository{db: db, trail: trail}
 }
 
 // tenantModuleColumns selects an installation in the order scanTenantModule reads it, on
@@ -102,7 +106,11 @@ func (r *tenantModuleRepository) Create(ctx context.Context, tenantModule *regis
 		if errors.Is(err, sql.ErrNoRows) {
 			return registry.ErrTenantModuleAlreadyInstalled
 		}
-		return err
+		if err != nil {
+			return err
+		}
+		return recordTx(ctx, tx, r.trail, tenantModule.TenantID, moduleKind, tenantModule.ModuleID, "installed",
+			map[string]any{"version": tenantModule.InstalledVersion})
 	})
 }
 
@@ -137,11 +145,12 @@ func getTenantModule(ctx context.Context, tx *sql.Tx, tenantID, moduleID string,
 	return tenantModule, err
 }
 
-// Update writes an installation's lifecycle back: its status, the activation stamps and the
-// setup flags.
-func (r *tenantModuleRepository) Update(ctx context.Context, tenantModule *registry.TenantModule) error {
-	return inTenant(ctx, r.db, tenantModule.TenantID, func(tx *sql.Tx) error {
-		return updateTenantModule(ctx, tx, tenantModule)
+// CompleteSetup marks an installation's setup done, which also activates one that was
+// waiting for it.
+func (r *tenantModuleRepository) CompleteSetup(ctx context.Context, tenantID, moduleID string) error {
+	return r.mutate(ctx, tenantID, moduleID, "setup_completed", func(tm *registry.TenantModule) error {
+		tm.CompleteSetup()
+		return nil
 	})
 }
 
@@ -188,7 +197,10 @@ func (r *tenantModuleRepository) Uninstall(ctx context.Context, tenantID, module
 		if err != nil {
 			return err
 		}
-		return requireRow(result, registry.ErrTenantModuleNotFound)
+		if err := requireRow(result, registry.ErrTenantModuleNotFound); err != nil {
+			return err
+		}
+		return recordTx(ctx, tx, r.trail, tenantID, moduleKind, moduleID, "uninstalled", nil)
 	})
 }
 
@@ -258,7 +270,7 @@ func (r *tenantModuleRepository) IsModuleActivated(ctx context.Context, tenantID
 
 // Activate activates a module for a tenant
 func (r *tenantModuleRepository) Activate(ctx context.Context, tenantID, moduleID, activatedBy string) error {
-	return r.mutate(ctx, tenantID, moduleID, func(tm *registry.TenantModule) error {
+	return r.mutate(ctx, tenantID, moduleID, "activated", func(tm *registry.TenantModule) error {
 		tm.UpdatedBy = activatedBy
 		return tm.Activate(activatedBy)
 	})
@@ -266,16 +278,16 @@ func (r *tenantModuleRepository) Activate(ctx context.Context, tenantID, moduleI
 
 // Deactivate deactivates a module for a tenant
 func (r *tenantModuleRepository) Deactivate(ctx context.Context, tenantID, moduleID, deactivatedBy string) error {
-	return r.mutate(ctx, tenantID, moduleID, func(tm *registry.TenantModule) error {
+	return r.mutate(ctx, tenantID, moduleID, "deactivated", func(tm *registry.TenantModule) error {
 		tm.UpdatedBy = deactivatedBy
 		return tm.Deactivate(deactivatedBy)
 	})
 }
 
-// mutate reads an installation under a row lock, applies change and writes it back in one
-// transaction. Two requests changing the same installation take turns, instead of the
-// later one writing back a state it read before the earlier one committed.
-func (r *tenantModuleRepository) mutate(ctx context.Context, tenantID, moduleID string, change func(*registry.TenantModule) error) error {
+// mutate reads an installation under a row lock, applies change, writes it back and records
+// action, in one transaction. Two requests changing the same installation take turns,
+// instead of the later one writing back a state it read before the earlier one committed.
+func (r *tenantModuleRepository) mutate(ctx context.Context, tenantID, moduleID, action string, change func(*registry.TenantModule) error) error {
 	if !isUUID(moduleID) {
 		return registry.ErrTenantModuleNotFound
 	}
@@ -288,7 +300,11 @@ func (r *tenantModuleRepository) mutate(ctx context.Context, tenantID, moduleID 
 		if err := change(tenantModule); err != nil {
 			return err
 		}
-		return updateTenantModule(ctx, tx, tenantModule)
+		if err := updateTenantModule(ctx, tx, tenantModule); err != nil {
+			return err
+		}
+		return recordTx(ctx, tx, r.trail, tenantID, moduleKind, moduleID, action,
+			map[string]any{"status": string(tenantModule.Status)})
 	})
 }
 

@@ -11,17 +11,21 @@ import (
 	"github.com/lib/pq"
 
 	"github.com/canakyuz/keystone/internal/domain/registry"
+	auditrepo "github.com/canakyuz/keystone/internal/repository/audit"
 )
 
 type tenantToolRepository struct {
-	db *sql.DB
+	db    *sql.DB
+	trail *auditrepo.Repository
 }
 
 // NewTenantToolRepository creates a new tenant tool repository.
 //
 // Every method runs inside a transaction scoped to the tenant it is given; see inTenant.
-func NewTenantToolRepository(db *sql.DB) registry.TenantToolRepository {
-	return &tenantToolRepository{db: db}
+// Every change made to an installation goes to the trail in that same transaction, so a
+// repository built without one refuses to change anything.
+func NewTenantToolRepository(db *sql.DB, trail *auditrepo.Repository) registry.TenantToolRepository {
+	return &tenantToolRepository{db: db, trail: trail}
 }
 
 // tenantToolColumns selects an installation in the order scanTenantTool reads it, on the
@@ -120,7 +124,11 @@ func (r *tenantToolRepository) Create(ctx context.Context, tenantTool *registry.
 		if errors.Is(err, sql.ErrNoRows) {
 			return registry.ErrTenantToolAlreadyInstalled
 		}
-		return err
+		if err != nil {
+			return err
+		}
+		return recordTx(ctx, tx, r.trail, tenantTool.TenantID, toolKind, tenantTool.ToolID, "installed",
+			map[string]any{"version": tenantTool.InstalledVersion})
 	})
 }
 
@@ -155,10 +163,12 @@ func getTenantTool(ctx context.Context, tx *sql.Tx, tenantID, toolID string, for
 	return tenantTool, err
 }
 
-// Update writes an installation's lifecycle, integration and health state back.
-func (r *tenantToolRepository) Update(ctx context.Context, tenantTool *registry.TenantTool) error {
-	return inTenant(ctx, r.db, tenantTool.TenantID, func(tx *sql.Tx) error {
-		return updateTenantTool(ctx, tx, tenantTool)
+// CompleteSetup marks an installation's setup done, which also activates one that was
+// waiting for it.
+func (r *tenantToolRepository) CompleteSetup(ctx context.Context, tenantID, toolID string) error {
+	return r.mutate(ctx, tenantID, toolID, "setup_completed", func(tt *registry.TenantTool) error {
+		tt.CompleteSetup()
+		return nil
 	})
 }
 
@@ -209,7 +219,10 @@ func (r *tenantToolRepository) Uninstall(ctx context.Context, tenantID, toolID s
 		if err != nil {
 			return err
 		}
-		return requireRow(result, registry.ErrTenantToolNotFound)
+		if err := requireRow(result, registry.ErrTenantToolNotFound); err != nil {
+			return err
+		}
+		return recordTx(ctx, tx, r.trail, tenantID, toolKind, toolID, "uninstalled", nil)
 	})
 }
 
@@ -279,7 +292,7 @@ func (r *tenantToolRepository) IsToolActivated(ctx context.Context, tenantID, to
 
 // Activate activates a tool for a tenant
 func (r *tenantToolRepository) Activate(ctx context.Context, tenantID, toolID, activatedBy string) error {
-	return r.mutate(ctx, tenantID, toolID, func(tt *registry.TenantTool) error {
+	return r.mutate(ctx, tenantID, toolID, "activated", func(tt *registry.TenantTool) error {
 		tt.UpdatedBy = activatedBy
 		return tt.Activate(activatedBy)
 	})
@@ -287,7 +300,7 @@ func (r *tenantToolRepository) Activate(ctx context.Context, tenantID, toolID, a
 
 // Deactivate deactivates a tool for a tenant
 func (r *tenantToolRepository) Deactivate(ctx context.Context, tenantID, toolID, deactivatedBy string) error {
-	return r.mutate(ctx, tenantID, toolID, func(tt *registry.TenantTool) error {
+	return r.mutate(ctx, tenantID, toolID, "deactivated", func(tt *registry.TenantTool) error {
 		tt.UpdatedBy = deactivatedBy
 		return tt.Deactivate(deactivatedBy)
 	})
@@ -295,7 +308,7 @@ func (r *tenantToolRepository) Deactivate(ctx context.Context, tenantID, toolID,
 
 // VerifyIntegration marks integration as verified
 func (r *tenantToolRepository) VerifyIntegration(ctx context.Context, tenantID, toolID string) error {
-	return r.mutate(ctx, tenantID, toolID, func(tt *registry.TenantTool) error {
+	return r.mutate(ctx, tenantID, toolID, "integration_verified", func(tt *registry.TenantTool) error {
 		tt.VerifyIntegration()
 		return nil
 	})
@@ -316,7 +329,7 @@ func (r *tenantToolRepository) UpdateIntegrationStatus(ctx context.Context, tena
 
 // UpdateHealthStatus updates the health status
 func (r *tenantToolRepository) UpdateHealthStatus(ctx context.Context, tenantID, toolID string, status registry.HealthStatus) error {
-	return r.mutate(ctx, tenantID, toolID, func(tt *registry.TenantTool) error {
+	return r.mutate(ctx, tenantID, toolID, "", func(tt *registry.TenantTool) error {
 		tt.SetHealthStatus(status)
 		return nil
 	})
@@ -324,15 +337,19 @@ func (r *tenantToolRepository) UpdateHealthStatus(ctx context.Context, tenantID,
 
 // RecordError records an error for a tool
 func (r *tenantToolRepository) RecordError(ctx context.Context, tenantID, toolID, errorMsg string) error {
-	return r.mutate(ctx, tenantID, toolID, func(tt *registry.TenantTool) error {
+	return r.mutate(ctx, tenantID, toolID, "", func(tt *registry.TenantTool) error {
 		tt.RecordError(errorMsg)
 		return nil
 	})
 }
 
-// mutate reads an installation under a row lock, applies change and writes it back in one
-// transaction, on the rules of the module repository's mutate.
-func (r *tenantToolRepository) mutate(ctx context.Context, tenantID, toolID string, change func(*registry.TenantTool) error) error {
+// mutate reads an installation under a row lock, applies change, writes it back and records
+// action, on the rules of the module repository's mutate.
+//
+// An empty action records nothing. Health and error counts are the platform observing a
+// provider rather than a change somebody made, and a trail that logs every health probe
+// buries the changes it exists to show.
+func (r *tenantToolRepository) mutate(ctx context.Context, tenantID, toolID, action string, change func(*registry.TenantTool) error) error {
 	if !isUUID(toolID) {
 		return registry.ErrTenantToolNotFound
 	}
@@ -345,7 +362,14 @@ func (r *tenantToolRepository) mutate(ctx context.Context, tenantID, toolID stri
 		if err := change(tenantTool); err != nil {
 			return err
 		}
-		return updateTenantTool(ctx, tx, tenantTool)
+		if err := updateTenantTool(ctx, tx, tenantTool); err != nil {
+			return err
+		}
+		if action == "" {
+			return nil
+		}
+		return recordTx(ctx, tx, r.trail, tenantID, toolKind, toolID, action,
+			map[string]any{"status": string(tenantTool.Status)})
 	})
 }
 

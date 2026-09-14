@@ -31,6 +31,17 @@ const ACTIONS: Record<string, string> = {
   'webhook.created': 'Webhook added',
   'webhook.enabled': 'Webhook turned on',
   'webhook.disabled': 'Webhook turned off',
+  'module.installed': 'Module installed',
+  'module.activated': 'Module turned on',
+  'module.deactivated': 'Module turned off',
+  'module.setup_completed': 'Module set up',
+  'module.uninstalled': 'Module removed',
+  'tool.installed': 'Tool installed',
+  'tool.activated': 'Tool turned on',
+  'tool.deactivated': 'Tool turned off',
+  'tool.setup_completed': 'Tool set up',
+  'tool.integration_verified': 'Tool integration verified',
+  'tool.uninstalled': 'Tool removed',
 };
 
 export default async function AuditPage({ searchParams }: { searchParams: Promise<{ before?: string }> }) {

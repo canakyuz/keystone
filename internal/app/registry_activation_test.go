@@ -157,6 +157,79 @@ func TestTenantModules_WaitForTheirRequiredDependencies(t *testing.T) {
 	expect(t, h, token, http.MethodPost, tenantModulesPath+"/install", install(moduleID), http.StatusCreated)
 }
 
+// TestAudit_RecordsInstallations: each change an administrator makes to an installation
+// leaves one line naming who made it and what it was made to, and the tenant's history
+// shows it.
+func TestAudit_RecordsInstallations(t *testing.T) {
+	h := newAuthzHarness(t)
+
+	moduleID := insertCountedModule(t, h.admin, "audited-module")
+	toolID := insertCountedTool(t, h.admin, "audited-tool")
+	tenantID := helpers.CreateTestTenant(t, h.admin, "audited").ID
+	admin := helpers.CreateTestUser(t, h.admin, tenantID, "admin@audited.test", "admin")
+	token := tokenFor(t, tenantID, admin.ID, "admin")
+	module := tenantModulesPath + "/" + moduleID
+
+	expect(t, h, token, http.MethodPost, tenantModulesPath+"/install", `{"module_id":"`+moduleID+`","auto_activate":true}`, http.StatusCreated)
+	expect(t, h, token, http.MethodPost, module+"/deactivate", "", http.StatusOK)
+	expect(t, h, token, http.MethodPost, module+"/activate", "", http.StatusOK)
+	expect(t, h, token, http.MethodDelete, module, "", http.StatusNoContent)
+	expect(t, h, token, http.MethodPost, tenantToolsPath+"/install", `{"tool_id":"`+toolID+`"}`, http.StatusCreated)
+	expect(t, h, token, http.MethodPost, tenantToolsPath+"/"+toolID+"/complete-setup", "", http.StatusOK)
+
+	rows, err := h.admin.Query(`
+		SELECT action, actor_id::text, subject_type, subject_id::text, metadata::text
+		FROM audit_log WHERE tenant_id = $1 ORDER BY created_at`, tenantID)
+	require.NoError(t, err)
+	defer rows.Close()
+
+	subjects := map[string]struct{ id, code string }{
+		"module": {moduleID, "AUDITED_MODULE"},
+		"tool":   {toolID, "AUDITED_TOOL"},
+	}
+
+	var actions []string
+	for rows.Next() {
+		var action, actor, subjectType, subjectID, metadata string
+		require.NoError(t, rows.Scan(&action, &actor, &subjectType, &subjectID, &metadata))
+		actions = append(actions, action)
+
+		assert.Equalf(t, admin.ID, actor, "%s does not say who made the change", action)
+		assert.Equalf(t, subjects[subjectType].id, subjectID, "%s names the wrong subject", action)
+		assert.Containsf(t, metadata, subjects[subjectType].code, "%s cannot be read without the catalogue", action)
+	}
+	require.NoError(t, rows.Err())
+
+	assert.Equal(t, []string{
+		"module.installed", "module.activated", "module.deactivated", "module.activated", "module.uninstalled",
+		"tool.installed", "tool.setup_completed",
+	}, actions)
+
+	assert.Contains(t, expect(t, h, token, http.MethodGet, "/api/v1/audit", "", http.StatusOK), "module.uninstalled")
+}
+
+// TestAudit_AnInstallationWithoutItsRecordDoesNotStand takes the right to write the trail
+// away from the application's role. The install must fail whole: an installation nobody
+// can account for is the state rule 7 exists to rule out.
+func TestAudit_AnInstallationWithoutItsRecordDoesNotStand(t *testing.T) {
+	h := newAuthzHarness(t)
+
+	moduleID := insertCountedModule(t, h.admin, "unrecorded-module")
+	tenantID, token := tenantWithRole(t, h, "unrecorded", "admin")
+
+	var owner string
+	require.NoError(t, h.admin.QueryRow(`SELECT tableowner FROM pg_tables WHERE tablename = 'audit_log'`).Scan(&owner))
+	_, err := h.admin.Exec(`REVOKE INSERT ON audit_log FROM "` + owner + `"`)
+	require.NoError(t, err)
+
+	expect(t, h, token, http.MethodPost, tenantModulesPath+"/install", `{"module_id":"`+moduleID+`","auto_activate":true}`, http.StatusInternalServerError)
+
+	var rows int
+	require.NoError(t, h.admin.QueryRow(`SELECT count(*) FROM tenant_modules WHERE tenant_id = $1`, tenantID).Scan(&rows))
+	assert.Zero(t, rows, "the installation stood without its record")
+	assert.Zero(t, installCount(t, h.admin, "modules", moduleID))
+}
+
 func TestTenantModules_BelongToOneTenant(t *testing.T) {
 	h := newAuthzHarness(t)
 

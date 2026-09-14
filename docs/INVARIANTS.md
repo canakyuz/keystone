@@ -233,15 +233,24 @@ Actions recorded: `user.created`, `user.role_changed`, `user.suspended`,
 `user.reactivated`, `user.password_changed`, `user.profile_updated`, `user.deleted`,
 `tenant.updated`, `tenant.branding_updated`, `tenant.domain_set`,
 `tenant.domain_verified`, `tenant.suspended`, `tenant.reactivated`, `tenant.plan_changed`,
-`tenant.deleted`, and `tenant.activated` from the worker.
+`tenant.deleted`, and `tenant.activated` from the worker. Installing, activating,
+deactivating, finishing the setup of and uninstalling a module or tool records
+`module.installed`, `module.activated`, `module.deactivated`, `module.setup_completed` and
+`module.uninstalled`, or the same under `tool.`, with `tool.integration_verified` besides.
+Those are written by the installation repositories themselves, since every change they
+make goes through one transaction helper
+(`internal/repository/registry/tenant_scope.go`, `recordTx`). A tool's health and error
+counts are the platform observing a provider and are not recorded.
+
+- Test: `internal/app/registry_activation_test.go`, `TestAudit_RecordsInstallations` and
+  `TestAudit_AnInstallationWithoutItsRecordDoesNotStand`
 
 A value that is a secret or personal data is recorded by the name of its field, never by
 what it became. A password change records that it happened and who made it; a profile edit
 records which fields changed. Anything written to an append-only table stays there, whatever
 the person it describes later asks for, and the test asserts the values are absent.
 
-**Limit:** module and tool activation, uploads, and everything under `examples/` are not in
-the trail.
+**Limit:** uploads and everything under `examples/` are not in the trail.
 
 ---
 

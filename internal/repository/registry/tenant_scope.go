@@ -3,9 +3,27 @@ package registry
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 
 	"github.com/canakyuz/keystone/internal/domain/registry"
+	auditrepo "github.com/canakyuz/keystone/internal/repository/audit"
+)
+
+// ErrNoTrail reports that a change to an installation was asked of a repository built
+// without an audit trail.
+var ErrNoTrail = errors.New("registry repository: no audit trail configured")
+
+// installationKind names what an installation installs: the subject type its audit entries
+// carry and the catalogue table its id points into.
+type installationKind struct {
+	subject   string
+	catalogue string
+}
+
+var (
+	moduleKind = installationKind{subject: "module", catalogue: "modules"}
+	toolKind   = installationKind{subject: "tool", catalogue: "tools"}
 )
 
 // setTenantLocal scopes the rest of a transaction to one tenant.
@@ -38,6 +56,43 @@ func inTenant(ctx context.Context, db *sql.DB, tenantID string, fn func(*sql.Tx)
 	}
 
 	return tx.Commit()
+}
+
+// recordTx appends the audit entry for a change to an installation, inside the transaction
+// that makes the change; see rule 7 in docs/INVARIANTS.md.
+//
+// The actor is read from the request context rather than passed in, so a call site cannot
+// record the wrong one by forgetting. The catalogue entry's code and name go into the
+// metadata, so the line stays legible after the catalogue renames or removes the entry.
+func recordTx(
+	ctx context.Context, tx *sql.Tx, trail *auditrepo.Repository,
+	tenantID string, kind installationKind, subjectID, action string, metadata map[string]any,
+) error {
+	if trail == nil {
+		return ErrNoTrail
+	}
+
+	var code, name string
+	err := tx.QueryRowContext(ctx, "SELECT code, name FROM "+kind.catalogue+" WHERE id = $1", subjectID).Scan(&code, &name)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return fmt.Errorf("failed to name the audited %s: %w", kind.subject, err)
+	}
+
+	details := map[string]any{"code": code, "name": name}
+	for key, value := range metadata {
+		details[key] = value
+	}
+
+	actorID, actorType := auditrepo.ActorFrom(ctx)
+	return trail.AppendTx(ctx, tx, auditrepo.Entry{
+		TenantID:    tenantID,
+		ActorID:     actorID,
+		ActorType:   actorType,
+		Action:      kind.subject + "." + action,
+		SubjectType: kind.subject,
+		SubjectID:   subjectID,
+		Metadata:    details,
+	})
 }
 
 // nullIfEmpty sends an empty string as NULL. The optional text columns of the installation

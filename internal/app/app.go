@@ -269,8 +269,8 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 	// Repositories for the registry module.
 	moduleRepository := registryRepo.NewModuleRepository(db)
 	toolRepository := registryRepo.NewToolRepository(db)
-	tenantModuleRepository := registryRepo.NewTenantModuleRepository(db)
-	tenantToolRepository := registryRepo.NewTenantToolRepository(db)
+	tenantModuleRepository := registryRepo.NewTenantModuleRepository(db, trail)
+	tenantToolRepository := registryRepo.NewTenantToolRepository(db, trail)
 
 	// The usecase layer, holding the business rules.
 	schemaTemplateRepository := templateRepo.NewFileSystemRepository("templates/tenants")

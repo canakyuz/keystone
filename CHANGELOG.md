@@ -10,6 +10,12 @@ the entry says so under **Changed**.
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-09-14
+
+The module registry and uploads, made to work under the application's own database role and
+brought into the audit trail, and two holes closed on the way: a public SQL injection in the
+catalogue ordering and a stored cross-site script through uploads.
+
 ### Added
 
 - Module and tool installations write the audit trail. Installing, activating,
@@ -24,26 +30,23 @@ the entry says so under **Changed**.
   only with `UPLOAD_SWEEP_REMOVE=true`: after an upgrade, every file stored before
   migration 041 has no record and is still a real logo or image.
 
-### Security
+### Changed
 
-- An upload was stored under the extension from the client's file name, after a type check
-  that read only the type the client declared. An editor could store a page declared as an
-  image, and the API served it back from its own origin as `text/html`, to anyone with the
-  link. The type is now read from the file's first bytes, the server picks the extension,
-  SVG is no longer accepted, and every file under `/uploads` is served with `nosniff` and a
-  sandboxing Content-Security-Policy. A deployment that ran an earlier version should look
-  for files under `uploads/` that are not images.
-- The public module and tool catalogue put `sort_by` into the SQL text as it was sent, so
-  anyone could have the database evaluate an expression of their choosing inside the
-  ordering. Only the documented sort keys reach the query now; any other value sorts by the
-  default.
-
-### Fixed
-
+- The installation endpoints answer 404 for a module, tool or installation that does not
+  exist, and 409 for one already installed, already in the requested state, or missing a
+  required dependency. They used to answer 400 with the service's message.
+- Logos and images are accepted as PNG, JPEG, GIF or WebP, and favicons as ICO or PNG, read
+  from the file's content. SVG is refused, and so is a file whose content is not one of those
+  types whatever it declares.
 - `MAX_REQUEST_SIZE` was read and never applied, so every request body was capped at Fiber's
   4MB default whatever the variable said, and the 10MB image limit could not be reached. The
   variable now sets the body limit, with 4MB as its default, and the general image limit is
   3MB so a file at the limit still fits in a request.
+- Migration 041 adds the `uploads` table. It is additive; run it before starting this
+  version, since every upload now writes to it.
+
+### Fixed
+
 - A module or tool with an empty optional column could not be read. Its page answered 404,
   and installing it failed with the driver's message. Empty columns now read as empty, and
   a lookup failure other than a missing entry is a 500 instead of a 404.
@@ -60,11 +63,22 @@ the entry says so under **Changed**.
 - A catalogue entry's install count moved on the install call and again in the database
   trigger, and an installation deleted while active was never taken off. The trigger alone
   keeps the count now, and an uninstall marks the installation inactive as it deletes it.
-- The installation endpoints answer 404 for a module, tool or installation that does not
-  exist, and 409 for one already installed, already in the requested state, or missing a
-  required dependency. They used to answer 400 with the service's message.
 - Errors raised below a handler no longer reach the client. The server logs them and
   answers `internal server error`; errors a handler writes for the client are unchanged.
+
+### Security
+
+- An upload was stored under the extension from the client's file name, after a type check
+  that read only the type the client declared. An editor could store a page declared as an
+  image, and the API served it back from its own origin as `text/html`, to anyone with the
+  link. The type is now read from the file's first bytes, the server picks the extension,
+  SVG is no longer accepted, and every file under `/uploads` is served with `nosniff` and a
+  sandboxing Content-Security-Policy. A deployment that ran an earlier version should look
+  for files under `uploads/` that are not images.
+- The public module and tool catalogue put `sort_by` into the SQL text as it was sent, so
+  anyone could have the database evaluate an expression of their choosing inside the
+  ordering. Only the documented sort keys reach the query now; any other value sorts by the
+  default.
 
 ## [0.2.0] - 2026-09-14
 
@@ -185,6 +199,7 @@ with its isolation claims tested against a non-superuser database role.
 - The unused `pkg/errors` package.
 - Planning documents that described an abandoned architecture.
 
-[Unreleased]: https://github.com/canakyuz/keystone/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/canakyuz/keystone/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/canakyuz/keystone/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/canakyuz/keystone/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/canakyuz/keystone/releases/tag/v0.1.0

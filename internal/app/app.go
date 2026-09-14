@@ -141,6 +141,8 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 		WriteTimeout: cfg.Server.WriteTimeout,
 		IdleTimeout:  cfg.Server.IdleTimeout,
 		ErrorHandler: customErrorHandler,
+		// Zero, when MAX_REQUEST_SIZE is unreadable, keeps Fiber's 4MB default.
+		BodyLimit: cfg.Security.MaxRequestBytes,
 	})
 
 	appLogger := pkgLogger.New(pkgLogger.Config{

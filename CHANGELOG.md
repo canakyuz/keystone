@@ -40,6 +40,10 @@ the entry says so under **Changed**.
 
 ### Fixed
 
+- `MAX_REQUEST_SIZE` was read and never applied, so every request body was capped at Fiber's
+  4MB default whatever the variable said, and the 10MB image limit could not be reached. The
+  variable now sets the body limit, with 4MB as its default, and the general image limit is
+  3MB so a file at the limit still fits in a request.
 - A module or tool with an empty optional column could not be read. Its page answered 404,
   and installing it failed with the driver's message. Empty columns now read as empty, and
   a lookup failure other than a missing entry is a 500 instead of a 404.

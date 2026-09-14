@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	uploadHandler "github.com/canakyuz/keystone/internal/handler/upload"
 	"github.com/canakyuz/keystone/test/helpers"
 )
 
@@ -167,4 +168,16 @@ func TestUpload_AFileWithoutItsRecordIsNotKept(t *testing.T) {
 		require.NoError(t, err)
 		assert.Empty(t, entries, "a file stayed on disk with no record of it")
 	}
+}
+
+// TestUpload_RefusesAnImageOverItsLimit sends one byte more than the general limit, which
+// still fits in the default request body. The handler answers, and says what the limit is.
+func TestUpload_RefusesAnImageOverItsLimit(t *testing.T) {
+	h := newAuthzHarness(t)
+	_, _, token := uploaderFor(t, h, "upload-size")
+
+	oversized := pngBytes + strings.Repeat("\x00", uploadHandler.MaxFileSize+1-len(pngBytes))
+	status, body := sendFile(t, h, token, "/api/v1/upload/image", "large.png", "image/png", oversized)
+	assert.Equal(t, http.StatusBadRequest, status, body)
+	assert.Contains(t, body, "exceeds limit")
 }

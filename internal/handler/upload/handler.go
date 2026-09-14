@@ -19,11 +19,15 @@ import (
 )
 
 // Upload size limits, in bytes, and where accepted files are stored.
+//
+// Each limit has to fit inside the request body limit (MAX_REQUEST_SIZE, 4MB by default)
+// with room for the multipart framing around the file. The general limit used to be 10MB,
+// which no request could reach: the body was refused before the handler ran.
 const (
 	// File size limits
-	MaxLogoSize    = 2 * 1024 * 1024  // 2MB
-	MaxFaviconSize = 500 * 1024       // 500KB
-	MaxFileSize    = 10 * 1024 * 1024 // 10MB (general)
+	MaxLogoSize    = 2 * 1024 * 1024 // 2MB
+	MaxFaviconSize = 500 * 1024      // 500KB
+	MaxFileSize    = 3 * 1024 * 1024 // 3MB (general)
 
 	// Upload directories
 	UploadBasePath = "./uploads"

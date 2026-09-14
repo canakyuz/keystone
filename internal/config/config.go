@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -129,10 +130,16 @@ type AuthConfig struct {
 type SecurityConfig struct {
 	AllowedOrigins   string
 	AllowCredentials bool
-	MaxRequestSize   string
-	EnableCSP        bool
-	EnableHSTS       bool
-	TrustedProxies   string
+
+	// MaxRequestBytes caps the size of any request body the API accepts, uploads included.
+	// The server reads a body whole before a handler sees it, so this bounds the memory one
+	// request can take. It used to be read from MAX_REQUEST_SIZE and never applied, which
+	// left Fiber's 4MB default in force whatever the variable said.
+	MaxRequestBytes int
+
+	EnableCSP      bool
+	EnableHSTS     bool
+	TrustedProxies string
 
 	RateLimit RateLimitConfig
 }
@@ -232,7 +239,7 @@ func Load() (*Config, error) {
 		Security: SecurityConfig{
 			AllowedOrigins:   getEnv("ALLOWED_ORIGINS", "http://localhost:3000"),
 			AllowCredentials: parseBool(getEnv("ALLOW_CREDENTIALS", "true")),
-			MaxRequestSize:   getEnv("MAX_REQUEST_SIZE", "10MB"),
+			MaxRequestBytes:  parseByteSize(getEnv("MAX_REQUEST_SIZE", "4MB")),
 			EnableCSP:        parseBool(getEnv("ENABLE_CSP", "true")),
 			EnableHSTS:       parseBool(getEnv("ENABLE_HSTS", "false")),
 			TrustedProxies:   getEnv("TRUSTED_PROXIES", "127.0.0.1,::1"),
@@ -323,6 +330,30 @@ func getEnv(key, defaultValue string) string {
 func parseInt(s string) int {
 	i, _ := strconv.Atoi(s)
 	return i
+}
+
+// parseByteSize reads a size such as "4MB", "512KB" or "1048576", in binary units. A value it
+// cannot read yields zero, which leaves Fiber's own 4MB default in place rather than lifting
+// the limit.
+func parseByteSize(s string) int {
+	s = strings.ToUpper(strings.TrimSpace(s))
+
+	multiplier := 1
+	for _, unit := range []struct {
+		suffix string
+		size   int
+	}{{"GB", 1 << 30}, {"MB", 1 << 20}, {"KB", 1 << 10}, {"B", 1}} {
+		if strings.HasSuffix(s, unit.suffix) {
+			s, multiplier = strings.TrimSuffix(s, unit.suffix), unit.size
+			break
+		}
+	}
+
+	n, err := strconv.Atoi(strings.TrimSpace(s))
+	if err != nil || n < 0 {
+		return 0
+	}
+	return n * multiplier
 }
 
 func parseBool(s string) bool {

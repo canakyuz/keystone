@@ -260,9 +260,14 @@ file that is not there. The client's file name is kept in neither.
 - Test: `internal/app/upload_test.go`, `TestUpload_IsRecordedWithWhoStoredIt` and
   `TestUpload_AFileWithoutItsRecordIsNotKept`
 
-**Limit:** everything under `examples/` is outside the trail. A file written to disk just
-before the process dies stays there unrecorded until something sweeps the directory, and
-nothing does yet.
+A file written just before the process dies has no record. The API process sweeps its upload
+directory every hour and logs every file older than an hour that its tenant has no record
+of, reading each tenant's records under that tenant's policy
+(`internal/usecase/upload/sweeper.go`, `TestSweeper_FindsOldFilesTheirTenantDidNotRecord`).
+It deletes them only with `UPLOAD_SWEEP_REMOVE=true`, because files stored before migration
+041 have no record either.
+
+**Limit:** everything under `examples/` is outside the trail.
 
 ---
 

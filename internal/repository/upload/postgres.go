@@ -97,3 +97,39 @@ func (r *Repository) Create(ctx context.Context, record *Record) error {
 
 	return tx.Commit()
 }
+
+// Paths returns the served paths recorded for one tenant's files, as a set.
+//
+// It reads under the tenant's own scope, so a row in another tenant can never account for a
+// file in this one's directory.
+func (r *Repository) Paths(ctx context.Context, tenantID string) (map[string]struct{}, error) {
+	tx, err := r.db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	if err != nil {
+		return nil, fmt.Errorf("could not begin: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	if _, err := tx.ExecContext(ctx, `SELECT set_config('app.current_tenant', $1, true)`, tenantID); err != nil {
+		return nil, fmt.Errorf("could not scope the transaction: %w", err)
+	}
+
+	rows, err := tx.QueryContext(ctx, `SELECT path FROM uploads WHERE tenant_id = $1`, tenantID)
+	if err != nil {
+		return nil, fmt.Errorf("could not read the upload records: %w", err)
+	}
+	defer rows.Close()
+
+	paths := make(map[string]struct{})
+	for rows.Next() {
+		var path string
+		if err := rows.Scan(&path); err != nil {
+			return nil, fmt.Errorf("could not read an upload record: %w", err)
+		}
+		paths[path] = struct{}{}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("could not read the upload records: %w", err)
+	}
+
+	return paths, tx.Commit()
+}

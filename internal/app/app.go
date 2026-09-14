@@ -38,6 +38,7 @@ import (
 	webhookRepo "github.com/canakyuz/keystone/internal/repository/webhook"
 	registryService "github.com/canakyuz/keystone/internal/service/registry"
 	tenantUsecase "github.com/canakyuz/keystone/internal/usecase/tenant"
+	uploadUsecase "github.com/canakyuz/keystone/internal/usecase/upload"
 	userUsecase "github.com/canakyuz/keystone/internal/usecase/user"
 	"github.com/canakyuz/keystone/pkg/database"
 	pkgLogger "github.com/canakyuz/keystone/pkg/logger"
@@ -94,6 +95,10 @@ type Application struct {
 
 	// grpcServer is nil when no address is configured.
 	grpcServer *keystonegrpc.Server
+
+	// uploadSweeper looks for stored files with no record. It runs here because this
+	// process's disk holds the files.
+	uploadSweeper *uploadUsecase.Sweeper
 
 	// shutdownTracing flushes buffered spans. Spans are exported in batches, so without
 	// this the last few seconds of a run are lost — which is the window containing
@@ -311,7 +316,9 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 	tenantHTTPHandler := tenantHandler.NewHandler(tenantService)
 	userHTTPHandler := userHandler.NewHandler(userService)
 
-	uploadHTTPHandler := uploadHandler.NewHandler(appLogger, uploadRepo.New(db, trail))
+	uploadRecords := uploadRepo.New(db, trail)
+	uploadHTTPHandler := uploadHandler.NewHandler(appLogger, uploadRecords)
+	uploadSweeper := uploadUsecase.NewSweeper(uploadHandler.UploadBasePath, uploadRecords, cfg.Server.UploadSweepRemove, appLogger)
 
 	// Registry handlers.
 	moduleCatalogHTTPHandler := registryHandler.NewModuleCatalogHandler(moduleCatalogService)
@@ -354,6 +361,7 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 			TenantScope:   tenantScopeMiddleware,
 		},
 		grpcServer:      grpcServer,
+		uploadSweeper:   uploadSweeper,
 		shutdownTracing: shutdownTracing,
 		config:          cfg,
 		db:              db,
@@ -376,6 +384,16 @@ func (a *Application) Start() error {
 		}
 	}
 
+	// The upload sweep runs beside the server and is stopped, and waited for, before the
+	// database closes under it.
+	sweepCtx, stopSweep := context.WithCancel(context.Background())
+	defer stopSweep()
+	sweepDone := make(chan struct{})
+	go func() {
+		defer close(sweepDone)
+		a.uploadSweeper.Run(sweepCtx)
+	}()
+
 	// Start the server in its own goroutine so the main one is not blocked.
 	go func() {
 		addr := fmt.Sprintf("%s:%s", a.config.Server.Host, a.config.Server.Port)
@@ -388,6 +406,9 @@ func (a *Application) Start() error {
 	// Wait until the shutdown signal arrives.
 	<-quit
 	log.Println("shutting down server")
+
+	stopSweep()
+	<-sweepDone
 
 	// Shut the Fiber server down gracefully.
 	if err := a.app.Shutdown(); err != nil {

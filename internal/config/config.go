@@ -65,6 +65,11 @@ type ServerConfig struct {
 	// It defaults to a loopback address rather than 0.0.0.0: metrics are unauthenticated
 	// by convention, so the default should not be reachable from outside the host.
 	MetricsAddr string
+
+	// UploadSweepRemove lets the API's upload sweep delete the stored files it finds with no
+	// record. Off by default, when the sweep only logs them: files stored before migration
+	// 041 have no record either and are real. See internal/usecase/upload.
+	UploadSweepRemove bool
 }
 
 // TracingConfig configures distributed tracing.
@@ -185,6 +190,8 @@ func Load() (*Config, error) {
 			WriteTimeout: parseDuration(getEnv("SERVER_WRITE_TIMEOUT", "30s")),
 			IdleTimeout:  parseDuration(getEnv("SERVER_IDLE_TIMEOUT", "120s")),
 			MetricsAddr:  getEnv("WORKER_METRICS_ADDR", "127.0.0.1:9091"),
+
+			UploadSweepRemove: parseBool(getEnv("UPLOAD_SWEEP_REMOVE", "false")),
 		},
 		GRPC: GRPCConfig{
 			Addr:       getEnv("GRPC_ADDR", ""),

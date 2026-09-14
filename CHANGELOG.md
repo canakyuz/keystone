@@ -19,6 +19,10 @@ the entry says so under **Changed**.
   category, type, size and uploader, written with an `upload.created` audit entry. A file
   whose record cannot be written is removed from disk, and the response includes the
   record's id.
+- An hourly sweep in the API process that logs stored files with no record, the ones left
+  when the process dies between writing a file and committing its row. It deletes them
+  only with `UPLOAD_SWEEP_REMOVE=true`: after an upgrade, every file stored before
+  migration 041 has no record and is still a real logo or image.
 
 ### Security
 

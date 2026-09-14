@@ -37,7 +37,7 @@ export function MemberControls({ member, callerRole }: { member: User; callerRol
             ))}
           </select>
           <button className="button button--quiet button--small" type="submit" disabled={rolePending}>
-            Change role
+            {rolePending ? 'Changing…' : 'Change role'}
           </button>
         </form>
 
@@ -49,7 +49,7 @@ export function MemberControls({ member, callerRole }: { member: User; callerRol
             type="submit"
             disabled={statusPending}
           >
-            {suspended ? 'Reactivate' : 'Suspend'}
+            {statusPending ? (suspended ? 'Reactivating…' : 'Suspending…') : suspended ? 'Reactivate' : 'Suspend'}
           </button>
         </form>
       </div>

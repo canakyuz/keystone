@@ -17,7 +17,7 @@ export function ToggleEndpoint({ id, active }: { id: string; active: boolean }) 
         type="submit"
         disabled={pending}
       >
-        {active ? 'Turn off' : 'Turn on'}
+        {pending ? (active ? 'Turning off…' : 'Turning on…') : active ? 'Turn off' : 'Turn on'}
       </button>
       {state.message ? (
         <p className="row-message is-refused" role="status">

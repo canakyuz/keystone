@@ -3,7 +3,7 @@ import { PLATES, type PlateName } from '@/lib/plates';
 /**
  * An engraving from lib/plates.ts, cut by scripts/plates.py.
  *
- * The SVG is a mask over currentColor rather than an <img>, so the ink is the page's own ink
+ * The SVG is a mask over currentColor rather than an image element, so the ink is the page's own ink
  * and the plate holds in both themes without a second file. The box takes the plate's aspect
  * ratio, so nothing shifts while the mask loads.
  */

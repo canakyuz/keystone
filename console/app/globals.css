@@ -17,10 +17,11 @@
 
   --accent: #1e4d7b;
   --accent-soft: rgba(30, 77, 123, 0.1);
-  --live: #15803d;
-  --live-soft: rgba(21, 128, 61, 0.1);
-  --wip: #9a6700;
-  --wip-soft: rgba(154, 103, 0, 0.1);
+  /* Darker than the usual green and amber: tags set these at 10.5px, which needs 4.5:1. */
+  --live: #166534;
+  --live-soft: rgba(22, 101, 52, 0.1);
+  --wip: #7a5200;
+  --wip-soft: rgba(122, 82, 0, 0.1);
   /* Used for one thing: the API said no. */
   --refused: #a4262c;
   --refused-soft: rgba(164, 38, 44, 0.08);
@@ -144,7 +145,9 @@ body {
   cursor: pointer;
 }
 .chrome-link:hover { color: var(--ink); }
-.chrome-link[aria-current='page'] { color: var(--ink); border-bottom-color: var(--ink); }
+/* An underline rather than a border, so the mark stays on the word when a touch screen
+   grows the link's box to 44px. */
+.chrome-link[aria-current='page'] { color: var(--ink); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 7px; }
 .chrome-subject { font-size: 13.5px; color: var(--ink-2); }
 
 /* ── Masthead: the one loud thing ───────────────────────── */
@@ -291,11 +294,14 @@ body {
   font: inherit;
   color: var(--ink);
   background: var(--raised);
-  border: 1px solid var(--rule-strong);
+  /* ink-4, not a rule colour: a field's edge needs 3:1 to be found, and rule-strong
+     measured 2.8:1 on paper and 1.5:1 in the dark theme. */
+  border: 1px solid var(--ink-4);
   border-radius: 0;
   padding: 9px 11px;
   min-height: 40px;
 }
+.input::placeholder { color: var(--ink-3); opacity: 1; }
 .input:focus-visible, .select:focus-visible { outline: 2px solid var(--accent); outline-offset: -1px; }
 .select.is-compact { min-height: 32px; padding: 4px 8px; font-size: 13.5px; }
 
@@ -324,15 +330,17 @@ body {
 .inline-form { display: flex; gap: 6px; align-items: center; }
 
 /* ── Notices ────────────────────────────────────────────── */
+/* A hairline all round, the rule the rest of the console is drawn with; the tone is a
+   border and a tint, not a side stripe. */
 .notice {
   padding: 10px 14px;
-  border-left: 3px solid var(--rule-strong);
+  border: 1px solid var(--rule-strong);
   background: var(--paper-3);
   font-size: 14px;
   max-width: 68ch;
 }
-.notice--refused { border-left-color: var(--refused); background: var(--refused-soft); }
-.notice--done { border-left-color: var(--live); background: var(--live-soft); }
+.notice--refused { border-color: var(--refused); background: var(--refused-soft); }
+.notice--done { border-color: var(--live); background: var(--live-soft); }
 
 /* ── Operation track ────────────────────────────────────── */
 .track {
@@ -343,12 +351,13 @@ body {
 .track-step {
   padding: 16px 18px 18px;
   border-right: 1px solid var(--ink);
-  color: var(--ink-4);
+  /* ink-3, not ink-4: a step still to come must stay readable (ink-4 measured 2.6:1). */
+  color: var(--ink-3);
 }
 .track-step:last-child { border-right: 0; }
 .track-step-name { font-family: var(--font-head); font-size: 22px; font-weight: 500; letter-spacing: -0.02em; }
 .track-step-note { margin-top: 4px; font-size: 13px; }
-.track-step.is-past { color: var(--ink-3); }
+.track-step.is-past { color: var(--ink-2); }
 .track-step.is-now { color: var(--paper); background: var(--ink); }
 .track-step.is-failed { color: var(--paper); background: var(--refused); }
 @media (max-width: 640px) {
@@ -544,4 +553,11 @@ body {
 .skeleton--title { width: min(320px, 60%); height: 40px; }
 .skeleton--lede { width: min(560px, 90%); height: 16px; margin-top: 16px; }
 .kv-row .skeleton { width: 70%; }
+
+/* On a touch screen the compact controls grow to a 44px target; a mouse keeps them tight. */
+@media (pointer: coarse) {
+  .button--small, .select.is-compact { min-height: 44px; }
+  .chrome-link { display: inline-flex; align-items: center; min-height: 44px; }
+  .field-reveal { min-height: 40px; }
+}
 @keyframes skeleton-pulse { 50% { opacity: 0.45; } }

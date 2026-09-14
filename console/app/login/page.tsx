@@ -34,7 +34,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
           </p>
         </div>
 
-        <section aria-labelledby="signin-title">
+        <section className="signin-panel" aria-labelledby="signin-title">
           <h2 id="signin-title" className="block-title signin-title">
             Sign in
           </h2>

@@ -8,6 +8,9 @@ import type { LoginResult } from '@/lib/types';
 export interface SignInState {
   message: string | null;
   email: string;
+  // Echoed back because React resets the form after an action; without it a refused attempt
+  // would silently drop the tenant the reader typed.
+  tenantId: string;
 }
 
 export async function signIn(_: SignInState, form: FormData): Promise<SignInState> {
@@ -16,7 +19,7 @@ export async function signIn(_: SignInState, form: FormData): Promise<SignInStat
   const tenantId = String(form.get('tenant_id') ?? '').trim();
 
   if (!email || !password) {
-    return { message: 'Enter the email and password of your Keystone account.', email };
+    return { message: 'Enter the email and password of your Keystone account.', email, tenantId };
   }
 
   const result = await api<LoginResult>('/api/v1/auth/login', {
@@ -26,11 +29,11 @@ export async function signIn(_: SignInState, form: FormData): Promise<SignInStat
   });
 
   if (!result.ok) {
-    if (result.status === 401) return { message: 'That email and password do not match an account.', email };
+    if (result.status === 401) return { message: 'That email and password do not match an account.', email, tenantId };
     if (result.status === 403) {
-      return { message: 'This account is suspended. An administrator of its tenant can reactivate it.', email };
+      return { message: 'This account is suspended. An administrator of its tenant can reactivate it.', email, tenantId };
     }
-    return { message: result.message, email };
+    return { message: result.message, email, tenantId };
   }
 
   await writeToken(result.data.access_token, result.data.expires_in);

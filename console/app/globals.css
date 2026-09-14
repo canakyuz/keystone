@@ -367,7 +367,7 @@ body {
   display: grid;
   grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
   gap: clamp(32px, 6vw, 96px);
-  align-items: end;
+  align-items: center;
   padding: clamp(32px, 6vw, 72px) var(--gutter);
   border-top: 3px solid var(--ink);
 }
@@ -402,6 +402,48 @@ body {
 .track-step p { margin: 0; }
 
 .signin-title { margin-bottom: 18px; }
+.signin-panel {
+  justify-self: end;
+  width: 100%;
+  max-width: 440px;
+  padding: clamp(22px, 3vw, 32px);
+  background: var(--raised);
+  border: 1px solid var(--rule);
+  border-top: 3px solid var(--ink);
+}
+.signin-panel .form { max-width: none; }
+.signin-panel .button { justify-self: stretch; min-height: 44px; }
+@media (max-width: 860px) { .signin-panel { justify-self: stretch; max-width: 520px; } }
+
+.field-control { position: relative; display: grid; }
+.field-control .input { padding-right: 64px; }
+.field-reveal {
+  position: absolute;
+  top: 50%;
+  right: 4px;
+  transform: translateY(-50%);
+  font: inherit;
+  font-size: 12.5px;
+  color: var(--ink-3);
+  background: none;
+  border: 0;
+  padding: 6px 8px;
+  cursor: pointer;
+}
+.field-reveal:hover { color: var(--ink); }
+
+.disclosure summary {
+  width: fit-content;
+  font-size: 13.5px;
+  color: var(--ink-3);
+  list-style: none;
+  cursor: pointer;
+}
+.disclosure summary::-webkit-details-marker { display: none; }
+.disclosure summary::before { content: '+'; display: inline-block; width: 1.1em; font-family: var(--font-mono); }
+.disclosure summary:hover, .disclosure[open] summary { color: var(--ink-2); }
+.disclosure[open] summary { margin-bottom: 12px; }
+.disclosure[open] summary::before { content: '−'; }
 .signin-body .masthead-name { font-size: clamp(56px, 10vw, 136px); }
 
 .secret { margin-top: 8px; font-size: 13px; overflow-wrap: anywhere; user-select: all; }

@@ -194,7 +194,7 @@ func setupRoutes(
 	registry.Get("/tools/:id", toolCatalogH.GetToolByID)
 
 	// Tenant-scoped activation routes; authentication required.
-	tenantRegistry := v1.Group("/registry/tenant", chain(authenticated, tenantScope)...)
+	tenantRegistry := v1.Group("/registry/tenant", chain(authenticated, tenantContextMiddleware, tenantScope)...)
 
 	// Module activation for the current tenant.
 	tenantRegistry.Get("/modules", activationH.GetActivatedModules)

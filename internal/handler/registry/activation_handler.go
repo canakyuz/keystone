@@ -1,6 +1,9 @@
 package registry
 
 import (
+	"errors"
+
+	"github.com/canakyuz/keystone/internal/domain/registry"
 	dto "github.com/canakyuz/keystone/internal/dto/registry"
 	"github.com/canakyuz/keystone/internal/middleware"
 	registryService "github.com/canakyuz/keystone/internal/service/registry"
@@ -9,6 +12,10 @@ import (
 
 // ActivationHandler serves the module and tool lifecycle endpoints: install,
 // activate, deactivate and uninstall.
+//
+// Every call passes c.UserContext() down, not c.Context(). The user context is the one
+// TenantContextMiddleware filled with the tenant and the acting subject; the fasthttp
+// context carries neither.
 type ActivationHandler struct {
 	activationService *registryService.TenantActivationService
 	dependencyChecker *registryService.DependencyCheckerService
@@ -23,6 +30,36 @@ func NewActivationHandler(
 		activationService: activationService,
 		dependencyChecker: dependencyChecker,
 	}
+}
+
+// activationOutcomes maps the domain errors a client can act on to their status. Their
+// messages are fixed strings written for the client. Anything else is returned to the
+// application's error handler, which logs it and answers 500 without its text.
+var activationOutcomes = []struct {
+	err    error
+	status int
+}{
+	{registry.ErrModuleNotFound, fiber.StatusNotFound},
+	{registry.ErrToolNotFound, fiber.StatusNotFound},
+	{registry.ErrTenantModuleNotFound, fiber.StatusNotFound},
+	{registry.ErrTenantToolNotFound, fiber.StatusNotFound},
+	{registry.ErrTenantModuleAlreadyInstalled, fiber.StatusConflict},
+	{registry.ErrTenantToolAlreadyInstalled, fiber.StatusConflict},
+	{registry.ErrTenantModuleAlreadyActive, fiber.StatusConflict},
+	{registry.ErrTenantModuleAlreadyInactive, fiber.StatusConflict},
+	{registry.ErrTenantToolAlreadyActive, fiber.StatusConflict},
+	{registry.ErrTenantToolAlreadyInactive, fiber.StatusConflict},
+	{registry.ErrMissingRequiredDependencies, fiber.StatusConflict},
+}
+
+// activationError writes the response for an error from the activation service.
+func activationError(c *fiber.Ctx, err error) error {
+	for _, outcome := range activationOutcomes {
+		if errors.Is(err, outcome.err) {
+			return c.Status(outcome.status).JSON(fiber.Map{"error": outcome.err.Error()})
+		}
+	}
+	return err
 }
 
 // InstallModule installs a module for the current tenant.
@@ -52,9 +89,9 @@ func (h *ActivationHandler) InstallModule(c *fiber.Ctx) error {
 	}
 
 	// Install the module through the activation service.
-	result, err := h.activationService.InstallModule(c.Context(), serviceReq)
+	result, err := h.activationService.InstallModule(c.UserContext(), serviceReq)
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+		return activationError(c, err)
 	}
 
 	// Turn the service result into an HTTP response.
@@ -79,8 +116,8 @@ func (h *ActivationHandler) ActivateModule(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 	}
 
-	if err := h.activationService.ActivateModule(c.Context(), tenantID, moduleID, userID); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	if err := h.activationService.ActivateModule(c.UserContext(), tenantID, moduleID, userID); err != nil {
+		return activationError(c, err)
 	}
 
 	return c.JSON(fiber.Map{"message": "module activated"})
@@ -97,8 +134,8 @@ func (h *ActivationHandler) DeactivateModule(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 	}
 
-	if err := h.activationService.DeactivateModule(c.Context(), tenantID, moduleID, userID); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	if err := h.activationService.DeactivateModule(c.UserContext(), tenantID, moduleID, userID); err != nil {
+		return activationError(c, err)
 	}
 
 	return c.JSON(fiber.Map{"message": "module deactivated"})
@@ -114,8 +151,8 @@ func (h *ActivationHandler) UninstallModule(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 	}
 
-	if err := h.activationService.UninstallModule(c.Context(), tenantID, moduleID); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	if err := h.activationService.UninstallModule(c.UserContext(), tenantID, moduleID); err != nil {
+		return activationError(c, err)
 	}
 
 	return c.Status(fiber.StatusNoContent).Send(nil)
@@ -131,8 +168,8 @@ func (h *ActivationHandler) CompleteModuleSetup(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 	}
 
-	if err := h.activationService.CompleteModuleSetup(c.Context(), tenantID, moduleID); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	if err := h.activationService.CompleteModuleSetup(c.UserContext(), tenantID, moduleID); err != nil {
+		return activationError(c, err)
 	}
 
 	return c.JSON(fiber.Map{"message": "module setup completed"})
@@ -163,9 +200,9 @@ func (h *ActivationHandler) InstallTool(c *fiber.Ctx) error {
 		AutoInstallDeps: req.AutoInstallDeps,
 	}
 
-	result, err := h.activationService.InstallTool(c.Context(), serviceReq)
+	result, err := h.activationService.InstallTool(c.UserContext(), serviceReq)
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+		return activationError(c, err)
 	}
 
 	// Turn the service result into an HTTP response.
@@ -189,8 +226,8 @@ func (h *ActivationHandler) ActivateTool(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 	}
 
-	if err := h.activationService.ActivateTool(c.Context(), tenantID, toolID, userID); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	if err := h.activationService.ActivateTool(c.UserContext(), tenantID, toolID, userID); err != nil {
+		return activationError(c, err)
 	}
 
 	return c.JSON(fiber.Map{"message": "tool activated"})
@@ -207,8 +244,8 @@ func (h *ActivationHandler) DeactivateTool(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 	}
 
-	if err := h.activationService.DeactivateTool(c.Context(), tenantID, toolID, userID); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	if err := h.activationService.DeactivateTool(c.UserContext(), tenantID, toolID, userID); err != nil {
+		return activationError(c, err)
 	}
 
 	return c.JSON(fiber.Map{"message": "tool deactivated"})
@@ -224,8 +261,8 @@ func (h *ActivationHandler) UninstallTool(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 	}
 
-	if err := h.activationService.UninstallTool(c.Context(), tenantID, toolID); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	if err := h.activationService.UninstallTool(c.UserContext(), tenantID, toolID); err != nil {
+		return activationError(c, err)
 	}
 
 	return c.Status(fiber.StatusNoContent).Send(nil)
@@ -241,8 +278,8 @@ func (h *ActivationHandler) CompleteToolSetup(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 	}
 
-	if err := h.activationService.CompleteToolSetup(c.Context(), tenantID, toolID); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	if err := h.activationService.CompleteToolSetup(c.UserContext(), tenantID, toolID); err != nil {
+		return activationError(c, err)
 	}
 
 	return c.JSON(fiber.Map{"message": "tool setup completed"})
@@ -257,9 +294,9 @@ func (h *ActivationHandler) GetActivatedModules(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 	}
 
-	modules, err := h.activationService.GetActivatedModules(c.Context(), tenantID)
+	modules, err := h.activationService.GetActivatedModules(c.UserContext(), tenantID)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return err
 	}
 
 	// Convert the service result into DTOs.
@@ -280,9 +317,9 @@ func (h *ActivationHandler) GetActivatedTools(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 	}
 
-	tools, err := h.activationService.GetActivatedTools(c.Context(), tenantID)
+	tools, err := h.activationService.GetActivatedTools(c.UserContext(), tenantID)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return err
 	}
 
 	// Convert the service result into DTOs.
@@ -304,9 +341,9 @@ func (h *ActivationHandler) CheckModuleDependencies(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 	}
 
-	result, err := h.dependencyChecker.CheckModuleDependencies(c.Context(), tenantID, moduleID)
+	result, err := h.dependencyChecker.CheckModuleDependencies(c.UserContext(), tenantID, moduleID)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return activationError(c, err)
 	}
 
 	response := dto.ToDependencyCheckDTO(result)
@@ -324,9 +361,9 @@ func (h *ActivationHandler) CheckToolDependencies(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 	}
 
-	result, err := h.dependencyChecker.CheckToolDependencies(c.Context(), tenantID, toolID)
+	result, err := h.dependencyChecker.CheckToolDependencies(c.UserContext(), tenantID, toolID)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return activationError(c, err)
 	}
 
 	response := dto.ToDependencyCheckDTO(result)

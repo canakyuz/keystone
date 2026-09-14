@@ -2,12 +2,17 @@ package registry
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/canakyuz/keystone/internal/domain/registry"
 )
 
 // TenantActivationService handles module and tool activation/deactivation
+//
+// The install counts on modules and tools are not touched here. A trigger on the
+// installation tables keeps them, counting active installations; bumping them from the
+// service as well counted every installation twice.
 type TenantActivationService struct {
 	moduleRepo        registry.ModuleRepository
 	toolRepo          registry.ToolRepository
@@ -55,13 +60,16 @@ func (s *TenantActivationService) InstallModule(ctx context.Context, req Install
 	// Validate module exists
 	module, err := s.moduleRepo.GetByID(ctx, req.ModuleID)
 	if err != nil {
-		return nil, fmt.Errorf("module not found: %w", err)
+		return nil, fmt.Errorf("failed to look up the module: %w", err)
 	}
 
-	// Check if already installed
-	existing, _ := s.tenantModuleRepo.GetByTenantAndModule(ctx, req.TenantID, req.ModuleID)
-	if existing != nil {
-		return nil, fmt.Errorf("module already installed for this tenant")
+	// Refuse early, before any dependency is installed on this installation's behalf. The
+	// insert refuses a duplicate on its own as well, so two concurrent requests cannot both
+	// get through.
+	if _, err := s.tenantModuleRepo.GetByTenantAndModule(ctx, req.TenantID, req.ModuleID); err == nil {
+		return nil, registry.ErrTenantModuleAlreadyInstalled
+	} else if !errors.Is(err, registry.ErrTenantModuleNotFound) {
+		return nil, fmt.Errorf("failed to check the installation: %w", err)
 	}
 
 	// Check dependencies
@@ -118,7 +126,7 @@ func (s *TenantActivationService) InstallModule(ctx context.Context, req Install
 
 	// Check if all required dependencies are met
 	if !depResult.CanActivate && req.AutoActivate {
-		return nil, fmt.Errorf("cannot activate module: missing required dependencies")
+		return nil, fmt.Errorf("cannot activate module: %w", registry.ErrMissingRequiredDependencies)
 	}
 
 	// Create tenant module record
@@ -132,15 +140,6 @@ func (s *TenantActivationService) InstallModule(ctx context.Context, req Install
 	// Create in database
 	if err := s.tenantModuleRepo.Create(ctx, tenantModule); err != nil {
 		return nil, fmt.Errorf("failed to save tenant module: %w", err)
-	}
-
-	// Update install count
-	if err := s.moduleRepo.UpdateInstallCount(ctx, req.ModuleID, 1); err != nil {
-		// Log error but don't fail the operation
-		// The install count is a display counter, not part of the activation. Failing to
-		// bump it must not fail the activation, and it is not worth a log line on the
-		// request path either: the count is derivable from the activation rows.
-		_ = err
 	}
 
 	// Auto-activate if requested and dependencies are met
@@ -162,6 +161,11 @@ func (s *TenantActivationService) InstallModule(ctx context.Context, req Install
 
 // ActivateModule activates an installed module
 func (s *TenantActivationService) ActivateModule(ctx context.Context, tenantID, moduleID, activatedBy string) error {
+	// A module that is not installed is not found, whatever its dependencies say.
+	if _, err := s.tenantModuleRepo.GetByTenantAndModule(ctx, tenantID, moduleID); err != nil {
+		return fmt.Errorf("failed to look up the installation: %w", err)
+	}
+
 	// Check dependencies
 	depResult, err := s.dependencyChecker.CheckModuleDependencies(ctx, tenantID, moduleID)
 	if err != nil {
@@ -169,7 +173,7 @@ func (s *TenantActivationService) ActivateModule(ctx context.Context, tenantID, 
 	}
 
 	if !depResult.CanActivate {
-		return fmt.Errorf("cannot activate module: missing required dependencies")
+		return fmt.Errorf("cannot activate module: %w", registry.ErrMissingRequiredDependencies)
 	}
 
 	// Activate
@@ -191,23 +195,8 @@ func (s *TenantActivationService) DeactivateModule(ctx context.Context, tenantID
 
 // UninstallModule soft deletes a tenant module
 func (s *TenantActivationService) UninstallModule(ctx context.Context, tenantID, moduleID string) error {
-	tenantModule, err := s.tenantModuleRepo.GetByTenantAndModule(ctx, tenantID, moduleID)
-	if err != nil {
-		return fmt.Errorf("tenant module not found: %w", err)
-	}
-
-	// Soft delete
-	if err := s.tenantModuleRepo.Delete(ctx, tenantModule.ID); err != nil {
+	if err := s.tenantModuleRepo.Uninstall(ctx, tenantID, moduleID); err != nil {
 		return fmt.Errorf("failed to uninstall module: %w", err)
-	}
-
-	// Update install count
-	if err := s.moduleRepo.UpdateInstallCount(ctx, moduleID, -1); err != nil {
-		// Log error but don't fail the operation
-		// The install count is a display counter, not part of the activation. Failing to
-		// bump it must not fail the activation, and it is not worth a log line on the
-		// request path either: the count is derivable from the activation rows.
-		_ = err
 	}
 
 	return nil
@@ -217,7 +206,7 @@ func (s *TenantActivationService) UninstallModule(ctx context.Context, tenantID,
 func (s *TenantActivationService) CompleteModuleSetup(ctx context.Context, tenantID, moduleID string) error {
 	tenantModule, err := s.tenantModuleRepo.GetByTenantAndModule(ctx, tenantID, moduleID)
 	if err != nil {
-		return fmt.Errorf("tenant module not found: %w", err)
+		return fmt.Errorf("failed to look up the installation: %w", err)
 	}
 
 	tenantModule.CompleteSetup()
@@ -251,13 +240,22 @@ func (s *TenantActivationService) InstallTool(ctx context.Context, req InstallTo
 	// Validate tool exists
 	tool, err := s.toolRepo.GetByID(ctx, req.ToolID)
 	if err != nil {
-		return nil, fmt.Errorf("tool not found: %w", err)
+		return nil, fmt.Errorf("failed to look up the tool: %w", err)
 	}
 
-	// Check if already installed
-	existing, _ := s.tenantToolRepo.GetByTenantAndTool(ctx, req.TenantID, req.ToolID)
-	if existing != nil {
-		return nil, fmt.Errorf("tool already installed for this tenant")
+	// The module a tool is installed through is optional, but one that is named must exist;
+	// the column references modules.
+	if req.ModuleID != "" {
+		if _, err := s.moduleRepo.GetByID(ctx, req.ModuleID); err != nil {
+			return nil, fmt.Errorf("failed to look up the module: %w", err)
+		}
+	}
+
+	// Refuse early, on the rules of InstallModule.
+	if _, err := s.tenantToolRepo.GetByTenantAndTool(ctx, req.TenantID, req.ToolID); err == nil {
+		return nil, registry.ErrTenantToolAlreadyInstalled
+	} else if !errors.Is(err, registry.ErrTenantToolNotFound) {
+		return nil, fmt.Errorf("failed to check the installation: %w", err)
 	}
 
 	// Check dependencies
@@ -300,7 +298,7 @@ func (s *TenantActivationService) InstallTool(ctx context.Context, req InstallTo
 
 	// Check if all required dependencies are met
 	if !depResult.CanActivate && req.AutoActivate {
-		return nil, fmt.Errorf("cannot activate tool: missing required dependencies")
+		return nil, fmt.Errorf("cannot activate tool: %w", registry.ErrMissingRequiredDependencies)
 	}
 
 	// Create tenant tool record
@@ -315,15 +313,6 @@ func (s *TenantActivationService) InstallTool(ctx context.Context, req InstallTo
 	// Create in database
 	if err := s.tenantToolRepo.Create(ctx, tenantTool); err != nil {
 		return nil, fmt.Errorf("failed to save tenant tool: %w", err)
-	}
-
-	// Update install count
-	if err := s.toolRepo.UpdateInstallCount(ctx, req.ToolID, 1); err != nil {
-		// Log error but don't fail the operation
-		// The install count is a display counter, not part of the activation. Failing to
-		// bump it must not fail the activation, and it is not worth a log line on the
-		// request path either: the count is derivable from the activation rows.
-		_ = err
 	}
 
 	// Auto-activate if requested and dependencies are met
@@ -345,6 +334,11 @@ func (s *TenantActivationService) InstallTool(ctx context.Context, req InstallTo
 
 // ActivateTool activates an installed tool
 func (s *TenantActivationService) ActivateTool(ctx context.Context, tenantID, toolID, activatedBy string) error {
+	// A tool that is not installed is not found, whatever its dependencies say.
+	if _, err := s.tenantToolRepo.GetByTenantAndTool(ctx, tenantID, toolID); err != nil {
+		return fmt.Errorf("failed to look up the installation: %w", err)
+	}
+
 	// Check dependencies
 	depResult, err := s.dependencyChecker.CheckToolDependencies(ctx, tenantID, toolID)
 	if err != nil {
@@ -352,7 +346,7 @@ func (s *TenantActivationService) ActivateTool(ctx context.Context, tenantID, to
 	}
 
 	if !depResult.CanActivate {
-		return fmt.Errorf("cannot activate tool: missing required dependencies")
+		return fmt.Errorf("cannot activate tool: %w", registry.ErrMissingRequiredDependencies)
 	}
 
 	// Activate
@@ -374,23 +368,8 @@ func (s *TenantActivationService) DeactivateTool(ctx context.Context, tenantID, 
 
 // UninstallTool soft deletes a tenant tool
 func (s *TenantActivationService) UninstallTool(ctx context.Context, tenantID, toolID string) error {
-	tenantTool, err := s.tenantToolRepo.GetByTenantAndTool(ctx, tenantID, toolID)
-	if err != nil {
-		return fmt.Errorf("tenant tool not found: %w", err)
-	}
-
-	// Soft delete
-	if err := s.tenantToolRepo.Delete(ctx, tenantTool.ID); err != nil {
+	if err := s.tenantToolRepo.Uninstall(ctx, tenantID, toolID); err != nil {
 		return fmt.Errorf("failed to uninstall tool: %w", err)
-	}
-
-	// Update install count
-	if err := s.toolRepo.UpdateInstallCount(ctx, toolID, -1); err != nil {
-		// Log error but don't fail the operation
-		// The install count is a display counter, not part of the activation. Failing to
-		// bump it must not fail the activation, and it is not worth a log line on the
-		// request path either: the count is derivable from the activation rows.
-		_ = err
 	}
 
 	return nil
@@ -400,7 +379,7 @@ func (s *TenantActivationService) UninstallTool(ctx context.Context, tenantID, t
 func (s *TenantActivationService) CompleteToolSetup(ctx context.Context, tenantID, toolID string) error {
 	tenantTool, err := s.tenantToolRepo.GetByTenantAndTool(ctx, tenantID, toolID)
 	if err != nil {
-		return fmt.Errorf("tenant tool not found: %w", err)
+		return fmt.Errorf("failed to look up the installation: %w", err)
 	}
 
 	tenantTool.CompleteSetup()

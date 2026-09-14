@@ -46,10 +46,9 @@ type ToolRepository interface {
 type TenantModuleRepository interface {
 	// CRUD operations
 	Create(ctx context.Context, tenantModule *TenantModule) error
-	GetByID(ctx context.Context, id string) (*TenantModule, error)
 	GetByTenantAndModule(ctx context.Context, tenantID, moduleID string) (*TenantModule, error)
 	Update(ctx context.Context, tenantModule *TenantModule) error
-	Delete(ctx context.Context, id string) error
+	Uninstall(ctx context.Context, tenantID, moduleID string) error
 
 	// Tenant-scoped queries
 	ListByTenant(ctx context.Context, tenantID string, filters TenantModuleFilters) ([]*TenantModule, error)
@@ -69,10 +68,9 @@ type TenantModuleRepository interface {
 type TenantToolRepository interface {
 	// CRUD operations
 	Create(ctx context.Context, tenantTool *TenantTool) error
-	GetByID(ctx context.Context, id string) (*TenantTool, error)
 	GetByTenantAndTool(ctx context.Context, tenantID, toolID string) (*TenantTool, error)
 	Update(ctx context.Context, tenantTool *TenantTool) error
-	Delete(ctx context.Context, id string) error
+	Uninstall(ctx context.Context, tenantID, toolID string) error
 
 	// Tenant-scoped queries
 	ListByTenant(ctx context.Context, tenantID string, filters TenantToolFilters) ([]*TenantTool, error)

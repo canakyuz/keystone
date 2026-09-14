@@ -231,7 +231,10 @@ func (tt *TenantTool) ResetErrorCount() {
 func (tt *TenantTool) CompleteSetup() {
 	tt.SetupCompleted = true
 	if tt.Status == TenantToolStatusPendingSetup {
+		// Finishing setup activates, as Activate does, and an active installation that is
+		// not enabled is left out of every list of active installations.
 		tt.Status = TenantToolStatusActive
+		tt.IsEnabled = true
 		now := time.Now()
 		tt.ActivatedAt = &now
 	}

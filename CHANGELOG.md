@@ -24,6 +24,20 @@ the entry says so under **Changed**.
   a lookup failure other than a missing entry is a 500 instead of a 404.
 - A module's page includes the tags, tables, limits, configuration schema and metadata its
   response always declared and never filled in.
+- Installing, activating, deactivating and uninstalling a module or tool did not work under
+  the application's database role. Every statement ran outside the tenant's row-level
+  scope and was refused, the dependency check read a column the schema does not have, and
+  the insert sent empty strings to columns that accept only NULL or a listed value. Each
+  change now runs in a transaction scoped to the tenant, one installation changes under a
+  row lock, and a tenant can reinstall what it removed.
+- Completing an installation's setup marked it active without enabling it, which left it
+  out of the tenant's list of active modules and tools.
+- A catalogue entry's install count moved on the install call and again in the database
+  trigger, and an installation deleted while active was never taken off. The trigger alone
+  keeps the count now, and an uninstall marks the installation inactive as it deletes it.
+- The installation endpoints answer 404 for a module, tool or installation that does not
+  exist, and 409 for one already installed, already in the requested state, or missing a
+  required dependency. They used to answer 400 with the service's message.
 - Errors raised below a handler no longer reach the client. The server logs them and
   answers `internal server error`; errors a handler writes for the client are unchanged.
 

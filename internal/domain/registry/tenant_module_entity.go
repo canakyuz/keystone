@@ -161,7 +161,10 @@ func (tm *TenantModule) Suspend() {
 func (tm *TenantModule) CompleteSetup() {
 	tm.SetupCompleted = true
 	if tm.Status == TenantModuleStatusPendingSetup {
+		// Finishing setup activates, as Activate does, and an active installation that is
+		// not enabled is left out of every list of active installations.
 		tm.Status = TenantModuleStatusActive
+		tm.IsEnabled = true
 		now := time.Now()
 		tm.ActivatedAt = &now
 	}

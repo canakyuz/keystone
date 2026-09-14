@@ -46,6 +46,7 @@ var (
 	ErrModuleIDRequired               = errors.New("module ID is required")
 	ErrInvalidTenantModuleStatus      = errors.New("invalid tenant module status")
 	ErrInvalidSubscriptionStatus      = errors.New("invalid subscription status")
+	ErrTenantModuleAlreadyInstalled   = errors.New("module already installed for this tenant")
 	ErrTenantModuleAlreadyActive      = errors.New("tenant module already active")
 	ErrTenantModuleAlreadyInactive    = errors.New("tenant module already inactive")
 	ErrModuleNotActivated             = errors.New("module not activated for this tenant")
@@ -60,6 +61,7 @@ var (
 	ErrInvalidTenantToolStatus      = errors.New("invalid tenant tool status")
 	ErrInvalidIntegrationStatus     = errors.New("invalid integration status")
 	ErrInvalidHealthStatus          = errors.New("invalid health status")
+	ErrTenantToolAlreadyInstalled   = errors.New("tool already installed for this tenant")
 	ErrTenantToolAlreadyActive      = errors.New("tenant tool already active")
 	ErrTenantToolAlreadyInactive    = errors.New("tenant tool already inactive")
 	ErrToolNotActivated             = errors.New("tool not activated for this tenant")
@@ -70,6 +72,7 @@ var (
 // Dependency errors
 var (
 	ErrDependencyNotFound             = errors.New("dependency not found")
+	ErrMissingRequiredDependencies    = errors.New("missing required dependencies")
 	ErrInvalidDependencyType          = errors.New("invalid dependency type")
 	ErrInvalidDependencyScope         = errors.New("invalid dependency scope")
 	ErrCircularDependency             = errors.New("circular dependency detected")

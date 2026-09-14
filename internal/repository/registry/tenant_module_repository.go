@@ -4,8 +4,11 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
+
+	"github.com/lib/pq"
 
 	"github.com/canakyuz/keystone/internal/domain/registry"
 )
@@ -14,210 +17,212 @@ type tenantModuleRepository struct {
 	db *sql.DB
 }
 
-// NewTenantModuleRepository creates a new tenant module repository
+// NewTenantModuleRepository creates a new tenant module repository.
+//
+// Every method runs inside a transaction scoped to the tenant it is given; see inTenant.
 func NewTenantModuleRepository(db *sql.DB) registry.TenantModuleRepository {
 	return &tenantModuleRepository{db: db}
 }
 
-// Create creates a new tenant module activation
+// tenantModuleColumns selects an installation in the order scanTenantModule reads it, on
+// the rules of moduleColumns.
+const tenantModuleColumns = `
+	id, tenant_id, module_id, status, is_enabled,
+	installed_at, activated_at, deactivated_at, last_used_at,
+	installed_version, COALESCE(latest_compatible_version, ''),
+	configuration, features_enabled, limits, current_usage,
+	COALESCE(subscription_status, ''), subscription_start, subscription_end, trial_ends_at, next_billing_date,
+	COALESCE(pricing_plan, ''), COALESCE(billing_cycle, ''), COALESCE(amount_paid, 0), COALESCE(currency, ''),
+	COALESCE(setup_completed, FALSE), setup_steps_completed, COALESCE(onboarding_completed, FALSE),
+	allowed_roles, restricted_features,
+	COALESCE(notes, ''), metadata,
+	created_at, updated_at, deleted_at,
+	COALESCE(created_by::text, ''), COALESCE(updated_by::text, ''),
+	COALESCE(activated_by::text, ''), COALESCE(deactivated_by::text, '')`
+
+// installModuleQuery records an installation.
+//
+// The table keeps one row per tenant and module, deleted or not, so a plain INSERT would
+// refuse every reinstall. A row the tenant uninstalled is brought back with its lifecycle
+// reset instead. A row that is still installed is left alone, and then nothing is returned.
+const installModuleQuery = `
+	INSERT INTO tenant_modules (
+		id, tenant_id, module_id, status, is_enabled,
+		installed_at, installed_version, created_at, updated_at, created_by
+	) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+	ON CONFLICT (tenant_id, module_id) DO UPDATE SET
+		status = EXCLUDED.status, is_enabled = EXCLUDED.is_enabled,
+		installed_at = EXCLUDED.installed_at, installed_version = EXCLUDED.installed_version,
+		activated_at = NULL, deactivated_at = NULL, activated_by = NULL, deactivated_by = NULL,
+		setup_completed = FALSE, onboarding_completed = FALSE,
+		created_by = EXCLUDED.created_by, updated_by = NULL,
+		updated_at = EXCLUDED.updated_at, deleted_at = NULL
+	WHERE tenant_modules.deleted_at IS NOT NULL
+	RETURNING id`
+
+// scanTenantModule decodes one row selected with tenantModuleColumns, on the rules of
+// scanModule.
+func scanTenantModule(row rowScanner) (*registry.TenantModule, error) {
+	tm := &registry.TenantModule{}
+	var configuration, features, limits, usage, steps, restricted, metadata []byte
+
+	err := row.Scan(
+		&tm.ID, &tm.TenantID, &tm.ModuleID, &tm.Status, &tm.IsEnabled,
+		&tm.InstalledAt, &tm.ActivatedAt, &tm.DeactivatedAt, &tm.LastUsedAt,
+		&tm.InstalledVersion, &tm.LatestCompatibleVersion,
+		&configuration, &features, &limits, &usage,
+		&tm.SubscriptionStatus, &tm.SubscriptionStart, &tm.SubscriptionEnd, &tm.TrialEndsAt, &tm.NextBillingDate,
+		&tm.PricingPlan, &tm.BillingCycle, &tm.AmountPaid, &tm.Currency,
+		&tm.SetupCompleted, &steps, &tm.OnboardingCompleted,
+		pq.Array(&tm.AllowedRoles), &restricted,
+		&tm.Notes, &metadata,
+		&tm.CreatedAt, &tm.UpdatedAt, &tm.DeletedAt,
+		&tm.CreatedBy, &tm.UpdatedBy,
+		&tm.ActivatedBy, &tm.DeactivatedBy,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	tm.Configuration, tm.FeaturesEnabled, tm.Limits, tm.CurrentUsage = configuration, features, limits, usage
+	tm.SetupStepsCompleted, tm.RestrictedFeatures, tm.Metadata = steps, restricted, metadata
+	return tm, nil
+}
+
+// Create records an installation, or returns ErrTenantModuleAlreadyInstalled when the
+// tenant already has this module. On a reinstall tenantModule.ID becomes the id of the row
+// that was brought back.
 func (r *tenantModuleRepository) Create(ctx context.Context, tenantModule *registry.TenantModule) error {
-	query := `
-		INSERT INTO tenant_modules (
-			id, tenant_id, module_id, status, is_enabled,
-			installed_at, activated_at, deactivated_at, last_used_at,
-			installed_version, latest_compatible_version,
-			configuration, features_enabled, limits, current_usage,
-			subscription_status, subscription_start, subscription_end, trial_ends_at, next_billing_date,
-			pricing_plan, billing_cycle, amount_paid, currency,
-			setup_completed, setup_steps_completed, onboarding_completed,
-			allowed_roles, restricted_features,
-			notes, metadata,
-			created_at, updated_at, created_by, updated_by, activated_by, deactivated_by
-		) VALUES (
-			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15,
-			$16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37
-		)
-	`
-
-	_, err := r.db.ExecContext(ctx, query,
-		tenantModule.ID, tenantModule.TenantID, tenantModule.ModuleID, tenantModule.Status, tenantModule.IsEnabled,
-		tenantModule.InstalledAt, tenantModule.ActivatedAt, tenantModule.DeactivatedAt, tenantModule.LastUsedAt,
-		tenantModule.InstalledVersion, tenantModule.LatestCompatibleVersion,
-		tenantModule.Configuration, tenantModule.FeaturesEnabled, tenantModule.Limits, tenantModule.CurrentUsage,
-		tenantModule.SubscriptionStatus, tenantModule.SubscriptionStart, tenantModule.SubscriptionEnd, tenantModule.TrialEndsAt, tenantModule.NextBillingDate,
-		tenantModule.PricingPlan, tenantModule.BillingCycle, tenantModule.AmountPaid, tenantModule.Currency,
-		tenantModule.SetupCompleted, tenantModule.SetupStepsCompleted, tenantModule.OnboardingCompleted,
-		tenantModule.AllowedRoles, tenantModule.RestrictedFeatures,
-		tenantModule.Notes, tenantModule.Metadata,
-		tenantModule.CreatedAt, tenantModule.UpdatedAt, tenantModule.CreatedBy, tenantModule.UpdatedBy, tenantModule.ActivatedBy, tenantModule.DeactivatedBy,
-	)
-
-	return err
+	return inTenant(ctx, r.db, tenantModule.TenantID, func(tx *sql.Tx) error {
+		err := tx.QueryRowContext(ctx, installModuleQuery,
+			tenantModule.ID, tenantModule.TenantID, tenantModule.ModuleID, tenantModule.Status, tenantModule.IsEnabled,
+			tenantModule.InstalledAt, tenantModule.InstalledVersion, tenantModule.CreatedAt, tenantModule.UpdatedAt,
+			nullIfEmpty(tenantModule.CreatedBy),
+		).Scan(&tenantModule.ID)
+		if errors.Is(err, sql.ErrNoRows) {
+			return registry.ErrTenantModuleAlreadyInstalled
+		}
+		return err
+	})
 }
 
-// GetByID retrieves a tenant module by ID
-func (r *tenantModuleRepository) GetByID(ctx context.Context, id string) (*registry.TenantModule, error) {
-	query := `
-		SELECT id, tenant_id, module_id, status, is_enabled,
-			installed_at, activated_at, deactivated_at, last_used_at,
-			installed_version, latest_compatible_version,
-			configuration, features_enabled, limits, current_usage,
-			subscription_status, subscription_start, subscription_end, trial_ends_at, next_billing_date,
-			pricing_plan, billing_cycle, amount_paid, currency,
-			setup_completed, setup_steps_completed, onboarding_completed,
-			allowed_roles, restricted_features,
-			notes, metadata,
-			created_at, updated_at, deleted_at, created_by, updated_by, activated_by, deactivated_by
-		FROM tenant_modules
-		WHERE id = $1 AND deleted_at IS NULL
-	`
-
-	tm := &registry.TenantModule{}
-	err := r.db.QueryRowContext(ctx, query, id).Scan(
-		&tm.ID, &tm.TenantID, &tm.ModuleID, &tm.Status, &tm.IsEnabled,
-		&tm.InstalledAt, &tm.ActivatedAt, &tm.DeactivatedAt, &tm.LastUsedAt,
-		&tm.InstalledVersion, &tm.LatestCompatibleVersion,
-		&tm.Configuration, &tm.FeaturesEnabled, &tm.Limits, &tm.CurrentUsage,
-		&tm.SubscriptionStatus, &tm.SubscriptionStart, &tm.SubscriptionEnd, &tm.TrialEndsAt, &tm.NextBillingDate,
-		&tm.PricingPlan, &tm.BillingCycle, &tm.AmountPaid, &tm.Currency,
-		&tm.SetupCompleted, &tm.SetupStepsCompleted, &tm.OnboardingCompleted,
-		&tm.AllowedRoles, &tm.RestrictedFeatures,
-		&tm.Notes, &tm.Metadata,
-		&tm.CreatedAt, &tm.UpdatedAt, &tm.DeletedAt, &tm.CreatedBy, &tm.UpdatedBy, &tm.ActivatedBy, &tm.DeactivatedBy,
-	)
-
-	if err == sql.ErrNoRows {
-		return nil, registry.ErrTenantModuleNotFound
-	}
-
-	return tm, err
-}
-
-// GetByTenantAndModule retrieves a tenant module by tenant and module IDs
+// GetByTenantAndModule retrieves the tenant's live installation of a module.
 func (r *tenantModuleRepository) GetByTenantAndModule(ctx context.Context, tenantID, moduleID string) (*registry.TenantModule, error) {
-	query := `
-		SELECT id, tenant_id, module_id, status, is_enabled,
-			installed_at, activated_at, deactivated_at, last_used_at,
-			installed_version, latest_compatible_version,
-			configuration, features_enabled, limits, current_usage,
-			subscription_status, subscription_start, subscription_end, trial_ends_at, next_billing_date,
-			pricing_plan, billing_cycle, amount_paid, currency,
-			setup_completed, setup_steps_completed, onboarding_completed,
-			allowed_roles, restricted_features,
-			notes, metadata,
-			created_at, updated_at, deleted_at, created_by, updated_by, activated_by, deactivated_by
-		FROM tenant_modules
-		WHERE tenant_id = $1 AND module_id = $2 AND deleted_at IS NULL
-	`
-
-	tm := &registry.TenantModule{}
-	err := r.db.QueryRowContext(ctx, query, tenantID, moduleID).Scan(
-		&tm.ID, &tm.TenantID, &tm.ModuleID, &tm.Status, &tm.IsEnabled,
-		&tm.InstalledAt, &tm.ActivatedAt, &tm.DeactivatedAt, &tm.LastUsedAt,
-		&tm.InstalledVersion, &tm.LatestCompatibleVersion,
-		&tm.Configuration, &tm.FeaturesEnabled, &tm.Limits, &tm.CurrentUsage,
-		&tm.SubscriptionStatus, &tm.SubscriptionStart, &tm.SubscriptionEnd, &tm.TrialEndsAt, &tm.NextBillingDate,
-		&tm.PricingPlan, &tm.BillingCycle, &tm.AmountPaid, &tm.Currency,
-		&tm.SetupCompleted, &tm.SetupStepsCompleted, &tm.OnboardingCompleted,
-		&tm.AllowedRoles, &tm.RestrictedFeatures,
-		&tm.Notes, &tm.Metadata,
-		&tm.CreatedAt, &tm.UpdatedAt, &tm.DeletedAt, &tm.CreatedBy, &tm.UpdatedBy, &tm.ActivatedBy, &tm.DeactivatedBy,
-	)
-
-	if err == sql.ErrNoRows {
+	if !isUUID(moduleID) {
 		return nil, registry.ErrTenantModuleNotFound
 	}
 
-	return tm, err
+	var tenantModule *registry.TenantModule
+	err := inTenant(ctx, r.db, tenantID, func(tx *sql.Tx) error {
+		var err error
+		tenantModule, err = getTenantModule(ctx, tx, tenantID, moduleID, false)
+		return err
+	})
+	return tenantModule, err
 }
 
-// Update updates a tenant module
+// getTenantModule reads one live installation inside tx, locking the row when forUpdate
+// is set.
+func getTenantModule(ctx context.Context, tx *sql.Tx, tenantID, moduleID string, forUpdate bool) (*registry.TenantModule, error) {
+	query := "SELECT " + tenantModuleColumns + ` FROM tenant_modules
+		WHERE tenant_id = $1 AND module_id = $2 AND deleted_at IS NULL`
+	if forUpdate {
+		query += " FOR UPDATE"
+	}
+
+	tenantModule, err := scanTenantModule(tx.QueryRowContext(ctx, query, tenantID, moduleID))
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, registry.ErrTenantModuleNotFound
+	}
+	return tenantModule, err
+}
+
+// Update writes an installation's lifecycle back: its status, the activation stamps and the
+// setup flags.
 func (r *tenantModuleRepository) Update(ctx context.Context, tenantModule *registry.TenantModule) error {
-	query := `
-		UPDATE tenant_modules SET
-			status = $2, is_enabled = $3,
-			activated_at = $4, deactivated_at = $5, last_used_at = $6,
-			latest_compatible_version = $7,
-			configuration = $8, features_enabled = $9, limits = $10, current_usage = $11,
-			subscription_status = $12, subscription_start = $13, subscription_end = $14, trial_ends_at = $15, next_billing_date = $16,
-			pricing_plan = $17, billing_cycle = $18, amount_paid = $19,
-			setup_completed = $20, setup_steps_completed = $21, onboarding_completed = $22,
-			allowed_roles = $23, restricted_features = $24,
-			notes = $25, metadata = $26,
-			updated_at = $27, updated_by = $28, activated_by = $29, deactivated_by = $30
-		WHERE id = $1 AND deleted_at IS NULL
-	`
-
-	_, err := r.db.ExecContext(ctx, query,
-		tenantModule.ID, tenantModule.Status, tenantModule.IsEnabled,
-		tenantModule.ActivatedAt, tenantModule.DeactivatedAt, tenantModule.LastUsedAt,
-		tenantModule.LatestCompatibleVersion,
-		tenantModule.Configuration, tenantModule.FeaturesEnabled, tenantModule.Limits, tenantModule.CurrentUsage,
-		tenantModule.SubscriptionStatus, tenantModule.SubscriptionStart, tenantModule.SubscriptionEnd, tenantModule.TrialEndsAt, tenantModule.NextBillingDate,
-		tenantModule.PricingPlan, tenantModule.BillingCycle, tenantModule.AmountPaid,
-		tenantModule.SetupCompleted, tenantModule.SetupStepsCompleted, tenantModule.OnboardingCompleted,
-		tenantModule.AllowedRoles, tenantModule.RestrictedFeatures,
-		tenantModule.Notes, tenantModule.Metadata,
-		tenantModule.UpdatedAt, tenantModule.UpdatedBy, tenantModule.ActivatedBy, tenantModule.DeactivatedBy,
-	)
-
-	return err
+	return inTenant(ctx, r.db, tenantModule.TenantID, func(tx *sql.Tx) error {
+		return updateTenantModule(ctx, tx, tenantModule)
+	})
 }
 
-// Delete soft deletes a tenant module
-func (r *tenantModuleRepository) Delete(ctx context.Context, id string) error {
-	query := `UPDATE tenant_modules SET deleted_at = NOW() WHERE id = $1`
-	_, err := r.db.ExecContext(ctx, query, id)
-	return err
+// updateTenantModule writes the lifecycle columns only. Configuration, limits, usage and
+// billing are left out: nothing in the API changes them, and writing the whole row back
+// would overwrite a concurrent change to them with whatever this request happened to read.
+func updateTenantModule(ctx context.Context, tx *sql.Tx, tm *registry.TenantModule) error {
+	result, err := tx.ExecContext(ctx, `
+		UPDATE tenant_modules SET
+			status = $3, is_enabled = $4,
+			activated_at = $5, deactivated_at = $6,
+			setup_completed = $7, onboarding_completed = $8,
+			updated_by = $9, activated_by = $10, deactivated_by = $11,
+			updated_at = NOW()
+		WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL`,
+		tm.ID, tm.TenantID, tm.Status, tm.IsEnabled,
+		tm.ActivatedAt, tm.DeactivatedAt,
+		tm.SetupCompleted, tm.OnboardingCompleted,
+		nullIfEmpty(tm.UpdatedBy), nullIfEmpty(tm.ActivatedBy), nullIfEmpty(tm.DeactivatedBy),
+	)
+	if err != nil {
+		return err
+	}
+	return requireRow(result, registry.ErrTenantModuleNotFound)
+}
+
+// Uninstall marks the tenant's installation of a module deleted.
+//
+// It also sets the status to inactive. The install count on modules is kept by a trigger
+// that counts active installations and never looks at deleted_at, so a row deleted while
+// active would otherwise be counted for good.
+func (r *tenantModuleRepository) Uninstall(ctx context.Context, tenantID, moduleID string) error {
+	if !isUUID(moduleID) {
+		return registry.ErrTenantModuleNotFound
+	}
+
+	return inTenant(ctx, r.db, tenantID, func(tx *sql.Tx) error {
+		result, err := tx.ExecContext(ctx, `
+			UPDATE tenant_modules
+			SET deleted_at = NOW(), status = 'inactive', is_enabled = FALSE, updated_at = NOW()
+			WHERE tenant_id = $1 AND module_id = $2 AND deleted_at IS NULL`,
+			tenantID, moduleID,
+		)
+		if err != nil {
+			return err
+		}
+		return requireRow(result, registry.ErrTenantModuleNotFound)
+	})
 }
 
 // ListByTenant retrieves tenant modules with filters
 func (r *tenantModuleRepository) ListByTenant(ctx context.Context, tenantID string, filters registry.TenantModuleFilters) ([]*registry.TenantModule, error) {
-	query := `
-		SELECT id, tenant_id, module_id, status, is_enabled,
-			installed_at, activated_at, last_used_at,
-			installed_version, latest_compatible_version,
-			subscription_status, pricing_plan, billing_cycle,
-			setup_completed, onboarding_completed,
-			created_at, updated_at
-		FROM tenant_modules
-		WHERE tenant_id = $1 AND deleted_at IS NULL
-	`
+	query := "SELECT " + tenantModuleColumns + " FROM tenant_modules WHERE tenant_id = $1 AND deleted_at IS NULL"
 
 	conditions, args := r.buildFilterConditions(filters)
-	allArgs := append([]any{tenantID}, args...)
-
 	if len(conditions) > 0 {
 		query += " AND " + strings.Join(conditions, " AND ")
 	}
 
-	query += r.buildOrderBy(filters)
-	query += r.buildPagination(filters)
-
-	rows, err := r.db.QueryContext(ctx, query, allArgs...)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
+	query += installationOrderBy(filters.SortBy, filters.SortOrder)
+	query += pageClause(filters.Limit, filters.Offset)
 
 	var tenantModules []*registry.TenantModule
-	for rows.Next() {
-		tm := &registry.TenantModule{}
-		err := rows.Scan(
-			&tm.ID, &tm.TenantID, &tm.ModuleID, &tm.Status, &tm.IsEnabled,
-			&tm.InstalledAt, &tm.ActivatedAt, &tm.LastUsedAt,
-			&tm.InstalledVersion, &tm.LatestCompatibleVersion,
-			&tm.SubscriptionStatus, &tm.PricingPlan, &tm.BillingCycle,
-			&tm.SetupCompleted, &tm.OnboardingCompleted,
-			&tm.CreatedAt, &tm.UpdatedAt,
-		)
+	err := inTenant(ctx, r.db, tenantID, func(tx *sql.Tx) error {
+		rows, err := tx.QueryContext(ctx, query, append([]any{tenantID}, args...)...)
 		if err != nil {
-			return nil, err
+			return err
 		}
-		tenantModules = append(tenantModules, tm)
-	}
+		defer rows.Close()
 
-	return tenantModules, rows.Err()
+		for rows.Next() {
+			tm, err := scanTenantModule(rows)
+			if err != nil {
+				return err
+			}
+			tenantModules = append(tenantModules, tm)
+		}
+		return rows.Err()
+	})
+
+	return tenantModules, err
 }
 
 // ListActivatedByTenant retrieves activated modules for a tenant
@@ -233,64 +238,71 @@ func (r *tenantModuleRepository) ListActivatedByTenant(ctx context.Context, tena
 
 // IsModuleActivated checks if a module is activated for a tenant
 func (r *tenantModuleRepository) IsModuleActivated(ctx context.Context, tenantID, moduleID string) (bool, error) {
-	query := `
-		SELECT EXISTS(
-			SELECT 1 FROM tenant_modules
-			WHERE tenant_id = $1 AND module_id = $2
-			  AND status = 'active' AND is_enabled = true
-			  AND deleted_at IS NULL
-		)
-	`
+	if !isUUID(moduleID) {
+		return false, nil
+	}
 
 	var exists bool
-	err := r.db.QueryRowContext(ctx, query, tenantID, moduleID).Scan(&exists)
+	err := inTenant(ctx, r.db, tenantID, func(tx *sql.Tx) error {
+		return tx.QueryRowContext(ctx, `
+			SELECT EXISTS(
+				SELECT 1 FROM tenant_modules
+				WHERE tenant_id = $1 AND module_id = $2
+				  AND status = 'active' AND is_enabled = true
+				  AND deleted_at IS NULL
+			)`, tenantID, moduleID,
+		).Scan(&exists)
+	})
 	return exists, err
 }
 
 // Activate activates a module for a tenant
 func (r *tenantModuleRepository) Activate(ctx context.Context, tenantID, moduleID, activatedBy string) error {
-	// First, get the existing tenant module
-	tm, err := r.GetByTenantAndModule(ctx, tenantID, moduleID)
-	if err != nil {
-		return err
-	}
-
-	// Activate using domain logic
-	if err := tm.Activate(activatedBy); err != nil {
-		return err
-	}
-
-	// Update in database
-	return r.Update(ctx, tm)
+	return r.mutate(ctx, tenantID, moduleID, func(tm *registry.TenantModule) error {
+		tm.UpdatedBy = activatedBy
+		return tm.Activate(activatedBy)
+	})
 }
 
 // Deactivate deactivates a module for a tenant
 func (r *tenantModuleRepository) Deactivate(ctx context.Context, tenantID, moduleID, deactivatedBy string) error {
-	// First, get the existing tenant module
-	tm, err := r.GetByTenantAndModule(ctx, tenantID, moduleID)
-	if err != nil {
-		return err
+	return r.mutate(ctx, tenantID, moduleID, func(tm *registry.TenantModule) error {
+		tm.UpdatedBy = deactivatedBy
+		return tm.Deactivate(deactivatedBy)
+	})
+}
+
+// mutate reads an installation under a row lock, applies change and writes it back in one
+// transaction. Two requests changing the same installation take turns, instead of the
+// later one writing back a state it read before the earlier one committed.
+func (r *tenantModuleRepository) mutate(ctx context.Context, tenantID, moduleID string, change func(*registry.TenantModule) error) error {
+	if !isUUID(moduleID) {
+		return registry.ErrTenantModuleNotFound
 	}
 
-	// Deactivate using domain logic
-	if err := tm.Deactivate(deactivatedBy); err != nil {
-		return err
-	}
-
-	// Update in database
-	return r.Update(ctx, tm)
+	return inTenant(ctx, r.db, tenantID, func(tx *sql.Tx) error {
+		tenantModule, err := getTenantModule(ctx, tx, tenantID, moduleID, true)
+		if err != nil {
+			return err
+		}
+		if err := change(tenantModule); err != nil {
+			return err
+		}
+		return updateTenantModule(ctx, tx, tenantModule)
+	})
 }
 
 // UpdateLastUsed updates the last used timestamp
 func (r *tenantModuleRepository) UpdateLastUsed(ctx context.Context, tenantID, moduleID string) error {
-	query := `
-		UPDATE tenant_modules
-		SET last_used_at = NOW(), updated_at = NOW()
-		WHERE tenant_id = $1 AND module_id = $2 AND deleted_at IS NULL
-	`
-
-	_, err := r.db.ExecContext(ctx, query, tenantID, moduleID)
-	return err
+	return inTenant(ctx, r.db, tenantID, func(tx *sql.Tx) error {
+		_, err := tx.ExecContext(ctx, `
+			UPDATE tenant_modules
+			SET last_used_at = NOW(), updated_at = NOW()
+			WHERE tenant_id = $1 AND module_id = $2 AND deleted_at IS NULL`,
+			tenantID, moduleID,
+		)
+		return err
+	})
 }
 
 // UpdateUsage updates the current usage for a module
@@ -300,14 +312,15 @@ func (r *tenantModuleRepository) UpdateUsage(ctx context.Context, tenantID, modu
 		return fmt.Errorf("failed to marshal usage: %w", err)
 	}
 
-	query := `
-		UPDATE tenant_modules
-		SET current_usage = $3, updated_at = NOW()
-		WHERE tenant_id = $1 AND module_id = $2 AND deleted_at IS NULL
-	`
-
-	_, err = r.db.ExecContext(ctx, query, tenantID, moduleID, usageJSON)
-	return err
+	return inTenant(ctx, r.db, tenantID, func(tx *sql.Tx) error {
+		_, err := tx.ExecContext(ctx, `
+			UPDATE tenant_modules
+			SET current_usage = $3, updated_at = NOW()
+			WHERE tenant_id = $1 AND module_id = $2 AND deleted_at IS NULL`,
+			tenantID, moduleID, usageJSON,
+		)
+		return err
+	})
 }
 
 // Helper functions
@@ -341,34 +354,6 @@ func (r *tenantModuleRepository) buildFilterConditions(filters registry.TenantMo
 	}
 
 	return conditions, args
-}
-
-func (r *tenantModuleRepository) buildOrderBy(filters registry.TenantModuleFilters) string {
-	sortBy := "installed_at"
-	if filters.SortBy != "" {
-		sortBy = filters.SortBy
-	}
-
-	sortOrder := "DESC"
-	if filters.SortOrder == "asc" {
-		sortOrder = "ASC"
-	}
-
-	return fmt.Sprintf(" ORDER BY %s %s", sortBy, sortOrder)
-}
-
-func (r *tenantModuleRepository) buildPagination(filters registry.TenantModuleFilters) string {
-	limit := 50
-	if filters.Limit > 0 {
-		limit = filters.Limit
-	}
-
-	offset := 0
-	if filters.Offset > 0 {
-		offset = filters.Offset
-	}
-
-	return fmt.Sprintf(" LIMIT %d OFFSET %d", limit, offset)
 }
 
 func tenantModuleStatusPtr(s registry.TenantModuleStatus) *registry.TenantModuleStatus {

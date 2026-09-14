@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/canakyuz/keystone/internal/domain/registry"
+	"github.com/google/uuid"
 )
 
 // DependencyInfo represents dependency information
@@ -60,6 +61,12 @@ func NewDependencyCheckerService(
 
 // CheckModuleDependencies validates all dependencies for a module activation
 func (s *DependencyCheckerService) CheckModuleDependencies(ctx context.Context, tenantID, moduleID string) (*DependencyCheckResult, error) {
+	// The id reaches a uuid column. Anything that is not a UUID names no module, and asking
+	// the database would fail the query instead of finding nothing.
+	if _, err := uuid.Parse(moduleID); err != nil {
+		return nil, registry.ErrModuleNotFound
+	}
+
 	result := &DependencyCheckResult{
 		CanActivate:            true,
 		MissingRequiredModules: []DependencyInfo{},
@@ -154,6 +161,11 @@ func (s *DependencyCheckerService) CheckModuleDependencies(ctx context.Context, 
 
 // CheckToolDependencies validates all dependencies for a tool activation
 func (s *DependencyCheckerService) CheckToolDependencies(ctx context.Context, tenantID, toolID string) (*DependencyCheckResult, error) {
+	// See CheckModuleDependencies.
+	if _, err := uuid.Parse(toolID); err != nil {
+		return nil, registry.ErrToolNotFound
+	}
+
 	result := &DependencyCheckResult{
 		CanActivate:            true,
 		MissingRequiredModules: []DependencyInfo{},
@@ -213,8 +225,8 @@ func (s *DependencyCheckerService) getModuleDependencies(ctx context.Context, mo
 		SELECT
 			md.depends_on_module_id,
 			md.dependency_type,
-			md.auto_install_on_activation,
-			md.install_order,
+			COALESCE(md.auto_install, FALSE),
+			COALESCE(md.install_order, 0),
 			m.code,
 			m.name
 		FROM module_dependencies md
@@ -258,8 +270,8 @@ func (s *DependencyCheckerService) getModuleToolDependencies(ctx context.Context
 		SELECT
 			md.depends_on_tool_id,
 			md.dependency_type,
-			md.auto_install_on_activation,
-			md.install_order,
+			COALESCE(md.auto_install, FALSE),
+			COALESCE(md.install_order, 0),
 			t.code,
 			t.name
 		FROM module_dependencies md
@@ -303,8 +315,8 @@ func (s *DependencyCheckerService) getToolDependencies(ctx context.Context, tool
 		SELECT
 			td.depends_on_tool_id,
 			td.dependency_type,
-			td.auto_install_on_activation,
-			td.install_order,
+			COALESCE(td.auto_install, FALSE),
+			COALESCE(td.install_order, 0),
 			t.code,
 			t.name
 		FROM tool_dependencies td

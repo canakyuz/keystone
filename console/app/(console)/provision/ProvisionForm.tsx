@@ -55,7 +55,7 @@ export function ProvisionForm({ idempotencyKey }: { idempotencyKey: string }) {
       </label>
 
       <button className="button" type="submit" disabled={pending}>
-        {pending ? 'Sending the request' : 'Create tenant'}
+        {pending ? 'Sending the request…' : 'Create tenant'}
       </button>
     </form>
   );

@@ -53,7 +53,7 @@ export function AddMemberForm({ callerRole }: { callerRole: Role }) {
       </div>
 
       <button className="button" type="submit" disabled={pending}>
-        {pending ? 'Adding member' : 'Add member'}
+        {pending ? 'Adding member…' : 'Add member'}
       </button>
     </form>
   );

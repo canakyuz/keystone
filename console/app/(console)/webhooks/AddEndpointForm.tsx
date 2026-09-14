@@ -46,7 +46,7 @@ export function AddEndpointForm() {
         </label>
 
         <button className="button" type="submit" disabled={pending}>
-          {pending ? 'Adding' : 'Add endpoint'}
+          {pending ? 'Adding…' : 'Add endpoint'}
         </button>
       </form>
     </div>

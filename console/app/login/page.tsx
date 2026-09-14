@@ -26,7 +26,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
         </div>
       </header>
 
-      <main className="signin-body">
+      <main id="main" className="signin-body">
         <h1 className="masthead-name">Tenants kept apart</h1>
         <p className="masthead-line">
           The console for a Keystone control plane. It reads through the same API a client would, and meets the same checks:

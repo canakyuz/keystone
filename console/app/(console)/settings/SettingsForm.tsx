@@ -36,7 +36,7 @@ export function SettingsForm({ tenant }: { tenant: Tenant }) {
       </label>
 
       <button className="button" type="submit" disabled={pending}>
-        {pending ? 'Saving' : 'Save changes'}
+        {pending ? 'Saving…' : 'Save changes'}
       </button>
     </form>
   );

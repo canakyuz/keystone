@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- The keystone: the wedge at the crown of an arch, set in the console's ink and paper. -->
+  <rect width="32" height="32" fill="#0c0f14"/>
+  <path d="M8 6h16l-4 20h-8z" fill="#e8eaed"/>
+</svg>

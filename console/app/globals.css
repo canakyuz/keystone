@@ -360,6 +360,8 @@ body {
 /* ── Sign-in ────────────────────────────────────────────── */
 .signin {
   min-height: 100vh;
+  /* The dynamic unit follows the mobile toolbar, so the page does not jump as it hides. */
+  min-height: 100dvh;
   display: grid;
   grid-template-rows: auto 1fr;
 }
@@ -498,3 +500,48 @@ body {
 
 .secret { margin-top: 8px; font-size: 13px; overflow-wrap: anywhere; user-select: all; }
 .block-gap { margin-bottom: 18px; }
+
+/* ── Finish: wrapping, motion, states ───────────────────── */
+.masthead-name, .page-title { text-wrap: balance; }
+.masthead-line, .page-lede, .notice, .block-foot, .field-hint { text-wrap: pretty; }
+
+.button, .chrome-link, .field-reveal, .disclosure summary, .link, .input, .select {
+  transition: color 150ms ease, background-color 150ms ease, border-color 150ms ease;
+}
+.ledger td { transition: background-color 150ms ease; }
+/* A press moves the button one pixel, the way a key travels; a disabled one stays put. */
+.button:active:not(:disabled) { transform: translateY(1px); }
+.input:hover:not(:focus), .select:hover:not(:focus) { border-color: var(--ink-3); }
+.input[aria-invalid='true'] { border-color: var(--refused); }
+.link:hover { text-decoration-thickness: 2px; }
+
+.skip-link {
+  position: absolute;
+  top: 0;
+  left: var(--gutter);
+  z-index: 20;
+  padding: 8px 12px;
+  font-size: 13.5px;
+  color: var(--paper);
+  background: var(--ink);
+  transform: translateY(-120%);
+}
+.skip-link:focus { transform: translateY(8px); }
+
+@media (max-width: 760px) {
+  /* Six links do not fit beside the brand on a phone. They take a row of their own and
+     scroll sideways inside it, so the page itself never scrolls horizontally. */
+  .chrome-nav { order: 3; flex-basis: 100%; align-items: flex-start; overflow-x: auto; scrollbar-width: none; padding-bottom: 6px; }
+  .chrome-nav::-webkit-scrollbar { display: none; }
+  /* A table squeezed to a phone breaks its last column a letter per line. Held at a
+     readable width instead, it scrolls inside .ledger-wrap. */
+  .ledger { min-width: 680px; }
+  .ledger th { white-space: nowrap; }
+}
+
+/* Loading: the shape of a page, in the ground colour, while the API answers. */
+.skeleton { display: block; height: 0.9em; background: var(--paper-2); animation: skeleton-pulse 1.4s ease-in-out infinite; }
+.skeleton--title { width: min(320px, 60%); height: 40px; }
+.skeleton--lede { width: min(560px, 90%); height: 16px; margin-top: 16px; }
+.kv-row .skeleton { width: 70%; }
+@keyframes skeleton-pulse { 50% { opacity: 0.45; } }

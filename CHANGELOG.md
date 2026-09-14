@@ -10,6 +10,12 @@ the entry says so under **Changed**.
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-09-14
+
+A console, and the permissions and history an operator needs to run the control plane from
+it: a platform permission for acting across tenants, an audit trail for the changes made
+through the API, and webhook destinations a tenant manages itself.
+
 ### Added
 
 - `GET`, `POST` and `PATCH /api/v1/webhook-endpoints`, and a console page for them. A
@@ -35,6 +41,17 @@ the entry says so under **Changed**.
   and tenant provisioning with a live view of the operation. It keeps the token in an
   httpOnly cookie on its server and holds no authorization rules of its own.
 
+### Changed
+
+These break compatibility with 0.1.0.
+
+- `POST /api/v1/tenants` needs the platform permission. In 0.1.0 any active member of any
+  tenant could create one. A deployment has to record at least one subject in
+  `platform_operators` before anyone can provision; the development seed grants it to
+  `owner@dev.local`.
+- `POST /api/v1/auth/register` is gone; see Removed.
+- Migrations 040 (`platform_operators`) must be applied before this version starts.
+
 ### Fixed
 
 - The tenant endpoints passed the wrong context into their service, so neither the tenant
@@ -45,6 +62,7 @@ the entry says so under **Changed**.
 - Two API validation messages were in Turkish (`POST /api/v1/tenants`, the tool catalogue
   search). The language check now reads Go string literals as well as comments, and found
   25 more in test assertions.
+
 ### Removed
 
 - `POST /api/v1/auth/register`. It created an account in whatever tenant the request named,
@@ -111,5 +129,6 @@ with its isolation claims tested against a non-superuser database role.
 - The unused `pkg/errors` package.
 - Planning documents that described an abandoned architecture.
 
-[Unreleased]: https://github.com/canakyuz/keystone/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/canakyuz/keystone/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/canakyuz/keystone/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/canakyuz/keystone/releases/tag/v0.1.0

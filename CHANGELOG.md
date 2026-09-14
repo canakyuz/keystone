@@ -50,7 +50,7 @@ These break compatibility with 0.1.0.
   `platform_operators` before anyone can provision; the development seed grants it to
   `owner@dev.local`.
 - `POST /api/v1/auth/register` is gone; see Removed.
-- Migrations 040 (`platform_operators`) must be applied before this version starts.
+- Migration 040 (`platform_operators`) must be applied before this version starts.
 
 ### Fixed
 

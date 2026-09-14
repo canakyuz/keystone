@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { BlockHead } from '@/components/BlockHead';
+import { Plate } from '@/components/Plate';
 import { current } from '@/lib/current';
 import { ProvisionForm } from './ProvisionForm';
 
@@ -26,6 +27,7 @@ export default async function ProvisionPage() {
         </section>
 
         <aside className="block" aria-labelledby="twice">
+          <Plate name="masons" label="Plate III · The work is done in the yard" className="aside-plate" />
           <BlockHead id="twice" title="If it is sent twice" />
           <p>
             This form carries one idempotency key, <span className="mono">{idempotencyKey}</span>. Sending it again returns

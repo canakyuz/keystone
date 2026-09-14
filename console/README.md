@@ -49,6 +49,19 @@ bun run dev
 `PORT` picks the port (Next.js defaults to 3000). The development seed
 (`make seed-dev`) creates `owner@dev.local`.
 
+## Plates
+
+The three engravings are public-domain scans from Wikimedia Commons, cut to one bit by
+`scripts/plates.py` (Python 3 with Pillow). The script fetches each scan, refuses it if its
+SHA-1 no longer matches, and writes `public/plates/*.svg` and `lib/plates.ts`. Edit the list
+in the script and run `python3 scripts/plates.py` from this directory; never edit the output.
+
+| Plate | Page | Source |
+|---|---|---|
+| The vault on its centering | Sign in | Viollet-le-Duc, *Dictionnaire raisonné de l'architecture*, 1856, [Commons](https://commons.wikimedia.org/wiki/File:Construction.voute.romaine.png) |
+| One pier, two arches | Tenant | Viollet-le-Duc, *Dictionnaire raisonné de l'architecture*, 1856, [Commons](https://commons.wikimedia.org/wiki/File:Tas.de.charge.2.png) |
+| The work is done in the yard | New tenant | Diderot and d'Alembert, *Encyclopédie*, Maçonnerie plate I, 1762, [Commons](https://commons.wikimedia.org/wiki/File:Engraving_from_Diderot%2C_Encyclop%C3%A9die%2C_v._1%2C_pl._194%2C_Architecture_Maconnerie._Masonry_arch._LCCN2006677828.jpg) |
+
 ## Stack
 
 Next.js 16 with the App Router and Server Actions, React 19, TypeScript in strict mode,

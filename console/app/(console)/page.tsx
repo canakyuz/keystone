@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { BlockHead } from '@/components/BlockHead';
+import { Plate } from '@/components/Plate';
 import { StatusTag, Tag } from '@/components/Tag';
 import { api, probe } from '@/lib/api';
 import { current } from '@/lib/current';
@@ -32,6 +33,7 @@ export default async function TenantPage() {
         <p className="masthead-line">
           {capitalise(tenant.plan)} plan. Its data lives in its own schema, <span className="mono">{tenant.schema_name}</span>.
         </p>
+        <Plate name="pier" label="Plate II · One pier, two arches" className="masthead-plate" />
       </section>
 
       <div className="ticker" aria-label={`Measured from this server at ${measuredAt}`}>

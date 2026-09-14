@@ -365,15 +365,31 @@ body {
 }
 .signin-body {
   display: grid;
-  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
-  gap: clamp(32px, 6vw, 96px);
-  align-items: center;
-  padding: clamp(32px, 6vw, 72px) var(--gutter);
+  grid-template-columns: minmax(0, 1fr) minmax(200px, 0.75fr) minmax(320px, 420px);
+  grid-template-areas: 'title title title' 'line plate form';
+  column-gap: clamp(28px, 4vw, 64px);
+  row-gap: clamp(24px, 3vw, 40px);
+  align-items: end;
+  align-content: center;
+  padding: clamp(32px, 5vw, 64px) var(--gutter);
   border-top: 3px solid var(--ink);
 }
-/* Stacked, the body still fills the viewport height, and its two rows would share the spare
-   height between them. Packing them at the top keeps the headline and the form together. */
-@media (max-width: 860px) { .signin-body { grid-template-columns: 1fr; align-items: start; align-content: start; gap: 36px; } }
+.signin-body > .masthead-name { grid-area: title; }
+.signin-body > .masthead-line { grid-area: line; margin-top: 0; }
+.signin-body > .signin-plate { grid-area: plate; justify-self: center; width: 100%; max-width: 340px; }
+.signin-body > .signin-panel { grid-area: form; }
+@media (max-width: 1120px) {
+  .signin-body { grid-template-columns: minmax(0, 1fr) minmax(320px, 420px); grid-template-areas: 'title title' 'line form' 'plate form'; }
+  .signin-body > .signin-plate { justify-self: start; max-width: 280px; }
+  /* The form spans both rows; held at the top it sits beside the text, not below the fold. */
+  .signin-body > .signin-panel { align-self: start; }
+}
+/* Stacked, the body still fills the viewport height, and its rows would share the spare
+   height between them. Packing them at the top keeps the headline and the form together;
+   the plate goes last so the form stays above the fold. */
+@media (max-width: 860px) {
+  .signin-body { grid-template-columns: 1fr; grid-template-areas: 'title' 'line' 'form' 'plate'; align-content: start; }
+}
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition: none !important; animation: none !important; }
@@ -444,7 +460,41 @@ body {
 .disclosure summary:hover, .disclosure[open] summary { color: var(--ink-2); }
 .disclosure[open] summary { margin-bottom: 12px; }
 .disclosure[open] summary::before { content: '−'; }
-.signin-body .masthead-name { font-size: clamp(56px, 10vw, 136px); }
+.signin-body .masthead-name { font-size: clamp(56px, 8.4vw, 128px); }
+
+/* ── Plates: engravings cut by scripts/plates.py ────────── */
+.plate { margin: 0; color: var(--ink); }
+.plate-ink {
+  display: block;
+  width: 100%;
+  background: currentColor;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-size: 100% 100%;
+  mask-size: 100% 100%;
+}
+.plate-caption {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 2px 12px;
+  margin-top: 10px;
+  padding-top: 7px;
+  border-top: 1px solid var(--ink);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+}
+.plate-credit { font-family: var(--font-sans); font-size: 12px; letter-spacing: 0; text-transform: none; color: var(--ink-3); }
+
+.masthead { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: clamp(24px, 4vw, 56px); align-items: end; }
+.masthead > .masthead-name, .masthead > .masthead-line { grid-column: 1; }
+.masthead-plate { grid-column: 2; grid-row: 1 / span 2; width: clamp(150px, 17vw, 230px); }
+@media (max-width: 760px) { .masthead-plate { display: none; } }
+
+.aside-plate { margin-bottom: 32px; }
 
 .secret { margin-top: 8px; font-size: 13px; overflow-wrap: anywhere; user-select: all; }
 .block-gap { margin-bottom: 18px; }

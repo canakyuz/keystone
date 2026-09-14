@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
+import { Plate } from '@/components/Plate';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { readToken } from '@/lib/session';
 import { LoginForm } from './LoginForm';
@@ -26,20 +27,22 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
       </header>
 
       <main className="signin-body">
-        <div>
-          <h1 className="masthead-name">Tenants kept apart</h1>
-          <p className="masthead-line">
-            The console for a Keystone control plane. It reads through the same API a client would, and meets the same
-            checks: your token, then your membership in the tenant, then your role.
-          </p>
-        </div>
+        <h1 className="masthead-name">Tenants kept apart</h1>
+        <p className="masthead-line">
+          The console for a Keystone control plane. It reads through the same API a client would, and meets the same checks:
+          your token, then your membership in the tenant, then your role.
+        </p>
 
+        {/* The form comes before the plate in the markup, so a keyboard or screen reader reaches
+            it first; the grid places the plate between the text and the form on wide screens. */}
         <section className="signin-panel" aria-labelledby="signin-title">
           <h2 id="signin-title" className="block-title signin-title">
             Sign in
           </h2>
           <LoginForm notice={reason ? (NOTICES[reason] ?? null) : null} />
         </section>
+
+        <Plate name="vault" label="Plate I · The vault on its centering" className="signin-plate" />
       </main>
     </div>
   );

@@ -126,10 +126,15 @@ func ToModuleResponse(m *registry.Module) ModuleResponse {
 // ToModuleDetailResponse converts domain module to detailed response
 func ToModuleDetailResponse(m *registry.Module) ModuleDetailResponse {
 	return ModuleDetailResponse{
-		ModuleResponse:    ToModuleResponse(m),
-		RequiresDatabase:  m.RequiresDatabase,
-		RequiresStorage:   m.RequiresStorage,
-		RequiresEmail:     m.RequiresEmail,
-		InstallationNotes: m.InstallationNotes,
+		ModuleResponse:      ToModuleResponse(m),
+		RequiresDatabase:    m.RequiresDatabase,
+		RequiresStorage:     m.RequiresStorage,
+		RequiresEmail:       m.RequiresEmail,
+		DatabaseTables:      m.DatabaseTables,
+		DefaultLimits:       m.DefaultLimits,
+		InstallationNotes:   m.InstallationNotes,
+		ConfigurationSchema: m.ConfigurationSchema,
+		Tags:                m.Tags,
+		Metadata:            m.Metadata,
 	}
 }

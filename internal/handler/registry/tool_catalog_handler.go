@@ -1,6 +1,7 @@
 package registry
 
 import (
+	"errors"
 	"strconv"
 
 	"github.com/canakyuz/keystone/internal/domain/registry"
@@ -42,7 +43,7 @@ func (h *ToolCatalogHandler) ListPublicTools(c *fiber.Ctx) error {
 
 	tools, err := h.catalogService.ListPublicTools(c.Context(), filters)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return err
 	}
 
 	// Convert the tools into the HTTP response shape.
@@ -108,7 +109,7 @@ func (h *ToolCatalogHandler) SearchTools(c *fiber.Ctx) error {
 
 	tools, err := h.catalogService.SearchTools(c.Context(), req.Query, filters)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return err
 	}
 
 	// Convert the results into the HTTP response shape.
@@ -134,8 +135,11 @@ func (h *ToolCatalogHandler) GetToolByID(c *fiber.Ctx) error {
 	id := c.Params("id")
 
 	tool, err := h.catalogService.GetToolByID(c.Context(), id)
-	if err != nil {
+	if errors.Is(err, registry.ErrToolNotFound) {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "tool not found"})
+	}
+	if err != nil {
+		return err
 	}
 
 	response := dto.ToToolDetailResponse(tool)
@@ -149,8 +153,11 @@ func (h *ToolCatalogHandler) GetToolBySlug(c *fiber.Ctx) error {
 	slug := c.Params("slug")
 
 	tool, err := h.catalogService.GetToolBySlug(c.Context(), slug)
-	if err != nil {
+	if errors.Is(err, registry.ErrToolNotFound) {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "tool not found"})
+	}
+	if err != nil {
+		return err
 	}
 
 	response := dto.ToToolDetailResponse(tool)
@@ -170,7 +177,7 @@ func (h *ToolCatalogHandler) GetPopularTools(c *fiber.Ctx) error {
 
 	tools, err := h.catalogService.GetPopularTools(c.Context(), limit)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return err
 	}
 
 	// Convert the results into the HTTP response shape.
@@ -194,7 +201,7 @@ func (h *ToolCatalogHandler) GetTopRatedTools(c *fiber.Ctx) error {
 
 	tools, err := h.catalogService.GetTopRatedTools(c.Context(), limit)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return err
 	}
 
 	// Convert the results into the HTTP response shape.
@@ -229,7 +236,7 @@ func (h *ToolCatalogHandler) GetToolsByCategory(c *fiber.Ctx) error {
 
 	tools, err := h.catalogService.GetToolsByCategory(c.Context(), category, filters)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return err
 	}
 
 	// Convert the results into the HTTP response shape.
@@ -269,7 +276,7 @@ func (h *ToolCatalogHandler) GetFreeTools(c *fiber.Ctx) error {
 
 	tools, err := h.catalogService.GetFreeTools(c.Context(), filters)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return err
 	}
 
 	// Convert the results into the HTTP response shape.
@@ -301,7 +308,7 @@ func (h *ToolCatalogHandler) GetNewTools(c *fiber.Ctx) error {
 
 	tools, err := h.catalogService.GetNewTools(c.Context(), limit)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return err
 	}
 
 	// Convert the results into the HTTP response shape.

@@ -10,6 +10,23 @@ the entry says so under **Changed**.
 
 ## [Unreleased]
 
+### Security
+
+- The public module and tool catalogue put `sort_by` into the SQL text as it was sent, so
+  anyone could have the database evaluate an expression of their choosing inside the
+  ordering. Only the documented sort keys reach the query now; any other value sorts by the
+  default.
+
+### Fixed
+
+- A module or tool with an empty optional column could not be read. Its page answered 404,
+  and installing it failed with the driver's message. Empty columns now read as empty, and
+  a lookup failure other than a missing entry is a 500 instead of a 404.
+- A module's page includes the tags, tables, limits, configuration schema and metadata its
+  response always declared and never filled in.
+- Errors raised below a handler no longer reach the client. The server logs them and
+  answers `internal server error`; errors a handler writes for the client are unchanged.
+
 ## [0.2.0] - 2026-09-14
 
 A console, and the permissions and history an operator needs to run the control plane from

@@ -418,18 +418,23 @@ func (a *Application) Start() error {
 
 // customErrorHandler catches errors from anywhere in the application and writes a
 // JSON response in a consistent shape.
+//
+// A *fiber.Error was written for the client and its message is sent as it is. Anything
+// else came from below a handler: a driver, a decoder, a wrapped repository error. That
+// text names tables, columns and constraints, so it goes to the log and the client is told
+// only that the request failed.
 func customErrorHandler(c *fiber.Ctx, err error) error {
-	// The default status is 500.
 	code := fiber.StatusInternalServerError
+	message := "internal server error"
 
-	// If this is a Fiber error, use the status it carries (404, for instance).
 	if e, ok := err.(*fiber.Error); ok {
-		code = e.Code
+		code, message = e.Code, e.Message
+	} else {
+		log.Printf("unhandled error: %s %s: %v", c.Method(), c.Path(), err)
 	}
 
-	// Write the JSON error response.
 	return c.Status(code).JSON(fiber.Map{
-		"error":  err.Error(),
+		"error":  message,
 		"code":   code,
 		"path":   c.Path(),
 		"method": c.Method(),

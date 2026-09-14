@@ -18,16 +18,20 @@ import (
 	auditHandler "github.com/canakyuz/keystone/internal/handler/audit"
 	authHandler "github.com/canakyuz/keystone/internal/handler/auth"
 	operationHandler "github.com/canakyuz/keystone/internal/handler/operation"
+	registryHandler "github.com/canakyuz/keystone/internal/handler/registry"
 	tenantHandler "github.com/canakyuz/keystone/internal/handler/tenant"
+	uploadHandler "github.com/canakyuz/keystone/internal/handler/upload"
 	userHandler "github.com/canakyuz/keystone/internal/handler/user"
 	webhookHandler "github.com/canakyuz/keystone/internal/handler/webhook"
 	"github.com/canakyuz/keystone/internal/middleware"
 	auditRepo "github.com/canakyuz/keystone/internal/repository/audit"
 	operationRepo "github.com/canakyuz/keystone/internal/repository/operation"
 	platformRepo "github.com/canakyuz/keystone/internal/repository/platform"
+	registryRepo "github.com/canakyuz/keystone/internal/repository/registry"
 	tenantRepo "github.com/canakyuz/keystone/internal/repository/tenant"
 	userRepo "github.com/canakyuz/keystone/internal/repository/user"
 	webhookRepo "github.com/canakyuz/keystone/internal/repository/webhook"
+	registryService "github.com/canakyuz/keystone/internal/service/registry"
 	tenantUsecase "github.com/canakyuz/keystone/internal/usecase/tenant"
 	userUsecase "github.com/canakyuz/keystone/internal/usecase/user"
 	"github.com/canakyuz/keystone/pkg/database"
@@ -47,8 +51,8 @@ type authzHarness struct {
 //
 // It calls setupRoutes and registerOperationRoutes rather than rebuilding the chain. The
 // e2e package learned why: a test that wires its own routes proves the middleware works
-// and says nothing about whether the application applies it. The handlers these tests do
-// not reach are passed as nil; Fiber stores their method values without calling them.
+// and says nothing about whether the application applies it. The application's error
+// handler is mounted too, so a test reads the body a client would.
 func newAuthzHarness(t *testing.T) *authzHarness {
 	t.Helper()
 
@@ -66,9 +70,18 @@ func newAuthzHarness(t *testing.T) *authzHarness {
 	users := userRepo.NewPostgresRepository(appDB, database.NewTenantConnectionManager(appDB, nil)).WithAudit(trail)
 	userService := userUsecase.NewService(users, validator.New(), log, authzSecret)
 	membership := middleware.Membership(users)
+
+	// The registry, built the way the composition root builds it, so the route table under
+	// test has no nil handler behind any route.
+	modules := registryRepo.NewModuleRepository(appDB)
+	tools := registryRepo.NewToolRepository(appDB)
+	tenantModules := registryRepo.NewTenantModuleRepository(appDB)
+	tenantTools := registryRepo.NewTenantToolRepository(appDB)
+	dependencies := registryService.NewDependencyCheckerService(appDB, modules, tools, tenantModules, tenantTools)
+	activation := registryService.NewTenantActivationService(modules, tools, tenantModules, tenantTools, dependencies)
 	platformOnly := middleware.PlatformOnly(platformRepo.New(appDB))
 
-	app := fiber.New(fiber.Config{DisableStartupMessage: true})
+	app := fiber.New(fiber.Config{DisableStartupMessage: true, ErrorHandler: customErrorHandler})
 	planRateLimit := func(c *fiber.Ctx) error { return c.Next() }
 
 	registerOperationRoutes(app, authzSecret, membership, platformOnly,
@@ -80,7 +93,10 @@ func newAuthzHarness(t *testing.T) *authzHarness {
 		webhookHandler.NewHandler(webhookRepo.New(appDB, trail)),
 		tenantHandler.NewHandler(tenantUsecase.NewService(tenants, validator.New(), log, nil)),
 		userHandler.NewHandler(userService),
-		nil, nil, nil, nil,
+		uploadHandler.NewHandler(log),
+		registryHandler.NewModuleCatalogHandler(registryService.NewModuleCatalogService(modules)),
+		registryHandler.NewToolCatalogHandler(registryService.NewToolCatalogService(tools)),
+		registryHandler.NewActivationHandler(activation, dependencies),
 		middleware.TenantContextMiddleware(middleware.NewTenantSchemaCache(nil, appDB, nil, nil)),
 		middleware.TenantScope(tenants, database.NewTenantManager(appDB)),
 		planRateLimit,

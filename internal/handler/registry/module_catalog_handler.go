@@ -1,6 +1,7 @@
 package registry
 
 import (
+	"errors"
 	"strconv"
 
 	"github.com/canakyuz/keystone/internal/domain/registry"
@@ -44,9 +45,7 @@ func (h *ModuleCatalogHandler) ListPublicModules(c *fiber.Ctx) error {
 
 	modules, err := h.catalogService.ListPublicModules(c.Context(), filters)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": err.Error(),
-		})
+		return err
 	}
 
 	// Convert to response
@@ -110,9 +109,7 @@ func (h *ModuleCatalogHandler) SearchModules(c *fiber.Ctx) error {
 
 	modules, err := h.catalogService.SearchModules(c.Context(), req.Query, filters)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": err.Error(),
-		})
+		return err
 	}
 
 	// Convert to response
@@ -138,10 +135,13 @@ func (h *ModuleCatalogHandler) GetModuleByID(c *fiber.Ctx) error {
 	id := c.Params("id")
 
 	module, err := h.catalogService.GetModuleByID(c.Context(), id)
-	if err != nil {
+	if errors.Is(err, registry.ErrModuleNotFound) {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 			"error": "Module not found",
 		})
+	}
+	if err != nil {
+		return err
 	}
 
 	response := dto.ToModuleDetailResponse(module)
@@ -157,10 +157,13 @@ func (h *ModuleCatalogHandler) GetModuleBySlug(c *fiber.Ctx) error {
 	slug := c.Params("slug")
 
 	module, err := h.catalogService.GetModuleBySlug(c.Context(), slug)
-	if err != nil {
+	if errors.Is(err, registry.ErrModuleNotFound) {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 			"error": "Module not found",
 		})
+	}
+	if err != nil {
+		return err
 	}
 
 	response := dto.ToModuleDetailResponse(module)
@@ -182,9 +185,7 @@ func (h *ModuleCatalogHandler) GetPopularModules(c *fiber.Ctx) error {
 
 	modules, err := h.catalogService.GetPopularModules(c.Context(), limit)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": err.Error(),
-		})
+		return err
 	}
 
 	// Convert to response
@@ -210,9 +211,7 @@ func (h *ModuleCatalogHandler) GetTopRatedModules(c *fiber.Ctx) error {
 
 	modules, err := h.catalogService.GetTopRatedModules(c.Context(), limit)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": err.Error(),
-		})
+		return err
 	}
 
 	// Convert to response
@@ -251,9 +250,7 @@ func (h *ModuleCatalogHandler) GetModulesByCategory(c *fiber.Ctx) error {
 
 	modules, err := h.catalogService.GetModulesByCategory(c.Context(), category, filters)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": err.Error(),
-		})
+		return err
 	}
 
 	// Convert to response
@@ -295,9 +292,7 @@ func (h *ModuleCatalogHandler) GetFreeModules(c *fiber.Ctx) error {
 
 	modules, err := h.catalogService.GetFreeModules(c.Context(), filters)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": err.Error(),
-		})
+		return err
 	}
 
 	// Convert to response
@@ -329,9 +324,7 @@ func (h *ModuleCatalogHandler) GetNewModules(c *fiber.Ctx) error {
 
 	modules, err := h.catalogService.GetNewModules(c.Context(), limit)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": err.Error(),
-		})
+		return err
 	}
 
 	// Convert to response

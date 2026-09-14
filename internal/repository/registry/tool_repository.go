@@ -3,6 +3,7 @@ package registry
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -59,121 +60,31 @@ func (r *toolRepository) Create(ctx context.Context, tool *registry.Tool) error 
 
 // GetByID retrieves a tool by ID
 func (r *toolRepository) GetByID(ctx context.Context, id string) (*registry.Tool, error) {
-	query := `
-		SELECT id, name, slug, code, display_name, description,
-			category, tool_type, scope, status, is_public, is_beta,
-			version, min_platform_version, pricing_model, base_price, currency, billing_cycle,
-			transaction_fee_percentage, transaction_fee_fixed,
-			features, capabilities, icon, cover_image, screenshots, demo_url, documentation_url,
-			requires_api_keys, requires_webhook, requires_storage, requires_database, database_tables,
-			integration_provider, integration_type, api_endpoints,
-			default_limits, rate_limits, configuration_schema, default_configuration,
-			tags, metadata,
-			install_count, rating, review_count,
-			created_at, updated_at, deleted_at, created_by, updated_by
-		FROM tools
-		WHERE id = $1 AND deleted_at IS NULL
-	`
-
-	tool := &registry.Tool{}
-	err := r.db.QueryRowContext(ctx, query, id).Scan(
-		&tool.ID, &tool.Name, &tool.Slug, &tool.Code, &tool.DisplayName, &tool.Description,
-		&tool.Category, &tool.ToolType, &tool.Scope, &tool.Status, &tool.IsPublic, &tool.IsBeta,
-		&tool.Version, &tool.MinPlatformVersion, &tool.PricingModel, &tool.BasePrice, &tool.Currency, &tool.BillingCycle,
-		&tool.TransactionFeePercentage, &tool.TransactionFeeFixed,
-		&tool.Features, &tool.Capabilities, &tool.Icon, &tool.CoverImage, &tool.Screenshots, &tool.DemoURL, &tool.DocumentationURL,
-		&tool.RequiresAPIKeys, &tool.RequiresWebhook, &tool.RequiresStorage, &tool.RequiresDatabase, &tool.DatabaseTables,
-		&tool.IntegrationProvider, &tool.IntegrationType, &tool.APIEndpoints,
-		&tool.DefaultLimits, &tool.RateLimits, &tool.ConfigurationSchema, &tool.DefaultConfiguration,
-		&tool.Tags, &tool.Metadata,
-		&tool.InstallCount, &tool.Rating, &tool.ReviewCount,
-		&tool.CreatedAt, &tool.UpdatedAt, &tool.DeletedAt, &tool.CreatedBy, &tool.UpdatedBy,
-	)
-
-	if err == sql.ErrNoRows {
+	if !isUUID(id) {
 		return nil, registry.ErrToolNotFound
 	}
-
-	return tool, err
+	return r.getOne(ctx, "id", id)
 }
 
 // GetByCode retrieves a tool by code
 func (r *toolRepository) GetByCode(ctx context.Context, code string) (*registry.Tool, error) {
-	query := `
-		SELECT id, name, slug, code, display_name, description,
-			category, tool_type, scope, status, is_public, is_beta,
-			version, min_platform_version, pricing_model, base_price, currency, billing_cycle,
-			transaction_fee_percentage, transaction_fee_fixed,
-			features, capabilities, icon, cover_image, screenshots, demo_url, documentation_url,
-			requires_api_keys, requires_webhook, requires_storage, requires_database, database_tables,
-			integration_provider, integration_type, api_endpoints,
-			default_limits, rate_limits, configuration_schema, default_configuration,
-			tags, metadata,
-			install_count, rating, review_count,
-			created_at, updated_at, deleted_at, created_by, updated_by
-		FROM tools
-		WHERE code = $1 AND deleted_at IS NULL
-	`
-
-	tool := &registry.Tool{}
-	err := r.db.QueryRowContext(ctx, query, code).Scan(
-		&tool.ID, &tool.Name, &tool.Slug, &tool.Code, &tool.DisplayName, &tool.Description,
-		&tool.Category, &tool.ToolType, &tool.Scope, &tool.Status, &tool.IsPublic, &tool.IsBeta,
-		&tool.Version, &tool.MinPlatformVersion, &tool.PricingModel, &tool.BasePrice, &tool.Currency, &tool.BillingCycle,
-		&tool.TransactionFeePercentage, &tool.TransactionFeeFixed,
-		&tool.Features, &tool.Capabilities, &tool.Icon, &tool.CoverImage, &tool.Screenshots, &tool.DemoURL, &tool.DocumentationURL,
-		&tool.RequiresAPIKeys, &tool.RequiresWebhook, &tool.RequiresStorage, &tool.RequiresDatabase, &tool.DatabaseTables,
-		&tool.IntegrationProvider, &tool.IntegrationType, &tool.APIEndpoints,
-		&tool.DefaultLimits, &tool.RateLimits, &tool.ConfigurationSchema, &tool.DefaultConfiguration,
-		&tool.Tags, &tool.Metadata,
-		&tool.InstallCount, &tool.Rating, &tool.ReviewCount,
-		&tool.CreatedAt, &tool.UpdatedAt, &tool.DeletedAt, &tool.CreatedBy, &tool.UpdatedBy,
-	)
-
-	if err == sql.ErrNoRows {
-		return nil, registry.ErrToolNotFound
-	}
-
-	return tool, err
+	return r.getOne(ctx, "code", code)
 }
 
 // GetBySlug retrieves a tool by slug
 func (r *toolRepository) GetBySlug(ctx context.Context, slug string) (*registry.Tool, error) {
-	query := `
-		SELECT id, name, slug, code, display_name, description,
-			category, tool_type, scope, status, is_public, is_beta,
-			version, min_platform_version, pricing_model, base_price, currency, billing_cycle,
-			transaction_fee_percentage, transaction_fee_fixed,
-			features, capabilities, icon, cover_image, screenshots, demo_url, documentation_url,
-			requires_api_keys, requires_webhook, requires_storage, requires_database, database_tables,
-			integration_provider, integration_type, api_endpoints,
-			default_limits, rate_limits, configuration_schema, default_configuration,
-			tags, metadata,
-			install_count, rating, review_count,
-			created_at, updated_at, deleted_at, created_by, updated_by
-		FROM tools
-		WHERE slug = $1 AND deleted_at IS NULL
-	`
+	return r.getOne(ctx, "slug", slug)
+}
 
-	tool := &registry.Tool{}
-	err := r.db.QueryRowContext(ctx, query, slug).Scan(
-		&tool.ID, &tool.Name, &tool.Slug, &tool.Code, &tool.DisplayName, &tool.Description,
-		&tool.Category, &tool.ToolType, &tool.Scope, &tool.Status, &tool.IsPublic, &tool.IsBeta,
-		&tool.Version, &tool.MinPlatformVersion, &tool.PricingModel, &tool.BasePrice, &tool.Currency, &tool.BillingCycle,
-		&tool.TransactionFeePercentage, &tool.TransactionFeeFixed,
-		&tool.Features, &tool.Capabilities, &tool.Icon, &tool.CoverImage, &tool.Screenshots, &tool.DemoURL, &tool.DocumentationURL,
-		&tool.RequiresAPIKeys, &tool.RequiresWebhook, &tool.RequiresStorage, &tool.RequiresDatabase, &tool.DatabaseTables,
-		&tool.IntegrationProvider, &tool.IntegrationType, &tool.APIEndpoints,
-		&tool.DefaultLimits, &tool.RateLimits, &tool.ConfigurationSchema, &tool.DefaultConfiguration,
-		&tool.Tags, &tool.Metadata,
-		&tool.InstallCount, &tool.Rating, &tool.ReviewCount,
-		&tool.CreatedAt, &tool.UpdatedAt, &tool.DeletedAt, &tool.CreatedBy, &tool.UpdatedBy,
-	)
+// getOne reads the live tool whose column equals value. The column is one of the literals
+// passed above and never comes from a request.
+func (r *toolRepository) getOne(ctx context.Context, column, value string) (*registry.Tool, error) {
+	query := "SELECT " + toolColumns + " FROM tools WHERE " + column + " = $1 AND deleted_at IS NULL"
 
-	if err == sql.ErrNoRows {
+	tool, err := scanTool(r.db.QueryRowContext(ctx, query, value))
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, registry.ErrToolNotFound
 	}
-
 	return tool, err
 }
 
@@ -215,73 +126,17 @@ func (r *toolRepository) Delete(ctx context.Context, id string) error {
 
 // List retrieves tools with filters
 func (r *toolRepository) List(ctx context.Context, filters registry.ToolFilters) ([]*registry.Tool, error) {
-	query := `
-		SELECT id, name, slug, code, display_name, description,
-			category, tool_type, scope, status, is_public, is_beta,
-			version, pricing_model, base_price, currency,
-			transaction_fee_percentage, transaction_fee_fixed,
-			icon, install_count, rating, review_count,
-			created_at, updated_at
-		FROM tools
-		WHERE deleted_at IS NULL
-	`
+	query := "SELECT " + toolColumns + " FROM tools WHERE deleted_at IS NULL"
 
 	conditions, args := r.buildFilterConditions(filters)
 	if len(conditions) > 0 {
 		query += " AND " + strings.Join(conditions, " AND ")
 	}
 
-	query += r.buildOrderBy(filters)
+	query += catalogOrderBy(filters.SortBy, filters.SortOrder)
 	query += r.buildPagination(filters)
 
-	rows, err := r.db.QueryContext(ctx, query, args...)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var tools []*registry.Tool
-	for rows.Next() {
-		tool := &registry.Tool{}
-		var transactionFeePercentage, transactionFeeFixed, basePrice, rating sql.NullFloat64
-		var icon, currency sql.NullString
-
-		err := rows.Scan(
-			&tool.ID, &tool.Name, &tool.Slug, &tool.Code, &tool.DisplayName, &tool.Description,
-			&tool.Category, &tool.ToolType, &tool.Scope, &tool.Status, &tool.IsPublic, &tool.IsBeta,
-			&tool.Version, &tool.PricingModel, &basePrice, &currency,
-			&transactionFeePercentage, &transactionFeeFixed,
-			&icon, &tool.InstallCount, &rating, &tool.ReviewCount,
-			&tool.CreatedAt, &tool.UpdatedAt,
-		)
-		if err != nil {
-			return nil, err
-		}
-
-		// Handle NULL values
-		if basePrice.Valid {
-			tool.BasePrice = basePrice.Float64
-		}
-		if currency.Valid {
-			tool.Currency = currency.String
-		}
-		if transactionFeePercentage.Valid {
-			tool.TransactionFeePercentage = transactionFeePercentage.Float64
-		}
-		if transactionFeeFixed.Valid {
-			tool.TransactionFeeFixed = transactionFeeFixed.Float64
-		}
-		if icon.Valid {
-			tool.Icon = icon.String
-		}
-		if rating.Valid {
-			tool.Rating = rating.Float64
-		}
-
-		tools = append(tools, tool)
-	}
-
-	return tools, rows.Err()
+	return r.queryTools(ctx, query, args...)
 }
 
 // ListPublic retrieves public tools
@@ -293,17 +148,9 @@ func (r *toolRepository) ListPublic(ctx context.Context, filters registry.ToolFi
 
 // Search searches tools
 func (r *toolRepository) Search(ctx context.Context, query string, filters registry.ToolFilters) ([]*registry.Tool, error) {
-	searchQuery := `
-		SELECT id, name, slug, code, display_name, description,
-			category, tool_type, scope, status, is_public, is_beta,
-			version, pricing_model, base_price, currency,
-			transaction_fee_percentage, transaction_fee_fixed,
-			icon, install_count, rating, review_count,
-			created_at, updated_at
-		FROM tools
+	searchQuery := "SELECT " + toolColumns + ` FROM tools
 		WHERE deleted_at IS NULL
-		  AND (name ILIKE $1 OR description ILIKE $1 OR ARRAY_TO_STRING(tags, ' ') ILIKE $1)
-	`
+		  AND (name ILIKE $1 OR description ILIKE $1 OR ARRAY_TO_STRING(tags, ' ') ILIKE $1)`
 
 	// $1 is used for search pattern, so filter conditions start at $2
 	conditions, args := r.buildFilterConditionsWithOffset(filters, 2)
@@ -314,10 +161,15 @@ func (r *toolRepository) Search(ctx context.Context, query string, filters regis
 		searchQuery += " AND " + strings.Join(conditions, " AND ")
 	}
 
-	searchQuery += r.buildOrderBy(filters)
+	searchQuery += catalogOrderBy(filters.SortBy, filters.SortOrder)
 	searchQuery += r.buildPagination(filters)
 
-	rows, err := r.db.QueryContext(ctx, searchQuery, allArgs...)
+	return r.queryTools(ctx, searchQuery, allArgs...)
+}
+
+// queryTools runs a query selecting toolColumns and decodes every row.
+func (r *toolRepository) queryTools(ctx context.Context, query string, args ...any) ([]*registry.Tool, error) {
+	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -325,42 +177,10 @@ func (r *toolRepository) Search(ctx context.Context, query string, filters regis
 
 	var tools []*registry.Tool
 	for rows.Next() {
-		tool := &registry.Tool{}
-		var transactionFeePercentage, transactionFeeFixed, basePrice, rating sql.NullFloat64
-		var icon, currency sql.NullString
-
-		err := rows.Scan(
-			&tool.ID, &tool.Name, &tool.Slug, &tool.Code, &tool.DisplayName, &tool.Description,
-			&tool.Category, &tool.ToolType, &tool.Scope, &tool.Status, &tool.IsPublic, &tool.IsBeta,
-			&tool.Version, &tool.PricingModel, &basePrice, &currency,
-			&transactionFeePercentage, &transactionFeeFixed,
-			&icon, &tool.InstallCount, &rating, &tool.ReviewCount,
-			&tool.CreatedAt, &tool.UpdatedAt,
-		)
+		tool, err := scanTool(rows)
 		if err != nil {
 			return nil, err
 		}
-
-		// Handle NULL values
-		if basePrice.Valid {
-			tool.BasePrice = basePrice.Float64
-		}
-		if currency.Valid {
-			tool.Currency = currency.String
-		}
-		if transactionFeePercentage.Valid {
-			tool.TransactionFeePercentage = transactionFeePercentage.Float64
-		}
-		if transactionFeeFixed.Valid {
-			tool.TransactionFeeFixed = transactionFeeFixed.Float64
-		}
-		if icon.Valid {
-			tool.Icon = icon.String
-		}
-		if rating.Valid {
-			tool.Rating = rating.Float64
-		}
-
 		tools = append(tools, tool)
 	}
 
@@ -435,20 +255,6 @@ func (r *toolRepository) buildFilterConditionsWithOffset(filters registry.ToolFi
 	}
 
 	return conditions, args
-}
-
-func (r *toolRepository) buildOrderBy(filters registry.ToolFilters) string {
-	sortBy := "created_at"
-	if filters.SortBy != "" {
-		sortBy = filters.SortBy
-	}
-
-	sortOrder := "DESC"
-	if filters.SortOrder == "asc" {
-		sortOrder = "ASC"
-	}
-
-	return fmt.Sprintf(" ORDER BY %s %s", sortBy, sortOrder)
 }
 
 func (r *toolRepository) buildPagination(filters registry.ToolFilters) string {

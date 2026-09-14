@@ -3,6 +3,7 @@ package registry
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -53,103 +54,31 @@ func (r *moduleRepository) Create(ctx context.Context, module *registry.Module) 
 
 // GetByID retrieves a module by ID
 func (r *moduleRepository) GetByID(ctx context.Context, id string) (*registry.Module, error) {
-	query := `
-		SELECT id, name, slug, code, display_name, description,
-			category, module_type, status, is_public, is_beta,
-			version, min_platform_version, pricing_model, base_price, currency, billing_cycle,
-			features, capabilities, icon, cover_image, screenshots, demo_url, documentation_url,
-			requires_database, requires_storage, requires_email, database_tables,
-			default_limits, installation_notes, configuration_schema, tags, metadata,
-			install_count, rating, review_count,
-			created_at, updated_at, deleted_at, created_by, updated_by
-		FROM modules
-		WHERE id = $1 AND deleted_at IS NULL
-	`
-
-	module := &registry.Module{}
-	err := r.db.QueryRowContext(ctx, query, id).Scan(
-		&module.ID, &module.Name, &module.Slug, &module.Code, &module.DisplayName, &module.Description,
-		&module.Category, &module.ModuleType, &module.Status, &module.IsPublic, &module.IsBeta,
-		&module.Version, &module.MinPlatformVersion, &module.PricingModel, &module.BasePrice, &module.Currency, &module.BillingCycle,
-		&module.Features, &module.Capabilities, &module.Icon, &module.CoverImage, &module.Screenshots, &module.DemoURL, &module.DocumentationURL,
-		&module.RequiresDatabase, &module.RequiresStorage, &module.RequiresEmail, &module.DatabaseTables,
-		&module.DefaultLimits, &module.InstallationNotes, &module.ConfigurationSchema, &module.Tags, &module.Metadata,
-		&module.InstallCount, &module.Rating, &module.ReviewCount,
-		&module.CreatedAt, &module.UpdatedAt, &module.DeletedAt, &module.CreatedBy, &module.UpdatedBy,
-	)
-
-	if err == sql.ErrNoRows {
+	if !isUUID(id) {
 		return nil, registry.ErrModuleNotFound
 	}
-
-	return module, err
+	return r.getOne(ctx, "id", id)
 }
 
 // GetByCode retrieves a module by code
 func (r *moduleRepository) GetByCode(ctx context.Context, code string) (*registry.Module, error) {
-	query := `
-		SELECT id, name, slug, code, display_name, description,
-			category, module_type, status, is_public, is_beta,
-			version, min_platform_version, pricing_model, base_price, currency, billing_cycle,
-			features, capabilities, icon, cover_image, screenshots, demo_url, documentation_url,
-			requires_database, requires_storage, requires_email, database_tables,
-			default_limits, installation_notes, configuration_schema, tags, metadata,
-			install_count, rating, review_count,
-			created_at, updated_at, deleted_at, created_by, updated_by
-		FROM modules
-		WHERE code = $1 AND deleted_at IS NULL
-	`
-
-	module := &registry.Module{}
-	err := r.db.QueryRowContext(ctx, query, code).Scan(
-		&module.ID, &module.Name, &module.Slug, &module.Code, &module.DisplayName, &module.Description,
-		&module.Category, &module.ModuleType, &module.Status, &module.IsPublic, &module.IsBeta,
-		&module.Version, &module.MinPlatformVersion, &module.PricingModel, &module.BasePrice, &module.Currency, &module.BillingCycle,
-		&module.Features, &module.Capabilities, &module.Icon, &module.CoverImage, &module.Screenshots, &module.DemoURL, &module.DocumentationURL,
-		&module.RequiresDatabase, &module.RequiresStorage, &module.RequiresEmail, &module.DatabaseTables,
-		&module.DefaultLimits, &module.InstallationNotes, &module.ConfigurationSchema, &module.Tags, &module.Metadata,
-		&module.InstallCount, &module.Rating, &module.ReviewCount,
-		&module.CreatedAt, &module.UpdatedAt, &module.DeletedAt, &module.CreatedBy, &module.UpdatedBy,
-	)
-
-	if err == sql.ErrNoRows {
-		return nil, registry.ErrModuleNotFound
-	}
-
-	return module, err
+	return r.getOne(ctx, "code", code)
 }
 
 // GetBySlug retrieves a module by slug
 func (r *moduleRepository) GetBySlug(ctx context.Context, slug string) (*registry.Module, error) {
-	query := `
-		SELECT id, name, slug, code, display_name, description,
-			category, module_type, status, is_public, is_beta,
-			version, min_platform_version, pricing_model, base_price, currency, billing_cycle,
-			features, capabilities, icon, cover_image, screenshots, demo_url, documentation_url,
-			requires_database, requires_storage, requires_email, database_tables,
-			default_limits, installation_notes, configuration_schema, tags, metadata,
-			install_count, rating, review_count,
-			created_at, updated_at, deleted_at, created_by, updated_by
-		FROM modules
-		WHERE slug = $1 AND deleted_at IS NULL
-	`
+	return r.getOne(ctx, "slug", slug)
+}
 
-	module := &registry.Module{}
-	err := r.db.QueryRowContext(ctx, query, slug).Scan(
-		&module.ID, &module.Name, &module.Slug, &module.Code, &module.DisplayName, &module.Description,
-		&module.Category, &module.ModuleType, &module.Status, &module.IsPublic, &module.IsBeta,
-		&module.Version, &module.MinPlatformVersion, &module.PricingModel, &module.BasePrice, &module.Currency, &module.BillingCycle,
-		&module.Features, &module.Capabilities, &module.Icon, &module.CoverImage, &module.Screenshots, &module.DemoURL, &module.DocumentationURL,
-		&module.RequiresDatabase, &module.RequiresStorage, &module.RequiresEmail, &module.DatabaseTables,
-		&module.DefaultLimits, &module.InstallationNotes, &module.ConfigurationSchema, &module.Tags, &module.Metadata,
-		&module.InstallCount, &module.Rating, &module.ReviewCount,
-		&module.CreatedAt, &module.UpdatedAt, &module.DeletedAt, &module.CreatedBy, &module.UpdatedBy,
-	)
+// getOne reads the live module whose column equals value. The column is one of the
+// literals passed above and never comes from a request.
+func (r *moduleRepository) getOne(ctx context.Context, column, value string) (*registry.Module, error) {
+	query := "SELECT " + moduleColumns + " FROM modules WHERE " + column + " = $1 AND deleted_at IS NULL"
 
-	if err == sql.ErrNoRows {
+	module, err := scanModule(r.db.QueryRowContext(ctx, query, value))
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, registry.ErrModuleNotFound
 	}
-
 	return module, err
 }
 
@@ -187,47 +116,17 @@ func (r *moduleRepository) Delete(ctx context.Context, id string) error {
 
 // List retrieves modules with filters
 func (r *moduleRepository) List(ctx context.Context, filters registry.ModuleFilters) ([]*registry.Module, error) {
-	query := `
-		SELECT id, name, slug, code, display_name, description,
-			category, module_type, status, is_public, is_beta,
-			version, pricing_model, base_price, currency,
-			icon, install_count, rating, review_count,
-			created_at, updated_at
-		FROM modules
-		WHERE deleted_at IS NULL
-	`
+	query := "SELECT " + moduleColumns + " FROM modules WHERE deleted_at IS NULL"
 
 	conditions, args := r.buildFilterConditions(filters)
 	if len(conditions) > 0 {
 		query += " AND " + strings.Join(conditions, " AND ")
 	}
 
-	query += r.buildOrderBy(filters)
+	query += catalogOrderBy(filters.SortBy, filters.SortOrder)
 	query += r.buildPagination(filters)
 
-	rows, err := r.db.QueryContext(ctx, query, args...)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var modules []*registry.Module
-	for rows.Next() {
-		module := &registry.Module{}
-		err := rows.Scan(
-			&module.ID, &module.Name, &module.Slug, &module.Code, &module.DisplayName, &module.Description,
-			&module.Category, &module.ModuleType, &module.Status, &module.IsPublic, &module.IsBeta,
-			&module.Version, &module.PricingModel, &module.BasePrice, &module.Currency,
-			&module.Icon, &module.InstallCount, &module.Rating, &module.ReviewCount,
-			&module.CreatedAt, &module.UpdatedAt,
-		)
-		if err != nil {
-			return nil, err
-		}
-		modules = append(modules, module)
-	}
-
-	return modules, rows.Err()
+	return r.queryModules(ctx, query, args...)
 }
 
 // ListPublic retrieves public modules
@@ -240,16 +139,9 @@ func (r *moduleRepository) ListPublic(ctx context.Context, filters registry.Modu
 // Search searches modules
 func (r *moduleRepository) Search(ctx context.Context, query string, filters registry.ModuleFilters) ([]*registry.Module, error) {
 	// Simple implementation - can be enhanced with full-text search
-	searchQuery := `
-		SELECT id, name, slug, code, display_name, description,
-			category, module_type, status, is_public, is_beta,
-			version, pricing_model, base_price, currency,
-			icon, install_count, rating, review_count,
-			created_at, updated_at
-		FROM modules
+	searchQuery := "SELECT " + moduleColumns + ` FROM modules
 		WHERE deleted_at IS NULL
-		  AND (name ILIKE $1 OR description ILIKE $1 OR ARRAY_TO_STRING(tags, ' ') ILIKE $1)
-	`
+		  AND (name ILIKE $1 OR description ILIKE $1 OR ARRAY_TO_STRING(tags, ' ') ILIKE $1)`
 
 	// $1 is used for search pattern, so filter conditions start at $2
 	conditions, args := r.buildFilterConditionsWithOffset(filters, 2)
@@ -260,10 +152,15 @@ func (r *moduleRepository) Search(ctx context.Context, query string, filters reg
 		searchQuery += " AND " + strings.Join(conditions, " AND ")
 	}
 
-	searchQuery += r.buildOrderBy(filters)
+	searchQuery += catalogOrderBy(filters.SortBy, filters.SortOrder)
 	searchQuery += r.buildPagination(filters)
 
-	rows, err := r.db.QueryContext(ctx, searchQuery, allArgs...)
+	return r.queryModules(ctx, searchQuery, allArgs...)
+}
+
+// queryModules runs a query selecting moduleColumns and decodes every row.
+func (r *moduleRepository) queryModules(ctx context.Context, query string, args ...any) ([]*registry.Module, error) {
+	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -271,14 +168,7 @@ func (r *moduleRepository) Search(ctx context.Context, query string, filters reg
 
 	var modules []*registry.Module
 	for rows.Next() {
-		module := &registry.Module{}
-		err := rows.Scan(
-			&module.ID, &module.Name, &module.Slug, &module.Code, &module.DisplayName, &module.Description,
-			&module.Category, &module.ModuleType, &module.Status, &module.IsPublic, &module.IsBeta,
-			&module.Version, &module.PricingModel, &module.BasePrice, &module.Currency,
-			&module.Icon, &module.InstallCount, &module.Rating, &module.ReviewCount,
-			&module.CreatedAt, &module.UpdatedAt,
-		)
+		module, err := scanModule(rows)
 		if err != nil {
 			return nil, err
 		}
@@ -350,20 +240,6 @@ func (r *moduleRepository) buildFilterConditionsWithOffset(filters registry.Modu
 	}
 
 	return conditions, args
-}
-
-func (r *moduleRepository) buildOrderBy(filters registry.ModuleFilters) string {
-	sortBy := "created_at"
-	if filters.SortBy != "" {
-		sortBy = filters.SortBy
-	}
-
-	sortOrder := "DESC"
-	if filters.SortOrder == "asc" {
-		sortOrder = "ASC"
-	}
-
-	return fmt.Sprintf(" ORDER BY %s %s", sortBy, sortOrder)
 }
 
 func (r *moduleRepository) buildPagination(filters registry.ModuleFilters) string {

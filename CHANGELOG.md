@@ -10,6 +10,13 @@ the entry says so under **Changed**.
 
 ## [Unreleased]
 
+### Fixed
+
+- The console set its theme with an inline script in the root layout, which React 19 reports
+  as an error on every page and which could only run after the page had begun to paint. The
+  choice is now a cookie, and the server renders the chosen sheet. A choice stored in
+  localStorage by an earlier version is not carried over.
+
 ## [0.3.0] - 2026-09-14
 
 The module registry and uploads, made to work under the application's own database role and

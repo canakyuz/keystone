@@ -1,6 +1,9 @@
 'use client';
 
-/** Switches between the light and dark sheets and remembers the choice in this browser. */
+/**
+ * Switches between the light and dark sheets and remembers the choice in a cookie, which the
+ * root layout reads so the next page is rendered in the chosen sheet from the start.
+ */
 export function ThemeToggle() {
   function toggle() {
     const root = document.documentElement;
@@ -8,12 +11,9 @@ export function ThemeToggle() {
     const next = current === 'dark' ? 'light' : 'dark';
 
     root.dataset.theme = next;
-    try {
-      localStorage.setItem('ks-theme', next);
-    } catch {
-      // Storage can be unavailable (private windows, blocked site data). The switch still
-      // works for this page; it just is not remembered.
-    }
+    // A year, the whole site, and never sent to another site. It holds a display preference
+    // and nothing else, so it needs no protection beyond that.
+    document.cookie = `ks-theme=${next}; path=/; max-age=31536000; samesite=lax`;
   }
 
   return (

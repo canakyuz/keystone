@@ -321,8 +321,8 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 	userHTTPHandler := userHandler.NewHandler(userService)
 
 	uploadRecords := uploadRepo.New(db, trail)
-	uploadHTTPHandler := uploadHandler.NewHandler(appLogger, uploadRecords)
-	uploadSweeper := uploadUsecase.NewSweeper(uploadHandler.UploadBasePath, uploadRecords, cfg.Server.UploadSweepRemove, appLogger)
+	uploadHTTPHandler := uploadHandler.NewHandler(appLogger, uploadUsecase.NewStorage(appLogger, uploadRecords))
+	uploadSweeper := uploadUsecase.NewSweeper(uploadUsecase.BasePath, uploadRecords, cfg.Server.UploadSweepRemove, appLogger)
 
 	// Registry handlers.
 	moduleCatalogHTTPHandler := registryHandler.NewModuleCatalogHandler(moduleCatalogService)

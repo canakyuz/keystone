@@ -36,6 +36,7 @@ import (
 	operationUsecase "github.com/canakyuz/keystone/internal/usecase/operation"
 	registryUsecase "github.com/canakyuz/keystone/internal/usecase/registry"
 	tenantUsecase "github.com/canakyuz/keystone/internal/usecase/tenant"
+	uploadUsecase "github.com/canakyuz/keystone/internal/usecase/upload"
 	userUsecase "github.com/canakyuz/keystone/internal/usecase/user"
 	webhookUsecase "github.com/canakyuz/keystone/internal/usecase/webhook"
 	"github.com/canakyuz/keystone/pkg/logger"
@@ -96,7 +97,7 @@ func newAuthzHarness(t *testing.T) *authzHarness {
 		webhookHandler.NewHandler(webhookUsecase.NewService(webhookRepo.New(appDB, trail))),
 		tenantHandler.NewHandler(tenantUsecase.NewService(tenants, validator.New(), log, nil)),
 		userHandler.NewHandler(userService),
-		uploadHandler.NewHandler(log, uploadRepo.New(appDB, trail)),
+		uploadHandler.NewHandler(log, uploadUsecase.NewStorage(log, uploadRepo.New(appDB, trail))),
 		registryHandler.NewModuleCatalogHandler(registryUsecase.NewModuleCatalogService(modules)),
 		registryHandler.NewToolCatalogHandler(registryUsecase.NewToolCatalogService(tools)),
 		registryHandler.NewActivationHandler(activation, dependencies),

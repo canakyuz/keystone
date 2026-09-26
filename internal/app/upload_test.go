@@ -15,7 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	uploadHandler "github.com/canakyuz/keystone/internal/handler/upload"
+	uploadUsecase "github.com/canakyuz/keystone/internal/usecase/upload"
 	"github.com/canakyuz/keystone/test/helpers"
 )
 
@@ -176,7 +176,7 @@ func TestUpload_RefusesAnImageOverItsLimit(t *testing.T) {
 	h := newAuthzHarness(t)
 	_, _, token := uploaderFor(t, h, "upload-size")
 
-	oversized := pngBytes + strings.Repeat("\x00", uploadHandler.MaxFileSize+1-len(pngBytes))
+	oversized := pngBytes + strings.Repeat("\x00", uploadUsecase.MaxFileSize+1-len(pngBytes))
 	status, body := sendFile(t, h, token, "/api/v1/upload/image", "large.png", "image/png", oversized)
 	assert.Equal(t, http.StatusBadRequest, status, body)
 	assert.Contains(t, body, "exceeds limit")

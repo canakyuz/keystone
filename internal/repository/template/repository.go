@@ -10,8 +10,8 @@ import (
 )
 
 // The templates are compiled into the binary. They used to be read from a templates/
-// directory next to the working directory, which the container image never copied, so
-// every tenant provisioned in a container silently got an empty schema.
+// directory relative to the working directory, which the container image never copied,
+// so in a container every plan would silently have fallen through to an empty schema.
 //
 //go:embed sql/*.sql
 var embedded embed.FS

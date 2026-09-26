@@ -42,6 +42,7 @@ import (
 	tenantUsecase "github.com/canakyuz/keystone/internal/usecase/tenant"
 	uploadUsecase "github.com/canakyuz/keystone/internal/usecase/upload"
 	userUsecase "github.com/canakyuz/keystone/internal/usecase/user"
+	webhookUsecase "github.com/canakyuz/keystone/internal/usecase/webhook"
 	pkgLogger "github.com/canakyuz/keystone/pkg/logger"
 	"github.com/canakyuz/keystone/pkg/metrics"
 	"github.com/canakyuz/keystone/pkg/ratelimit"
@@ -315,7 +316,7 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 	// responses.
 	authHTTPHandler := authHandler.NewHandler(userService)
 	auditHTTPHandler := auditHandler.NewHandler(auditRepo.NewReader(db))
-	webhookHTTPHandler := webhookHandler.NewHandler(webhookRepo.New(db, trail))
+	webhookHTTPHandler := webhookHandler.NewHandler(webhookUsecase.NewService(webhookRepo.New(db, trail)))
 	tenantHTTPHandler := tenantHandler.NewHandler(tenantService)
 	userHTTPHandler := userHandler.NewHandler(userService)
 

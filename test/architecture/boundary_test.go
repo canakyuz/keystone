@@ -69,3 +69,23 @@ func TestExamplesDoImportTheControlPlane(t *testing.T) {
 		"the example modules do not use the control plane at all, which means they are not "+
 			"an example of building on it")
 }
+
+// TestSharedPackagesDoNotImportTheControlPlane keeps pkg/ importable from outside.
+//
+// Go refuses an import of internal/ from another module, so a pkg/ package that reaches
+// into internal/ is public in name only. pkg/database did exactly that until it moved.
+func TestSharedPackagesDoNotImportTheControlPlane(t *testing.T) {
+	loaded, err := packages.Load(&packages.Config{
+		Mode: packages.NeedName | packages.NeedImports,
+		Dir:  "../..",
+	}, module+"pkg/...")
+	require.NoError(t, err)
+	require.NotEmpty(t, loaded)
+
+	for _, pkg := range loaded {
+		for path := range pkg.Imports {
+			assert.Falsef(t, strings.HasPrefix(path, module+"internal/"),
+				"%s imports %s: pkg/ must not depend on internal/", pkg.PkgPath, path)
+		}
+	}
+}

@@ -3,6 +3,7 @@ package tenant
 import (
 	"strconv"
 
+	"github.com/canakyuz/keystone/internal/handler/respond"
 	"github.com/canakyuz/keystone/internal/middleware"
 	"github.com/canakyuz/keystone/internal/usecase/tenant"
 	"github.com/gofiber/fiber/v2"
@@ -27,9 +28,7 @@ func (h *Handler) GetByID(c *fiber.Ctx) error {
 
 	result, err := h.tenantService.GetByID(c.UserContext(), id)
 	if err != nil {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
-			"error": err.Error(),
-		})
+		return respond.Error(c, fiber.StatusNotFound, err)
 	}
 
 	return c.JSON(fiber.Map{
@@ -44,9 +43,7 @@ func (h *Handler) GetBySlug(c *fiber.Ctx) error {
 
 	result, err := h.tenantService.GetBySlug(c.UserContext(), slug)
 	if err != nil {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
-			"error": err.Error(),
-		})
+		return respond.Error(c, fiber.StatusNotFound, err)
 	}
 
 	return c.JSON(fiber.Map{
@@ -66,9 +63,7 @@ func (h *Handler) GetCurrent(c *fiber.Ctx) error {
 
 	result, err := h.tenantService.GetByID(c.UserContext(), tenantID)
 	if err != nil {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
-			"error": err.Error(),
-		})
+		return respond.Error(c, fiber.StatusNotFound, err)
 	}
 
 	return c.JSON(fiber.Map{
@@ -87,9 +82,7 @@ func (h *Handler) List(c *fiber.Ctx) error {
 
 	result, err := h.tenantService.List(c.UserContext(), page, perPage, status, plan, search)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": err.Error(),
-		})
+		return respond.Error(c, fiber.StatusInternalServerError, err)
 	}
 
 	return c.JSON(fiber.Map{
@@ -111,9 +104,7 @@ func (h *Handler) Update(c *fiber.Ctx) error {
 
 	result, err := h.tenantService.Update(c.UserContext(), id, &req)
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": err.Error(),
-		})
+		return respond.Error(c, fiber.StatusBadRequest, err)
 	}
 
 	return c.JSON(fiber.Map{
@@ -136,9 +127,7 @@ func (h *Handler) Suspend(c *fiber.Ctx) error {
 	}
 
 	if err := h.tenantService.Suspend(c.UserContext(), id, req.Reason); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": err.Error(),
-		})
+		return respond.Error(c, fiber.StatusBadRequest, err)
 	}
 
 	return c.JSON(fiber.Map{
@@ -152,9 +141,7 @@ func (h *Handler) Activate(c *fiber.Ctx) error {
 	id := c.Params("id")
 
 	if err := h.tenantService.Activate(c.UserContext(), id); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": err.Error(),
-		})
+		return respond.Error(c, fiber.StatusBadRequest, err)
 	}
 
 	return c.JSON(fiber.Map{
@@ -176,9 +163,7 @@ func (h *Handler) UpgradePlan(c *fiber.Ctx) error {
 
 	result, err := h.tenantService.UpgradePlan(c.UserContext(), id, &req)
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": err.Error(),
-		})
+		return respond.Error(c, fiber.StatusBadRequest, err)
 	}
 
 	return c.JSON(fiber.Map{
@@ -200,9 +185,7 @@ func (h *Handler) SetCustomDomain(c *fiber.Ctx) error {
 
 	result, err := h.tenantService.SetCustomDomain(c.UserContext(), id, &req)
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": err.Error(),
-		})
+		return respond.Error(c, fiber.StatusBadRequest, err)
 	}
 
 	return c.JSON(fiber.Map{
@@ -217,9 +200,7 @@ func (h *Handler) VerifyCustomDomain(c *fiber.Ctx) error {
 
 	result, err := h.tenantService.VerifyCustomDomain(c.UserContext(), id)
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": err.Error(),
-		})
+		return respond.Error(c, fiber.StatusBadRequest, err)
 	}
 
 	return c.JSON(fiber.Map{
@@ -233,9 +214,7 @@ func (h *Handler) Delete(c *fiber.Ctx) error {
 	id := c.Params("id")
 
 	if err := h.tenantService.Delete(c.UserContext(), id); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": err.Error(),
-		})
+		return respond.Error(c, fiber.StatusBadRequest, err)
 	}
 
 	return c.Status(fiber.StatusNoContent).Send(nil)
@@ -255,9 +234,7 @@ func (h *Handler) UpdateBranding(c *fiber.Ctx) error {
 
 	result, err := h.tenantService.UpdateBranding(c.UserContext(), id, &req)
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": err.Error(),
-		})
+		return respond.Error(c, fiber.StatusBadRequest, err)
 	}
 
 	return c.JSON(fiber.Map{
@@ -270,9 +247,7 @@ func (h *Handler) UpdateBranding(c *fiber.Ctx) error {
 func (h *Handler) GetStats(c *fiber.Ctx) error {
 	stats, err := h.tenantService.GetStats(c.UserContext())
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": err.Error(),
-		})
+		return respond.Error(c, fiber.StatusInternalServerError, err)
 	}
 
 	return c.JSON(fiber.Map{

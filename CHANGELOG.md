@@ -19,6 +19,9 @@ the entry says so under **Changed**.
 - The tenant routes answered a failure to load the tenant with a 403 carrying the error
   text, so a database outage showed the client the driver's message, host and port
   included. It is now logged and answered with a generic 500.
+- The tenant, user and auth handlers did the same on 25 paths, and under the status meant
+  for the expected failure, so an outage answered a tenant lookup with 404. Only domain
+  and validation errors reach the client now; anything else is a logged, generic 500.
 
 ### Fixed
 

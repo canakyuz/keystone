@@ -77,11 +77,3 @@ func Logger(log *logger.Logger) fiber.Handler {
 		return err
 	}
 }
-
-// GetLogger retrieves logger from context
-func GetLogger(c *fiber.Ctx) *logger.Logger {
-	if log := c.Locals("logger"); log != nil {
-		return log.(*logger.Logger)
-	}
-	return logger.Default()
-}

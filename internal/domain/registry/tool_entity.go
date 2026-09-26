@@ -3,8 +3,6 @@ package registry
 import (
 	"encoding/json"
 	"time"
-
-	"github.com/google/uuid"
 )
 
 // ToolStatus represents tool status
@@ -114,46 +112,6 @@ type Tool struct {
 	DeletedAt                *time.Time      `json:"deleted_at,omitempty"`
 	CreatedBy                string          `json:"created_by,omitempty"`
 	UpdatedBy                string          `json:"updated_by,omitempty"`
-}
-
-// NewTool creates a new tool
-func NewTool(name, slug, code, displayName, description string, category ToolCategory) (*Tool, error) {
-	now := time.Now()
-
-	tool := &Tool{
-		ID:               uuid.New().String(),
-		Name:             name,
-		Slug:             slug,
-		Code:             code,
-		DisplayName:      displayName,
-		Description:      description,
-		Category:         category,
-		ToolType:         ToolTypeGlobal,
-		Scope:            ToolScopeCrossModule,
-		Status:           ToolStatusActive,
-		IsPublic:         true,
-		IsBeta:           false,
-		Version:          "1.0.0",
-		PricingModel:     PricingFree,
-		BasePrice:        0.00,
-		Currency:         "USD",
-		IntegrationType:  IntegrationNative,
-		RequiresAPIKeys:  false,
-		RequiresWebhook:  false,
-		RequiresStorage:  false,
-		RequiresDatabase: false,
-		InstallCount:     0,
-		Rating:           0.00,
-		ReviewCount:      0,
-		CreatedAt:        now,
-		UpdatedAt:        now,
-	}
-
-	if err := tool.Validate(); err != nil {
-		return nil, err
-	}
-
-	return tool, nil
 }
 
 // Validate validates tool data

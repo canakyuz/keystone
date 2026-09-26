@@ -57,16 +57,6 @@ func (s *ToolCatalogService) GetToolByID(ctx context.Context, id string) (*regis
 	return tool, nil
 }
 
-// GetToolByCode retrieves a tool by code
-func (s *ToolCatalogService) GetToolByCode(ctx context.Context, code string) (*registry.Tool, error) {
-	tool, err := s.toolRepo.GetByCode(ctx, code)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get tool by code: %w", err)
-	}
-
-	return tool, nil
-}
-
 // GetToolBySlug retrieves a tool by slug
 func (s *ToolCatalogService) GetToolBySlug(ctx context.Context, slug string) (*registry.Tool, error) {
 	tool, err := s.toolRepo.GetBySlug(ctx, slug)
@@ -129,20 +119,6 @@ func (s *ToolCatalogService) GetToolsByCategory(ctx context.Context, category re
 	return tools, nil
 }
 
-// GetToolsByScope retrieves tools by scope
-func (s *ToolCatalogService) GetToolsByScope(ctx context.Context, scope registry.ToolScope, filters registry.ToolFilters) ([]*registry.Tool, error) {
-	filters.Scope = &scope
-	filters.IsPublic = boolPtr(true)
-	filters.Status = toolStatusPtr(registry.ToolStatusActive)
-
-	tools, err := s.toolRepo.List(ctx, filters)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get tools by scope: %w", err)
-	}
-
-	return tools, nil
-}
-
 // GetToolsByPricingModel retrieves tools by pricing model
 func (s *ToolCatalogService) GetToolsByPricingModel(ctx context.Context, pricingModel registry.PricingModel, filters registry.ToolFilters) ([]*registry.Tool, error) {
 	filters.PricingModel = &pricingModel
@@ -163,24 +139,6 @@ func (s *ToolCatalogService) GetFreeTools(ctx context.Context, filters registry.
 	return s.GetToolsByPricingModel(ctx, pricingModel, filters)
 }
 
-// GetPaymentTools retrieves payment-related tools
-func (s *ToolCatalogService) GetPaymentTools(ctx context.Context, filters registry.ToolFilters) ([]*registry.Tool, error) {
-	category := registry.ToolCategoryPayment
-	return s.GetToolsByCategory(ctx, category, filters)
-}
-
-// GetIntegrationTools retrieves integration tools
-func (s *ToolCatalogService) GetIntegrationTools(ctx context.Context, filters registry.ToolFilters) ([]*registry.Tool, error) {
-	category := registry.ToolCategoryIntegration
-	return s.GetToolsByCategory(ctx, category, filters)
-}
-
-// GetCommunicationTools retrieves communication tools
-func (s *ToolCatalogService) GetCommunicationTools(ctx context.Context, filters registry.ToolFilters) ([]*registry.Tool, error) {
-	category := registry.ToolCategoryCommunication
-	return s.GetToolsByCategory(ctx, category, filters)
-}
-
 // GetNewTools retrieves recently added tools
 func (s *ToolCatalogService) GetNewTools(ctx context.Context, limit int) ([]*registry.Tool, error) {
 	filters := registry.ToolFilters{
@@ -198,70 +156,6 @@ func (s *ToolCatalogService) GetNewTools(ctx context.Context, limit int) ([]*reg
 	}
 
 	return tools, nil
-}
-
-// GetBetaTools retrieves beta tools
-func (s *ToolCatalogService) GetBetaTools(ctx context.Context, filters registry.ToolFilters) ([]*registry.Tool, error) {
-	filters.IsBeta = boolPtr(true)
-	filters.IsPublic = boolPtr(true)
-	filters.Status = toolStatusPtr(registry.ToolStatusActive)
-
-	tools, err := s.toolRepo.List(ctx, filters)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get beta tools: %w", err)
-	}
-
-	return tools, nil
-}
-
-// GetToolInstallCount retrieves install count for a tool
-func (s *ToolCatalogService) GetToolInstallCount(ctx context.Context, toolID string) (int, error) {
-	count, err := s.toolRepo.GetInstallCount(ctx, toolID)
-	if err != nil {
-		return 0, fmt.Errorf("failed to get tool install count: %w", err)
-	}
-
-	return count, nil
-}
-
-// ValidateToolExists checks if a tool exists and is accessible
-func (s *ToolCatalogService) ValidateToolExists(ctx context.Context, toolID string) error {
-	_, err := s.toolRepo.GetByID(ctx, toolID)
-	if err != nil {
-		return fmt.Errorf("tool validation failed: %w", err)
-	}
-
-	return nil
-}
-
-// IsToolPublic checks if a tool is public and active
-func (s *ToolCatalogService) IsToolPublic(ctx context.Context, toolID string) (bool, error) {
-	tool, err := s.toolRepo.GetByID(ctx, toolID)
-	if err != nil {
-		return false, fmt.Errorf("failed to check tool public status: %w", err)
-	}
-
-	return tool.IsPubliclyAvailable(), nil
-}
-
-// RequiresAPIKeys checks if a tool requires API keys
-func (s *ToolCatalogService) RequiresAPIKeys(ctx context.Context, toolID string) (bool, error) {
-	tool, err := s.toolRepo.GetByID(ctx, toolID)
-	if err != nil {
-		return false, fmt.Errorf("failed to check API keys requirement: %w", err)
-	}
-
-	return tool.RequiresAPIKeys, nil
-}
-
-// GetToolTransactionFees retrieves transaction fee information
-func (s *ToolCatalogService) GetToolTransactionFees(ctx context.Context, toolID string) (float64, float64, error) {
-	tool, err := s.toolRepo.GetByID(ctx, toolID)
-	if err != nil {
-		return 0, 0, fmt.Errorf("failed to get tool transaction fees: %w", err)
-	}
-
-	return tool.TransactionFeePercentage, tool.TransactionFeeFixed, nil
 }
 
 func toolStatusPtr(s registry.ToolStatus) *registry.ToolStatus {

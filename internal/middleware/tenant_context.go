@@ -8,8 +8,9 @@ import (
 	"github.com/canakyuz/keystone/pkg/logger"
 
 	"errors"
-	"github.com/canakyuz/keystone/pkg/tenantctx"
 	"sync/atomic"
+
+	"github.com/canakyuz/keystone/pkg/tenantctx"
 )
 
 // The context keys moved to pkg/tenantctx so that the repository layer does not
@@ -149,18 +150,4 @@ func extractTenantID(c *fiber.Ctx) string {
 	}
 
 	return c.Query("tenant_id")
-}
-
-// GetTenantSchemaFromContext reads the tenant schema from the Go context.
-//
-// Usage, from the repository layer:
-//
-//	schema := middleware.GetTenantSchemaFromContext(ctx)
-func GetTenantSchemaFromContext(ctx context.Context) string {
-	return tenantctx.Schema(ctx)
-}
-
-// GetTenantIDFromContext reads the tenant id from the Go context.
-func GetTenantIDFromContext(ctx context.Context) string {
-	return tenantctx.ID(ctx)
 }

@@ -29,75 +29,6 @@ func NewService(repo tenantRepo.Repository, val *validator.Validator, log *logge
 	}
 }
 
-// Create creates a new tenant
-func (s *Service) Create(ctx context.Context, req *CreateTenantRequest) (*TenantResponse, error) {
-	// Validate request
-	if err := s.validator.Validate(req); err != nil {
-		return nil, err
-	}
-
-	// TODO: build the tenant's module list and payment rules here, based on the SaaS plan.
-	// Check if slug already exists
-	exists, err := s.repo.ExistsBySlug(ctx, req.Slug)
-	if err != nil {
-		s.logger.ErrorWithErr(err, "failed to check tenant slug existence")
-		return nil, fmt.Errorf("failed to check tenant existence: %w", err)
-	}
-	if exists {
-		return nil, tenant.ErrTenantSlugTaken
-	}
-
-	// Check if email already exists
-	exists, err = s.repo.ExistsByEmail(ctx, req.Email)
-	if err != nil {
-		s.logger.ErrorWithErr(err, "failed to check tenant email existence")
-		return nil, fmt.Errorf("failed to check tenant existence: %w", err)
-	}
-	if exists {
-		return nil, tenant.ErrTenantEmailTaken
-	}
-
-	// Create tenant domain entity
-	t, err := tenant.New(req.Name, req.Slug, req.Email, tenant.SubscriptionPlan(req.Plan))
-	if err != nil {
-		return nil, err
-	}
-
-	if s.provisioner == nil {
-		return nil, fmt.Errorf("tenant provisioning service is not configured")
-	}
-
-	schemaName, err := s.provisioner.GenerateSchemaName(ctx, req.Slug)
-	if err != nil {
-		s.logger.ErrorWithErr(err, "failed to generate tenant schema name")
-		return nil, fmt.Errorf("failed to generate tenant schema: %w", err)
-	}
-
-	if err := t.SetSchemaName(schemaName); err != nil {
-		return nil, err
-	}
-
-	// Save to repository
-	if err := s.repo.Create(ctx, t); err != nil {
-		s.logger.ErrorWithErr(err, "failed to create tenant")
-		return nil, fmt.Errorf("failed to create tenant: %w", err)
-	}
-
-	if err := s.provisioner.ProvisionTenantSchema(ctx, t); err != nil {
-		s.logger.ErrorWithErr(err, "failed to provision tenant schema")
-		_ = s.repo.Delete(ctx, t.ID)
-		return nil, fmt.Errorf("failed to provision tenant schema: %w", err)
-	}
-
-	s.logger.WithFields(logger.Fields{
-		"tenant_id": t.ID,
-		"slug":      t.Slug,
-		"plan":      t.Plan,
-	}).Info("Tenant created successfully")
-
-	return ToResponse(t), nil
-}
-
 // GetByID retrieves a tenant by ID
 func (s *Service) GetByID(ctx context.Context, id string) (*TenantResponse, error) {
 	t, err := s.repo.GetByID(ctx, id)
@@ -111,16 +42,6 @@ func (s *Service) GetByID(ctx context.Context, id string) (*TenantResponse, erro
 // GetBySlug retrieves a tenant by slug
 func (s *Service) GetBySlug(ctx context.Context, slug string) (*TenantResponse, error) {
 	t, err := s.repo.GetBySlug(ctx, slug)
-	if err != nil {
-		return nil, err
-	}
-
-	return ToResponse(t), nil
-}
-
-// GetByEmail retrieves a tenant by email
-func (s *Service) GetByEmail(ctx context.Context, email string) (*TenantResponse, error) {
-	t, err := s.repo.GetByEmail(ctx, email)
 	if err != nil {
 		return nil, err
 	}

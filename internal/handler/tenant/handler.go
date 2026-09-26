@@ -20,28 +20,6 @@ func NewHandler(tenantService *tenant.Service) *Handler {
 	}
 }
 
-// Create creates a new tenant
-// POST /api/v1/tenants
-func (h *Handler) Create(c *fiber.Ctx) error {
-	var req tenant.CreateTenantRequest
-	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "Invalid request body",
-		})
-	}
-
-	result, err := h.tenantService.Create(c.UserContext(), &req)
-	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": err.Error(),
-		})
-	}
-
-	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
-		"data": result,
-	})
-}
-
 // GetByID retrieves a tenant by ID
 // GET /api/v1/tenants/:id
 func (h *Handler) GetByID(c *fiber.Ctx) error {

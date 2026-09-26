@@ -42,28 +42,6 @@ func AuthMiddleware(jwtSecret string) fiber.Handler {
 	}
 }
 
-// OptionalAuth records the caller's identity when they present one, and lets the request
-// through when they do not.
-//
-// It differs from AuthMiddleware only in what it does with a failure. It must not differ
-// in what counts as a failure, which is why both go through pkg/authn: an endpoint that
-// accepted a token the strict path rejects would be a way in.
-func OptionalAuth(jwtSecret string) fiber.Handler {
-	return func(c *fiber.Ctx) error {
-		claims, err := authn.Verify(c.Get("Authorization"), jwtSecret)
-		if err != nil {
-			return c.Next()
-		}
-
-		c.Locals("user_id", claims.UserID)
-		c.Locals("tenant_id", claims.TenantID)
-		c.Locals("email", claims.Email)
-		c.Locals("role", claims.Role)
-
-		return c.Next()
-	}
-}
-
 // RequireRole admits the request only if the caller holds one of the given roles.
 //
 // It reads the role Membership wrote from the tenant's record. Placed without Membership

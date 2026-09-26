@@ -57,16 +57,6 @@ func (s *ModuleCatalogService) GetModuleByID(ctx context.Context, id string) (*r
 	return module, nil
 }
 
-// GetModuleByCode retrieves a module by code
-func (s *ModuleCatalogService) GetModuleByCode(ctx context.Context, code string) (*registry.Module, error) {
-	module, err := s.moduleRepo.GetByCode(ctx, code)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get module by code: %w", err)
-	}
-
-	return module, nil
-}
-
 // GetModuleBySlug retrieves a module by slug
 func (s *ModuleCatalogService) GetModuleBySlug(ctx context.Context, slug string) (*registry.Module, error) {
 	module, err := s.moduleRepo.GetBySlug(ctx, slug)
@@ -166,50 +156,6 @@ func (s *ModuleCatalogService) GetNewModules(ctx context.Context, limit int) ([]
 	}
 
 	return modules, nil
-}
-
-// GetBetaModules retrieves beta modules
-func (s *ModuleCatalogService) GetBetaModules(ctx context.Context, filters registry.ModuleFilters) ([]*registry.Module, error) {
-	filters.IsBeta = boolPtr(true)
-	filters.IsPublic = boolPtr(true)
-	filters.Status = moduleStatusPtr(registry.ModuleStatusActive)
-
-	modules, err := s.moduleRepo.List(ctx, filters)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get beta modules: %w", err)
-	}
-
-	return modules, nil
-}
-
-// GetModuleInstallCount retrieves install count for a module
-func (s *ModuleCatalogService) GetModuleInstallCount(ctx context.Context, moduleID string) (int, error) {
-	count, err := s.moduleRepo.GetInstallCount(ctx, moduleID)
-	if err != nil {
-		return 0, fmt.Errorf("failed to get module install count: %w", err)
-	}
-
-	return count, nil
-}
-
-// ValidateModuleExists checks if a module exists and is accessible
-func (s *ModuleCatalogService) ValidateModuleExists(ctx context.Context, moduleID string) error {
-	_, err := s.moduleRepo.GetByID(ctx, moduleID)
-	if err != nil {
-		return fmt.Errorf("module validation failed: %w", err)
-	}
-
-	return nil
-}
-
-// IsModulePublic checks if a module is public and active
-func (s *ModuleCatalogService) IsModulePublic(ctx context.Context, moduleID string) (bool, error) {
-	module, err := s.moduleRepo.GetByID(ctx, moduleID)
-	if err != nil {
-		return false, fmt.Errorf("failed to check module public status: %w", err)
-	}
-
-	return module.IsPubliclyAvailable(), nil
 }
 
 // Helper functions

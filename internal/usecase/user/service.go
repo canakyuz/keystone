@@ -147,16 +147,6 @@ func (s *Service) GetByID(ctx context.Context, tenantID, userID string) (*UserRe
 	return ToResponse(u), nil
 }
 
-// GetByEmail retrieves a user by email
-func (s *Service) GetByEmail(ctx context.Context, tenantID, email string) (*UserResponse, error) {
-	u, err := s.repo.GetByEmail(ctx, tenantID, email)
-	if err != nil {
-		return nil, err
-	}
-
-	return ToResponse(u), nil
-}
-
 // List retrieves all users with pagination
 func (s *Service) List(ctx context.Context, tenantID string, page, perPage int, role, status, search string) (*UserListResponse, error) {
 	// Set defaults

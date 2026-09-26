@@ -352,10 +352,3 @@ func (s *DependencyCheckerService) getToolDependencies(ctx context.Context, tool
 
 	return deps, rows.Err()
 }
-
-// GetInstallOrder returns dependencies in correct installation order
-func (s *DependencyCheckerService) GetInstallOrder(dependencies []DependencyInfo) []DependencyInfo {
-	// Dependencies are already ordered by install_order from database query
-	// But we can add topological sort here if circular dependencies need to be handled
-	return dependencies
-}

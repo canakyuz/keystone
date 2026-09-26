@@ -33,6 +33,7 @@ import (
 	uploadRepo "github.com/canakyuz/keystone/internal/repository/upload"
 	userRepo "github.com/canakyuz/keystone/internal/repository/user"
 	webhookRepo "github.com/canakyuz/keystone/internal/repository/webhook"
+	operationUsecase "github.com/canakyuz/keystone/internal/usecase/operation"
 	registryUsecase "github.com/canakyuz/keystone/internal/usecase/registry"
 	tenantUsecase "github.com/canakyuz/keystone/internal/usecase/tenant"
 	userUsecase "github.com/canakyuz/keystone/internal/usecase/user"
@@ -86,7 +87,7 @@ func newAuthzHarness(t *testing.T) *authzHarness {
 	planRateLimit := func(c *fiber.Ctx) error { return c.Next() }
 
 	registerOperationRoutes(app, authzSecret, membership, platformOnly,
-		operationHandler.New(operationRepo.New(appDB), log))
+		operationHandler.New(operationUsecase.NewService(operationRepo.New(appDB), platformRepo.New(appDB)), log))
 
 	setupRoutes(app, cfg,
 		authHandler.NewHandler(userService),

@@ -16,6 +16,7 @@ import (
 
 	domain "github.com/canakyuz/keystone/internal/domain/operation"
 	oprepo "github.com/canakyuz/keystone/internal/repository/operation"
+	opuc "github.com/canakyuz/keystone/internal/usecase/operation"
 )
 
 // stubStore isolates the behaviour of the HTTP layer.
@@ -58,12 +59,20 @@ func sampleOperation() *domain.Operation {
 	}
 }
 
-func newApp(store Store) *fiber.App {
+// operatorLookup grants the platform permission. Whether it is enforced is tested against
+// real PostgreSQL in test/e2e and internal/app.
+type operatorLookup struct{}
+
+func (operatorLookup) IsOperator(context.Context, string) (bool, error) { return true, nil }
+
+const testSubject = "0f2f7b52-0000-4000-8000-0000000000aa"
+
+func newApp(store opuc.Store) *fiber.App {
 	app := fiber.New()
-	h := New(store, nil)
+	h := New(opuc.NewService(store, operatorLookup{}), nil)
 
 	app.Post("/api/v1/tenants", func(c *fiber.Ctx) error {
-		c.Locals("user_id", "subject-1")
+		c.Locals("user_id", testSubject)
 		return h.CreateTenant(c)
 	})
 	app.Get("/api/v1/operations/:id", h.GetOperation)
@@ -131,7 +140,7 @@ func TestCreateTenant_PassesIdempotencyKeyAndScope(t *testing.T) {
 	defer resp.Body.Close()
 
 	assert.Equal(t, "anahtar-2", store.lastRequest.IdempotencyKey, "anahtar kirpilmadi")
-	assert.Equal(t, "subject:subject-1", store.lastRequest.Scope)
+	assert.Equal(t, "subject:"+testSubject, store.lastRequest.Scope)
 	assert.NotEmpty(t, store.lastRequest.RequestBody, "the body was not passed through for fingerprinting")
 }
 
@@ -207,7 +216,7 @@ func TestCreateTenant_ValidationErrors(t *testing.T) {
 func TestCreateTenant_RejectsOverlongIdempotencyKey(t *testing.T) {
 	store := &stubStore{result: &oprepo.ProvisionResult{Operation: sampleOperation()}}
 
-	long := strings.Repeat("k", maxIdempotencyKeyLength+1)
+	long := strings.Repeat("k", opuc.MaxIdempotencyKeyLength+1)
 	resp := post(t, newApp(store), validBody, map[string]string{"Idempotency-Key": long})
 	defer resp.Body.Close()
 

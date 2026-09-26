@@ -59,10 +59,12 @@ No tenant role reaches them: an owner is nobody at that level until a row grants
 
 - Schema: `migrations/040_create_platform_operators.up.sql`
 - Code: `internal/middleware/authorization.go`, `PlatformOnly`; `internal/authz`,
-  `IsPlatformOperator`; `internal/repository/platform`
+  `IsPlatformOperator`; `internal/repository/platform`. Tenant creation checks it again
+  in `internal/usecase/operation`, which both the REST and the gRPC port go through
 - Test: `internal/app/authorization_test.go`,
   `TestAuthorization_PlatformRoutesNeedTheGrant`, which refuses an owner and then admits
-  the same subject once the grant exists
+  the same subject once the grant exists; `test/e2e/grpc_isolation_test.go`,
+  `TestGRPC_CreateTenant_RequiresPlatformOperator`
 
 **What this does not cover:** a membership is one user row per tenant, so the same person
 in two tenants is two rows with two passwords. See

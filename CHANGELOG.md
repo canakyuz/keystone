@@ -10,7 +10,18 @@ the entry says so under **Changed**.
 
 ## [Unreleased]
 
+### Security
+
+- Creating a tenant over gRPC did not require the platform permission. The REST route
+  checked it in a middleware, and the gRPC interceptor checks only membership of the
+  caller's own tenant, so with `GRPC_ADDR` set any member of any tenant, a viewer included,
+  could create tenants. The check now sits in the operation usecase that both ports call.
+
 ### Fixed
+
+- The gRPC `CreateTenant` accepted a name, slug or email of spaces and passed an
+  idempotency key longer than its 255-character column to the database, where it failed as
+  an internal error. REST refused both. The two ports now share one set of input rules.
 
 - Tenant schema templates were read from `templates/tenants` relative to the working
   directory, and the container image never copied that directory. The shipped templates

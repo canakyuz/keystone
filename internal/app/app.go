@@ -37,6 +37,7 @@ import (
 	uploadRepo "github.com/canakyuz/keystone/internal/repository/upload"
 	userRepo "github.com/canakyuz/keystone/internal/repository/user"
 	webhookRepo "github.com/canakyuz/keystone/internal/repository/webhook"
+	operationUsecase "github.com/canakyuz/keystone/internal/usecase/operation"
 	registryUsecase "github.com/canakyuz/keystone/internal/usecase/registry"
 	tenantUsecase "github.com/canakyuz/keystone/internal/usecase/tenant"
 	uploadUsecase "github.com/canakyuz/keystone/internal/usecase/upload"
@@ -255,7 +256,8 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 	membership := middleware.Membership(userRepository)
 
 	// The permission to act across tenants, read from platform_operators; see migration 040.
-	platformOnly := middleware.PlatformOnly(platformRepo.New(db))
+	platformOperators := platformRepo.New(db)
+	platformOnly := middleware.PlatformOnly(platformOperators)
 
 	// Tenant provisioning and operation lookup endpoints.
 	//
@@ -269,8 +271,9 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 	// rather than globally. That exemption is the real constraint — the tenant does not
 	// exist yet, so resolving its schema would fail — and it survives this move.
 	operationRepository := operationRepo.New(db)
+	operationService := operationUsecase.NewService(operationRepository, platformOperators)
 	registerOperationRoutes(app, cfg.Auth.JWTSecret, membership, platformOnly,
-		operationHandler.New(operationRepository, appLogger))
+		operationHandler.New(operationService, appLogger))
 
 	// Repositories for the registry module.
 	moduleRepository := registryRepo.NewModuleRepository(db)
@@ -343,7 +346,7 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 			},
 			tenantSchemaCache,
 			userRepository,
-			keystonegrpc.NewOperationService(operationRepository),
+			keystonegrpc.NewOperationService(operationService),
 			keystonegrpc.NewUserService(userRepository),
 			metricsRegistry,
 			appLogger,

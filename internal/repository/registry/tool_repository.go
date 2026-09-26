@@ -10,75 +10,32 @@ import (
 	"github.com/canakyuz/keystone/internal/domain/registry"
 )
 
-type toolRepository struct {
+// ToolRepository reads and writes the tool catalogue.
+type ToolRepository struct {
 	db *sql.DB
 }
 
 // NewToolRepository creates a new tool repository
-func NewToolRepository(db *sql.DB) registry.ToolRepository {
-	return &toolRepository{db: db}
-}
-
-// Create creates a new tool
-func (r *toolRepository) Create(ctx context.Context, tool *registry.Tool) error {
-	query := `
-		INSERT INTO tools (
-			id, name, slug, code, display_name, description,
-			category, tool_type, scope, status, is_public, is_beta,
-			version, min_platform_version, pricing_model, base_price, currency, billing_cycle,
-			transaction_fee_percentage, transaction_fee_fixed,
-			features, capabilities, icon, cover_image, screenshots, demo_url, documentation_url,
-			requires_api_keys, requires_webhook, requires_storage, requires_database, database_tables,
-			integration_provider, integration_type, api_endpoints,
-			default_limits, rate_limits, configuration_schema, default_configuration,
-			tags, metadata,
-			install_count, rating, review_count,
-			created_at, updated_at, created_by, updated_by
-		) VALUES (
-			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18,
-			$19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34,
-			$35, $36, $37, $38, $39, $40, $41, $42, $43, $44, $45, $46, $47, $48
-		)
-	`
-
-	_, err := r.db.ExecContext(ctx, query,
-		tool.ID, tool.Name, tool.Slug, tool.Code, tool.DisplayName, tool.Description,
-		tool.Category, tool.ToolType, tool.Scope, tool.Status, tool.IsPublic, tool.IsBeta,
-		tool.Version, tool.MinPlatformVersion, tool.PricingModel, tool.BasePrice, tool.Currency, tool.BillingCycle,
-		tool.TransactionFeePercentage, tool.TransactionFeeFixed,
-		tool.Features, tool.Capabilities, tool.Icon, tool.CoverImage, tool.Screenshots, tool.DemoURL, tool.DocumentationURL,
-		tool.RequiresAPIKeys, tool.RequiresWebhook, tool.RequiresStorage, tool.RequiresDatabase, tool.DatabaseTables,
-		tool.IntegrationProvider, tool.IntegrationType, tool.APIEndpoints,
-		tool.DefaultLimits, tool.RateLimits, tool.ConfigurationSchema, tool.DefaultConfiguration,
-		tool.Tags, tool.Metadata,
-		tool.InstallCount, tool.Rating, tool.ReviewCount,
-		tool.CreatedAt, tool.UpdatedAt, tool.CreatedBy, tool.UpdatedBy,
-	)
-
-	return err
+func NewToolRepository(db *sql.DB) *ToolRepository {
+	return &ToolRepository{db: db}
 }
 
 // GetByID retrieves a tool by ID
-func (r *toolRepository) GetByID(ctx context.Context, id string) (*registry.Tool, error) {
+func (r *ToolRepository) GetByID(ctx context.Context, id string) (*registry.Tool, error) {
 	if !isUUID(id) {
 		return nil, registry.ErrToolNotFound
 	}
 	return r.getOne(ctx, "id", id)
 }
 
-// GetByCode retrieves a tool by code
-func (r *toolRepository) GetByCode(ctx context.Context, code string) (*registry.Tool, error) {
-	return r.getOne(ctx, "code", code)
-}
-
 // GetBySlug retrieves a tool by slug
-func (r *toolRepository) GetBySlug(ctx context.Context, slug string) (*registry.Tool, error) {
+func (r *ToolRepository) GetBySlug(ctx context.Context, slug string) (*registry.Tool, error) {
 	return r.getOne(ctx, "slug", slug)
 }
 
 // getOne reads the live tool whose column equals value. The column is one of the literals
 // passed above and never comes from a request.
-func (r *toolRepository) getOne(ctx context.Context, column, value string) (*registry.Tool, error) {
+func (r *ToolRepository) getOne(ctx context.Context, column, value string) (*registry.Tool, error) {
 	query := "SELECT " + toolColumns + " FROM tools WHERE " + column + " = $1 AND deleted_at IS NULL"
 
 	tool, err := scanTool(r.db.QueryRowContext(ctx, query, value))
@@ -88,44 +45,8 @@ func (r *toolRepository) getOne(ctx context.Context, column, value string) (*reg
 	return tool, err
 }
 
-// Update updates a tool
-func (r *toolRepository) Update(ctx context.Context, tool *registry.Tool) error {
-	query := `
-		UPDATE tools SET
-			name = $2, slug = $3, display_name = $4, description = $5,
-			category = $6, tool_type = $7, scope = $8, status = $9, is_public = $10, is_beta = $11,
-			version = $12, pricing_model = $13, base_price = $14, billing_cycle = $15,
-			transaction_fee_percentage = $16, transaction_fee_fixed = $17,
-			features = $18, capabilities = $19, icon = $20, cover_image = $21,
-			integration_provider = $22, integration_type = $23, default_configuration = $24, default_limits = $25,
-			tags = $26, metadata = $27, rating = $28,
-			updated_at = $29, updated_by = $30
-		WHERE id = $1 AND deleted_at IS NULL
-	`
-
-	_, err := r.db.ExecContext(ctx, query,
-		tool.ID, tool.Name, tool.Slug, tool.DisplayName, tool.Description,
-		tool.Category, tool.ToolType, tool.Scope, tool.Status, tool.IsPublic, tool.IsBeta,
-		tool.Version, tool.PricingModel, tool.BasePrice, tool.BillingCycle,
-		tool.TransactionFeePercentage, tool.TransactionFeeFixed,
-		tool.Features, tool.Capabilities, tool.Icon, tool.CoverImage,
-		tool.IntegrationProvider, tool.IntegrationType, tool.DefaultConfiguration, tool.DefaultLimits,
-		tool.Tags, tool.Metadata, tool.Rating,
-		tool.UpdatedAt, tool.UpdatedBy,
-	)
-
-	return err
-}
-
-// Delete soft deletes a tool
-func (r *toolRepository) Delete(ctx context.Context, id string) error {
-	query := `UPDATE tools SET deleted_at = NOW() WHERE id = $1`
-	_, err := r.db.ExecContext(ctx, query, id)
-	return err
-}
-
 // List retrieves tools with filters
-func (r *toolRepository) List(ctx context.Context, filters registry.ToolFilters) ([]*registry.Tool, error) {
+func (r *ToolRepository) List(ctx context.Context, filters registry.ToolFilters) ([]*registry.Tool, error) {
 	query := "SELECT " + toolColumns + " FROM tools WHERE deleted_at IS NULL"
 
 	conditions, args := r.buildFilterConditions(filters)
@@ -140,14 +61,14 @@ func (r *toolRepository) List(ctx context.Context, filters registry.ToolFilters)
 }
 
 // ListPublic retrieves public tools
-func (r *toolRepository) ListPublic(ctx context.Context, filters registry.ToolFilters) ([]*registry.Tool, error) {
+func (r *ToolRepository) ListPublic(ctx context.Context, filters registry.ToolFilters) ([]*registry.Tool, error) {
 	filters.IsPublic = boolPtr(true)
 	filters.Status = toolStatusPtr(registry.ToolStatusActive)
 	return r.List(ctx, filters)
 }
 
 // Search searches tools
-func (r *toolRepository) Search(ctx context.Context, query string, filters registry.ToolFilters) ([]*registry.Tool, error) {
+func (r *ToolRepository) Search(ctx context.Context, query string, filters registry.ToolFilters) ([]*registry.Tool, error) {
 	searchQuery := "SELECT " + toolColumns + ` FROM tools
 		WHERE deleted_at IS NULL
 		  AND (name ILIKE $1 OR description ILIKE $1 OR ARRAY_TO_STRING(tags, ' ') ILIKE $1)`
@@ -168,7 +89,7 @@ func (r *toolRepository) Search(ctx context.Context, query string, filters regis
 }
 
 // queryTools runs a query selecting toolColumns and decodes every row.
-func (r *toolRepository) queryTools(ctx context.Context, query string, args ...any) ([]*registry.Tool, error) {
+func (r *ToolRepository) queryTools(ctx context.Context, query string, args ...any) ([]*registry.Tool, error) {
 	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
@@ -187,27 +108,12 @@ func (r *toolRepository) queryTools(ctx context.Context, query string, args ...a
 	return tools, rows.Err()
 }
 
-// GetInstallCount retrieves install count
-func (r *toolRepository) GetInstallCount(ctx context.Context, toolID string) (int, error) {
-	var count int
-	query := `SELECT install_count FROM tools WHERE id = $1 AND deleted_at IS NULL`
-	err := r.db.QueryRowContext(ctx, query, toolID).Scan(&count)
-	return count, err
-}
-
-// UpdateInstallCount updates install count
-func (r *toolRepository) UpdateInstallCount(ctx context.Context, toolID string, delta int) error {
-	query := `UPDATE tools SET install_count = install_count + $2, updated_at = NOW() WHERE id = $1`
-	_, err := r.db.ExecContext(ctx, query, toolID, delta)
-	return err
-}
-
 // Helper functions
-func (r *toolRepository) buildFilterConditions(filters registry.ToolFilters) ([]string, []any) {
+func (r *ToolRepository) buildFilterConditions(filters registry.ToolFilters) ([]string, []any) {
 	return r.buildFilterConditionsWithOffset(filters, 1)
 }
 
-func (r *toolRepository) buildFilterConditionsWithOffset(filters registry.ToolFilters, startParam int) ([]string, []any) {
+func (r *ToolRepository) buildFilterConditionsWithOffset(filters registry.ToolFilters, startParam int) ([]string, []any) {
 	var conditions []string
 	var args []any
 	paramCount := startParam
@@ -257,7 +163,7 @@ func (r *toolRepository) buildFilterConditionsWithOffset(filters registry.ToolFi
 	return conditions, args
 }
 
-func (r *toolRepository) buildPagination(filters registry.ToolFilters) string {
+func (r *ToolRepository) buildPagination(filters registry.ToolFilters) string {
 	limit := 50
 	if filters.Limit > 0 {
 		limit = filters.Limit

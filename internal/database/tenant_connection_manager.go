@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"sync"
 
 	"github.com/lib/pq"
 
@@ -57,7 +56,6 @@ const setCurrentTenant = `SELECT set_config('app.current_tenant', $1, false)`
 type connectionManager struct {
 	db     *sql.DB
 	logger *logger.Logger
-	mu     sync.RWMutex
 }
 
 // NewTenantConnectionManager creates a new TenantConnectionManager.

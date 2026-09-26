@@ -9,11 +9,11 @@ import (
 
 // ToolCatalogService handles tool catalog and marketplace operations
 type ToolCatalogService struct {
-	toolRepo registry.ToolRepository
+	toolRepo ToolRepository
 }
 
 // NewToolCatalogService creates a new tool catalog service
-func NewToolCatalogService(toolRepo registry.ToolRepository) *ToolCatalogService {
+func NewToolCatalogService(toolRepo ToolRepository) *ToolCatalogService {
 	return &ToolCatalogService{
 		toolRepo: toolRepo,
 	}

@@ -9,11 +9,11 @@ import (
 
 // ModuleCatalogService handles module catalog and marketplace operations
 type ModuleCatalogService struct {
-	moduleRepo registry.ModuleRepository
+	moduleRepo ModuleRepository
 }
 
 // NewModuleCatalogService creates a new module catalog service
-func NewModuleCatalogService(moduleRepo registry.ModuleRepository) *ModuleCatalogService {
+func NewModuleCatalogService(moduleRepo ModuleRepository) *ModuleCatalogService {
 	return &ModuleCatalogService{
 		moduleRepo: moduleRepo,
 	}

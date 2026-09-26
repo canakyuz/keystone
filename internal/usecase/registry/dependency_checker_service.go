@@ -36,19 +36,19 @@ type DependencyCheckResult struct {
 // DependencyCheckerService handles dependency validation and resolution
 type DependencyCheckerService struct {
 	db               *sql.DB
-	moduleRepo       registry.ModuleRepository
-	toolRepo         registry.ToolRepository
-	tenantModuleRepo registry.TenantModuleRepository
-	tenantToolRepo   registry.TenantToolRepository
+	moduleRepo       ModuleRepository
+	toolRepo         ToolRepository
+	tenantModuleRepo TenantModuleRepository
+	tenantToolRepo   TenantToolRepository
 }
 
 // NewDependencyCheckerService creates a new dependency checker service
 func NewDependencyCheckerService(
 	db *sql.DB,
-	moduleRepo registry.ModuleRepository,
-	toolRepo registry.ToolRepository,
-	tenantModuleRepo registry.TenantModuleRepository,
-	tenantToolRepo registry.TenantToolRepository,
+	moduleRepo ModuleRepository,
+	toolRepo ToolRepository,
+	tenantModuleRepo TenantModuleRepository,
+	tenantToolRepo TenantToolRepository,
 ) *DependencyCheckerService {
 	return &DependencyCheckerService{
 		db:               db,

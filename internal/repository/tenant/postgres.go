@@ -160,10 +160,6 @@ func (r *PostgresRepository) GetBySlug(ctx context.Context, slug string) (*tenan
 	return t, nil
 }
 
-
-
-
-
 // List retrieves all tenants with pagination and filters
 func (r *PostgresRepository) List(ctx context.Context, filters ListFilters) ([]*tenant.Tenant, int64, error) {
 	// Build query with filters
@@ -302,8 +298,6 @@ func (r *PostgresRepository) Delete(ctx context.Context, id string) error {
 
 	return nil
 }
-
-
 
 // ExistsByEmail checks if a tenant with the given email exists
 func (r *PostgresRepository) ExistsByEmail(ctx context.Context, email string) (bool, error) {

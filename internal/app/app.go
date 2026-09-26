@@ -272,8 +272,6 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 	registerOperationRoutes(app, cfg.Auth.JWTSecret, membership, platformOnly,
 		operationHandler.New(operationRepository, appLogger))
 
-	// Repository for the payment module.
-
 	// Repositories for the registry module.
 	moduleRepository := registryRepo.NewModuleRepository(db)
 	toolRepository := registryRepo.NewToolRepository(db)

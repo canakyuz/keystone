@@ -115,6 +115,7 @@ relevant migration files.
 | Routes that act across tenants had no guard | Any authenticated caller could list every tenant, read counts across all of them, and change any tenant's plan or status. They are now admitted only for a subject recorded in `platform_operators` | `040`, `internal/middleware` |
 | The worker had no role of its own and worked only as a superuser | Its claims read queue tables that carry the tenant policy, so under any other role it found no work. The process that delivers webhooks to addresses tenants supply therefore held a credential that ignores every policy in the database | `039` |
 | The platform permission for tenant creation was a REST route middleware | The gRPC port checks only membership of the caller's own tenant, so with `GRPC_ADDR` set any member of any tenant, a viewer included, could create tenants | `internal/usecase/operation` |
+| The tenant scope middleware wrapped any failure to load the tenant in a 403 carrying the error text | A database failure reached the client as the driver's message, host and port included, and an outage read as a permission refusal | `internal/middleware`, `TenantScope` |
 
 ## Testing it
 

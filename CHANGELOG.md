@@ -16,6 +16,9 @@ the entry says so under **Changed**.
   checked it in a middleware, and the gRPC interceptor checks only membership of the
   caller's own tenant, so with `GRPC_ADDR` set any member of any tenant, a viewer included,
   could create tenants. The check now sits in the operation usecase that both ports call.
+- The tenant routes answered a failure to load the tenant with a 403 carrying the error
+  text, so a database outage showed the client the driver's message, host and port
+  included. It is now logged and answered with a generic 500.
 
 ### Fixed
 

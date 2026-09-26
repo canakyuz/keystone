@@ -5,18 +5,17 @@ import (
 	"strconv"
 
 	"github.com/canakyuz/keystone/internal/domain/registry"
-	dto "github.com/canakyuz/keystone/internal/dto/registry"
-	registryService "github.com/canakyuz/keystone/internal/service/registry"
+	registryUsecase "github.com/canakyuz/keystone/internal/usecase/registry"
 	"github.com/gofiber/fiber/v2"
 )
 
 // ToolCatalogHandler serves the public tool catalogue endpoints.
 type ToolCatalogHandler struct {
-	catalogService *registryService.ToolCatalogService
+	catalogService *registryUsecase.ToolCatalogService
 }
 
 // NewToolCatalogHandler builds a ToolCatalogHandler.
-func NewToolCatalogHandler(catalogService *registryService.ToolCatalogService) *ToolCatalogHandler {
+func NewToolCatalogHandler(catalogService *registryUsecase.ToolCatalogService) *ToolCatalogHandler {
 	return &ToolCatalogHandler{
 		catalogService: catalogService,
 	}
@@ -25,7 +24,7 @@ func NewToolCatalogHandler(catalogService *registryService.ToolCatalogService) *
 // ListPublicTools lists the publicly visible tools in the marketplace.
 // GET /api/v1/registry/tools
 func (h *ToolCatalogHandler) ListPublicTools(c *fiber.Ctx) error {
-	var req dto.ToolListRequest
+	var req ToolListRequest
 	if err := c.QueryParser(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid query parameters"})
 	}
@@ -47,14 +46,14 @@ func (h *ToolCatalogHandler) ListPublicTools(c *fiber.Ctx) error {
 	}
 
 	// Convert the tools into the HTTP response shape.
-	response := make([]dto.ToolResponse, len(tools))
+	response := make([]ToolResponse, len(tools))
 	for i, tool := range tools {
-		response[i] = dto.ToToolResponse(tool)
+		response[i] = ToToolResponse(tool)
 	}
 
 	return c.JSON(fiber.Map{
 		"data": response,
-		"pagination": dto.PaginationMeta{
+		"pagination": PaginationMeta{
 			Page:       req.Page,
 			PerPage:    req.PerPage,
 			TotalItems: len(response), // Note: this is the size of the current page, not the true
@@ -67,7 +66,7 @@ func (h *ToolCatalogHandler) ListPublicTools(c *fiber.Ctx) error {
 // SearchTools searches the tools in the marketplace.
 // GET /api/v1/registry/tools/search
 func (h *ToolCatalogHandler) SearchTools(c *fiber.Ctx) error {
-	var req dto.ToolSearchRequest
+	var req ToolSearchRequest
 	if err := c.QueryParser(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid query parameters"})
 	}
@@ -113,14 +112,14 @@ func (h *ToolCatalogHandler) SearchTools(c *fiber.Ctx) error {
 	}
 
 	// Convert the results into the HTTP response shape.
-	response := make([]dto.ToolResponse, len(tools))
+	response := make([]ToolResponse, len(tools))
 	for i, tool := range tools {
-		response[i] = dto.ToToolResponse(tool)
+		response[i] = ToToolResponse(tool)
 	}
 
 	return c.JSON(fiber.Map{
 		"data": response,
-		"pagination": dto.PaginationMeta{
+		"pagination": PaginationMeta{
 			Page:       req.Page,
 			PerPage:    req.PerPage,
 			TotalItems: len(response),
@@ -142,7 +141,7 @@ func (h *ToolCatalogHandler) GetToolByID(c *fiber.Ctx) error {
 		return err
 	}
 
-	response := dto.ToToolDetailResponse(tool)
+	response := ToToolDetailResponse(tool)
 
 	return c.JSON(fiber.Map{"data": response})
 }
@@ -160,7 +159,7 @@ func (h *ToolCatalogHandler) GetToolBySlug(c *fiber.Ctx) error {
 		return err
 	}
 
-	response := dto.ToToolDetailResponse(tool)
+	response := ToToolDetailResponse(tool)
 
 	return c.JSON(fiber.Map{"data": response})
 }
@@ -181,9 +180,9 @@ func (h *ToolCatalogHandler) GetPopularTools(c *fiber.Ctx) error {
 	}
 
 	// Convert the results into the HTTP response shape.
-	response := make([]dto.ToolResponse, len(tools))
+	response := make([]ToolResponse, len(tools))
 	for i, tool := range tools {
-		response[i] = dto.ToToolResponse(tool)
+		response[i] = ToToolResponse(tool)
 	}
 
 	return c.JSON(fiber.Map{"data": response})
@@ -205,9 +204,9 @@ func (h *ToolCatalogHandler) GetTopRatedTools(c *fiber.Ctx) error {
 	}
 
 	// Convert the results into the HTTP response shape.
-	response := make([]dto.ToolResponse, len(tools))
+	response := make([]ToolResponse, len(tools))
 	for i, tool := range tools {
-		response[i] = dto.ToToolResponse(tool)
+		response[i] = ToToolResponse(tool)
 	}
 
 	return c.JSON(fiber.Map{"data": response})
@@ -219,7 +218,7 @@ func (h *ToolCatalogHandler) GetToolsByCategory(c *fiber.Ctx) error {
 	categoryParam := c.Params("category")
 	category := registry.ToolCategory(categoryParam)
 
-	var req dto.ToolListRequest
+	var req ToolListRequest
 	if err := c.QueryParser(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid query parameters"})
 	}
@@ -240,14 +239,14 @@ func (h *ToolCatalogHandler) GetToolsByCategory(c *fiber.Ctx) error {
 	}
 
 	// Convert the results into the HTTP response shape.
-	response := make([]dto.ToolResponse, len(tools))
+	response := make([]ToolResponse, len(tools))
 	for i, tool := range tools {
-		response[i] = dto.ToToolResponse(tool)
+		response[i] = ToToolResponse(tool)
 	}
 
 	return c.JSON(fiber.Map{
 		"data": response,
-		"pagination": dto.PaginationMeta{
+		"pagination": PaginationMeta{
 			Page:       req.Page,
 			PerPage:    req.PerPage,
 			TotalItems: len(response),
@@ -259,7 +258,7 @@ func (h *ToolCatalogHandler) GetToolsByCategory(c *fiber.Ctx) error {
 // GetFreeTools lists the free tools.
 // GET /api/v1/registry/tools/free
 func (h *ToolCatalogHandler) GetFreeTools(c *fiber.Ctx) error {
-	var req dto.ToolListRequest
+	var req ToolListRequest
 	if err := c.QueryParser(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid query parameters"})
 	}
@@ -280,14 +279,14 @@ func (h *ToolCatalogHandler) GetFreeTools(c *fiber.Ctx) error {
 	}
 
 	// Convert the results into the HTTP response shape.
-	response := make([]dto.ToolResponse, len(tools))
+	response := make([]ToolResponse, len(tools))
 	for i, tool := range tools {
-		response[i] = dto.ToToolResponse(tool)
+		response[i] = ToToolResponse(tool)
 	}
 
 	return c.JSON(fiber.Map{
 		"data": response,
-		"pagination": dto.PaginationMeta{
+		"pagination": PaginationMeta{
 			Page:       req.Page,
 			PerPage:    req.PerPage,
 			TotalItems: len(response),
@@ -312,9 +311,9 @@ func (h *ToolCatalogHandler) GetNewTools(c *fiber.Ctx) error {
 	}
 
 	// Convert the results into the HTTP response shape.
-	response := make([]dto.ToolResponse, len(tools))
+	response := make([]ToolResponse, len(tools))
 	for i, tool := range tools {
-		response[i] = dto.ToToolResponse(tool)
+		response[i] = ToToolResponse(tool)
 	}
 
 	return c.JSON(fiber.Map{"data": response})
@@ -322,7 +321,7 @@ func (h *ToolCatalogHandler) GetNewTools(c *fiber.Ctx) error {
 
 // buildToolFilters turns the request's query parameters into a filter object for the
 // database query, keeping the filtering logic in one place.
-func buildToolFilters(req dto.ToolListRequest) registry.ToolFilters {
+func buildToolFilters(req ToolListRequest) registry.ToolFilters {
 	filters := registry.ToolFilters{
 		SortBy:    req.SortBy,
 		SortOrder: req.SortOrder,

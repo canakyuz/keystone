@@ -36,7 +36,7 @@ import (
 	uploadRepo "github.com/canakyuz/keystone/internal/repository/upload"
 	userRepo "github.com/canakyuz/keystone/internal/repository/user"
 	webhookRepo "github.com/canakyuz/keystone/internal/repository/webhook"
-	registryService "github.com/canakyuz/keystone/internal/service/registry"
+	registryUsecase "github.com/canakyuz/keystone/internal/usecase/registry"
 	tenantUsecase "github.com/canakyuz/keystone/internal/usecase/tenant"
 	uploadUsecase "github.com/canakyuz/keystone/internal/usecase/upload"
 	userUsecase "github.com/canakyuz/keystone/internal/usecase/user"
@@ -287,10 +287,10 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 	userService := userUsecase.NewService(userRepository, appValidator, appLogger, cfg.Auth.JWTSecret)
 
 	// Registry services.
-	moduleCatalogService := registryService.NewModuleCatalogService(moduleRepository)
-	toolCatalogService := registryService.NewToolCatalogService(toolRepository)
-	dependencyCheckerService := registryService.NewDependencyCheckerService(db, moduleRepository, toolRepository, tenantModuleRepository, tenantToolRepository)
-	tenantActivationService := registryService.NewTenantActivationService(moduleRepository, toolRepository, tenantModuleRepository, tenantToolRepository, dependencyCheckerService)
+	moduleCatalogService := registryUsecase.NewModuleCatalogService(moduleRepository)
+	toolCatalogService := registryUsecase.NewToolCatalogService(toolRepository)
+	dependencyCheckerService := registryUsecase.NewDependencyCheckerService(db, moduleRepository, toolRepository, tenantModuleRepository, tenantToolRepository)
+	tenantActivationService := registryUsecase.NewTenantActivationService(moduleRepository, toolRepository, tenantModuleRepository, tenantToolRepository, dependencyCheckerService)
 
 	// Tenant context middleware: tenant isolation on every request.
 	// Cache-aware: schema lookups go through the cache rather than the database.

@@ -4,7 +4,7 @@ import (
 	"time"
 
 	"github.com/canakyuz/keystone/internal/domain/registry"
-	registryService "github.com/canakyuz/keystone/internal/service/registry"
+	registryUsecase "github.com/canakyuz/keystone/internal/usecase/registry"
 )
 
 // InstallModuleRequest represents module installation request
@@ -202,7 +202,7 @@ func ToTenantToolResponse(tt *registry.TenantTool) TenantToolResponse {
 }
 
 // ToDependencyCheckDTO converts service dependency check result to DTO
-func ToDependencyCheckDTO(result *registryService.DependencyCheckResult) DependencyCheckDTO {
+func ToDependencyCheckDTO(result *registryUsecase.DependencyCheckResult) DependencyCheckDTO {
 	return DependencyCheckDTO{
 		CanActivate:            result.CanActivate,
 		MissingRequiredModules: toDependencyInfoList(result.MissingRequiredModules),
@@ -215,7 +215,7 @@ func ToDependencyCheckDTO(result *registryService.DependencyCheckResult) Depende
 	}
 }
 
-func toDependencyInfoList(deps []registryService.DependencyInfo) []DependencyInfo {
+func toDependencyInfoList(deps []registryUsecase.DependencyInfo) []DependencyInfo {
 	result := make([]DependencyInfo, len(deps))
 	for i, dep := range deps {
 		result[i] = DependencyInfo{

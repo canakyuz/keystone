@@ -147,7 +147,7 @@ the capacity passes.
 
 The claims above are measured rather than asserted. `scripts/loadtest.sh` reproduces
 this: it brings up the dependencies, applies the migrations, seeds two tenants on
-different plans, mints their tokens, starts the server and runs `loadtest/tenant_read.js`
+different plans, mints their tokens, starts the server and runs `scripts/loadtest.js`
 against it.
 
 ### What the load test established

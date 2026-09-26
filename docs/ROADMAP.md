@@ -86,7 +86,7 @@ and superusers bypass RLS. See [SECURITY.md](../SECURITY.md).
 on the machine that has been available.
 
 `pkg/metrics` publishes RED signals, worker counts with queue depth, cache outcomes and
-rate limit decisions by plan, all with bounded labels. `loadtest/` and
+rate limit decisions by plan, all with bounded labels. `scripts/loadtest.js` and
 `scripts/loadtest.sh` reproduce a run end to end. That work closed four defects that no
 test had reached: the plan quotas were never applied, trial tenants were locked out, the
 user endpoints returned 500, and a metric label was being read out of a pooled buffer.

@@ -37,7 +37,6 @@ WORKDIR /app
 COPY --from=builder --chown=65532:65532 /out/keystone ./keystone
 COPY --from=builder --chown=65532:65532 /app/migrations ./migrations
 COPY --from=builder --chown=65532:65532 /app/api ./api
-COPY --from=builder --chown=65532:65532 /app/web ./web
 
 USER 65532:65532
 

@@ -72,7 +72,7 @@ A comment in the previous implementation claimed a "98-99% hit rate"; it had nev
 measured. `Stats()` was added, and the outcomes are now exported through
 `cache.Config.OnEvent` to `keystone_cache_events_total`.
 
-Measured on the load profile in `loadtest/`: 7396 L1 hits, 3 L2 hits, 1 miss, a hit rate
+Measured on the load profile in `scripts/loadtest.js`: 7396 L1 hits, 3 L2 hits, 1 miss, a hit rate
 of 99.96%. Higher than the comment claimed, which is the point: the number is now
 checkable, and the previous one was not.
 

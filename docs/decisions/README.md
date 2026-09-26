@@ -17,6 +17,7 @@ right forever is not a decision record, it is a defence brief.
 | [0006](0006-two-tier-cache.md) | The cache is two-tier and singleflight-protected | |
 | [0007](0007-rate-limit-fail-open.md) | The rate limit is shared and stays open when Redis is down | Debatable; the reasoning is written out |
 | [0008](0008-membership-is-the-tenant-user-record.md) | Membership is the tenant's user record, read on every request | Chosen over a separate membership table |
+| [0009](0009-read-only-transports-may-skip-the-usecase.md) | A read with no rule of its own may go from transport to repository | Chosen over pass-through usecases |
 
 ## The order to read these in
 

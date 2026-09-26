@@ -281,7 +281,7 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 	tenantToolRepository := registryRepo.NewTenantToolRepository(db, trail)
 
 	// The usecase layer, holding the business rules.
-	schemaTemplateRepository := templateRepo.NewFileSystemRepository("templates/tenants")
+	schemaTemplateRepository := templateRepo.NewRepository()
 	tenantProvisioningService := tenantUsecase.NewProvisioningService(db, schemaTemplateRepository, appLogger)
 	tenantService := tenantUsecase.NewService(tenantRepository, appValidator, appLogger, tenantProvisioningService)
 	userService := userUsecase.NewService(userRepository, appValidator, appLogger, cfg.Auth.JWTSecret)

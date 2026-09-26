@@ -79,7 +79,7 @@ func run() error {
 	// job; see internal/repository/operation. Delivery is a separate loop below.
 	operations := operationRepo.New(db).WithOutbox(outbox).WithAudit(auditRepo.New())
 	tenants := tenantRepo.NewPostgresRepository(db)
-	provisioner := tenantUsecase.NewProvisioningService(db, templateRepo.NewFileSystemRepository("templates/tenants"), log)
+	provisioner := tenantUsecase.NewProvisioningService(db, templateRepo.NewRepository(), log)
 
 	handler := worker.NewProvisionHandler(tenants, tenants, provisioner, log)
 

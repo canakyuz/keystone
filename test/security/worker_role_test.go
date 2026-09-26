@@ -55,7 +55,7 @@ func TestWorkerRole_RunsTheWholeJob(t *testing.T) {
 	operations := operationRepo.New(workerDB).WithOutbox(outbox).WithAudit(auditRepo.New())
 	tenants := tenantRepo.NewPostgresRepository(workerDB)
 	provisioner := tenantUsecase.NewProvisioningService(
-		workerDB, templateRepo.NewFileSystemRepository("../../templates/tenants"), nil)
+		workerDB, templateRepo.NewRepository(), nil)
 	handler := worker.NewProvisionHandler(tenants, tenants, provisioner, nil)
 
 	job, err := operations.Claim(ctx, workerRoleID, time.Minute)

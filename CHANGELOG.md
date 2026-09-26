@@ -12,6 +12,11 @@ the entry says so under **Changed**.
 
 ### Fixed
 
+- Tenant schema templates were read from `templates/tenants` relative to the working
+  directory, and the container image never copied that directory, so every tenant
+  provisioned in a container got an empty schema with only a debug line to say so. The
+  templates are now embedded in the binary.
+
 - The console set its theme with an inline script in the root layout, which React 19 reports
   as an error on every page and which could only run after the page had begun to paint. The
   choice is now a cookie, and the server renders the chosen sheet. A choice stored in

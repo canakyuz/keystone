@@ -2,12 +2,19 @@ package template
 
 import (
 	"context"
+	"embed"
 	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
+	"io/fs"
 	"strings"
 )
+
+// The templates are compiled into the binary. They used to be read from a templates/
+// directory next to the working directory, which the container image never copied, so
+// every tenant provisioned in a container silently got an empty schema.
+//
+//go:embed sql/*.sql
+var embedded embed.FS
 
 var (
 	// ErrTemplateNotFound is returned when no template exists for the requested plan
@@ -21,19 +28,17 @@ type Repository interface {
 	GetTemplateByPlan(ctx context.Context, plan string) (string, error)
 }
 
-// FileSystemRepository loads templates from the filesystem.
-type FileSystemRepository struct {
-	basePath string
-}
+// EmbeddedRepository serves the templates compiled into the binary.
+type EmbeddedRepository struct{}
 
-// NewFileSystemRepository creates a new template repository rooted at basePath.
-func NewFileSystemRepository(basePath string) *FileSystemRepository {
-	return &FileSystemRepository{basePath: basePath}
+// NewRepository returns a repository over the templates embedded in the binary.
+func NewRepository() *EmbeddedRepository {
+	return &EmbeddedRepository{}
 }
 
 // GetTemplateByPlan returns the SQL template for a subscription plan.
 // Fallback order: plan.sql -> default.sql. When no file exists, ErrTemplateNotFound is returned.
-func (r *FileSystemRepository) GetTemplateByPlan(ctx context.Context, plan string) (string, error) {
+func (r *EmbeddedRepository) GetTemplateByPlan(ctx context.Context, plan string) (string, error) {
 	select {
 	case <-ctx.Done():
 		return "", ctx.Err()
@@ -51,19 +56,13 @@ func (r *FileSystemRepository) GetTemplateByPlan(ctx context.Context, plan strin
 	}
 
 	for _, candidate := range candidates {
-		fullPath := filepath.Join(r.basePath, candidate)
-		if _, err := os.Stat(fullPath); err != nil {
-			if errors.Is(err, os.ErrNotExist) {
-				continue
-			}
-			return "", fmt.Errorf("failed to stat template %s: %w", fullPath, err)
+		content, err := fs.ReadFile(embedded, "sql/"+candidate)
+		if errors.Is(err, fs.ErrNotExist) {
+			continue
 		}
-
-		content, err := os.ReadFile(fullPath)
 		if err != nil {
-			return "", fmt.Errorf("failed to read template %s: %w", fullPath, err)
+			return "", fmt.Errorf("failed to read template %s: %w", candidate, err)
 		}
-
 		return string(content), nil
 	}
 

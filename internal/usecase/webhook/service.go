@@ -27,6 +27,7 @@ var (
 // written for the administrator who typed the address.
 type InvalidURLError struct{ Reason string }
 
+// Error returns the reason, which is safe to show the administrator.
 func (e *InvalidURLError) Error() string { return e.Reason }
 
 // Store is what the service needs from the webhook repository.

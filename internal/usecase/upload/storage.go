@@ -69,6 +69,7 @@ var extensions = map[string]string{
 // the client.
 type RejectedError struct{ Reason string }
 
+// Error returns the reason, which is safe to show the client.
 func (e *RejectedError) Error() string { return e.Reason }
 
 // Recorder records a stored file.

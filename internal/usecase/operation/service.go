@@ -38,6 +38,7 @@ type ValidationError struct {
 	Message string
 }
 
+// Error returns the message, which is safe to show the caller.
 func (e *ValidationError) Error() string { return e.Message }
 
 func invalid(code, format string, args ...any) error {

@@ -153,7 +153,7 @@ the result is the empty set: neither an error nor every row.
 - Schema: `migrations/030_harden_tenant_isolation_policies.up.sql`
 - Schema: `migrations/027_force_row_level_security.up.sql`
 - Code: `internal/repository/user/postgres.go`, reading the schema from context
-- Code: `pkg/database/tenant_connection_manager.go`, `ExecuteInTenantContext`
+- Code: `internal/database/tenant_connection_manager.go`, `ExecuteInTenantContext`
 - Tests: `test/security/rls_test.go`, `test/e2e/tenant_isolation_test.go`
 
 This rule used to be violated in four separate ways. The `USING (TRUE)` policy on

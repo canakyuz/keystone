@@ -9,11 +9,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/canakyuz/keystone/internal/database"
 	userHandler "github.com/canakyuz/keystone/internal/handler/user"
 	"github.com/canakyuz/keystone/internal/middleware"
 	userRepo "github.com/canakyuz/keystone/internal/repository/user"
 	userUsecase "github.com/canakyuz/keystone/internal/usecase/user"
-	"github.com/canakyuz/keystone/pkg/database"
 	"github.com/canakyuz/keystone/pkg/logger"
 	"github.com/canakyuz/keystone/pkg/validator"
 )

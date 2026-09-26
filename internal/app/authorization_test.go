@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/canakyuz/keystone/internal/config"
+	"github.com/canakyuz/keystone/internal/database"
 	auditHandler "github.com/canakyuz/keystone/internal/handler/audit"
 	authHandler "github.com/canakyuz/keystone/internal/handler/auth"
 	operationHandler "github.com/canakyuz/keystone/internal/handler/operation"
@@ -35,7 +36,6 @@ import (
 	registryUsecase "github.com/canakyuz/keystone/internal/usecase/registry"
 	tenantUsecase "github.com/canakyuz/keystone/internal/usecase/tenant"
 	userUsecase "github.com/canakyuz/keystone/internal/usecase/user"
-	"github.com/canakyuz/keystone/pkg/database"
 	"github.com/canakyuz/keystone/pkg/logger"
 	"github.com/canakyuz/keystone/pkg/validator"
 	"github.com/canakyuz/keystone/test/helpers"

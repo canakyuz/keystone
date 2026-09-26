@@ -101,9 +101,9 @@ relevant migration files.
 | `ENABLE` without `FORCE` on 17 tables | The application, connecting as the table owner role, was exempt from the policies | `027` |
 | `sites` policy made fail-open by `COALESCE` | All rows were visible when the context was not set | `030` |
 | `current_setting` without the missing-ok argument in `payments`, `refunds`, `payment_events` policies | Hard error on a session with no context set | `030` |
-| `ExecuteInTenantContext` did not pass the connection to the callback | `search_path` was not applied to the connection the queries actually ran on | `pkg/database` |
+| `ExecuteInTenantContext` did not pass the connection to the callback | `search_path` was not applied to the connection the queries actually ran on | `internal/database` |
 | `extractTenantID` read the wrong context key | The JWT tenant claim was never used; anyone holding a valid token could switch tenants with the `X-Tenant-ID` header | `internal/middleware` |
-| `ExecuteInTenantContext` never set `app.current_tenant` | Under the non-superuser role this file requires, every RLS-protected read returned the empty set. The application worked in development only because it connected as a superuser, which bypasses RLS | `pkg/database` |
+| `ExecuteInTenantContext` never set `app.current_tenant` | Under the non-superuser role this file requires, every RLS-protected read returned the empty set. The application worked in development only because it connected as a superuser, which bypasses RLS | `internal/database` |
 | The rate limiter ran before authentication | It read the tenant from a value the authenticator had not written yet, so the branch was never taken. Every authenticated tenant was held to the anonymous quota of 30 requests a minute regardless of the plan it paid for, and the plan table was dead code | `internal/middleware` |
 | Login logged the request email and returned the raw service error | The address went to stderr on every attempt, in an unstructured stream nothing rotates or redacts, and a repository failure would have described the schema to the caller | `internal/handler/auth` |
 | The provisioning endpoints were registered ahead of the global middleware | In Fiber that means the middleware never runs for them, so the endpoint that creates tenants had no rate limit, no metrics and no request log | `internal/app` |

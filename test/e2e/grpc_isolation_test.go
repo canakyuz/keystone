@@ -15,11 +15,11 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/grpc/test/bufconn"
 
+	"github.com/canakyuz/keystone/internal/database"
 	keystonegrpc "github.com/canakyuz/keystone/internal/grpc"
 	keystonev1 "github.com/canakyuz/keystone/internal/grpc/keystone/v1"
 	"github.com/canakyuz/keystone/internal/middleware"
 	userRepo "github.com/canakyuz/keystone/internal/repository/user"
-	"github.com/canakyuz/keystone/pkg/database"
 	"github.com/canakyuz/keystone/test/helpers"
 )
 

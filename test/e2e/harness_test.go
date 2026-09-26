@@ -22,10 +22,10 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/stretchr/testify/require"
 
+	"github.com/canakyuz/keystone/internal/database"
 	"github.com/canakyuz/keystone/internal/domain/user"
 	"github.com/canakyuz/keystone/internal/middleware"
 	userRepo "github.com/canakyuz/keystone/internal/repository/user"
-	"github.com/canakyuz/keystone/pkg/database"
 	"github.com/canakyuz/keystone/test/helpers"
 )
 

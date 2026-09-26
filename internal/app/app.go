@@ -17,6 +17,7 @@ import (
 	"github.com/redis/go-redis/v9"
 
 	"github.com/canakyuz/keystone/internal/config"
+	"github.com/canakyuz/keystone/internal/database"
 	keystonegrpc "github.com/canakyuz/keystone/internal/grpc"
 	auditHandler "github.com/canakyuz/keystone/internal/handler/audit"
 	authHandler "github.com/canakyuz/keystone/internal/handler/auth"
@@ -40,7 +41,6 @@ import (
 	tenantUsecase "github.com/canakyuz/keystone/internal/usecase/tenant"
 	uploadUsecase "github.com/canakyuz/keystone/internal/usecase/upload"
 	userUsecase "github.com/canakyuz/keystone/internal/usecase/user"
-	"github.com/canakyuz/keystone/pkg/database"
 	pkgLogger "github.com/canakyuz/keystone/pkg/logger"
 	"github.com/canakyuz/keystone/pkg/metrics"
 	"github.com/canakyuz/keystone/pkg/ratelimit"

@@ -15,14 +15,14 @@ import (
 
 // Service handles user business logic
 type Service struct {
-	repo      userRepo.Repository
+	repo      Store
 	validator *validator.Validator
 	logger    *logger.Logger
 	jwtSecret string
 }
 
 // NewService creates a new user service
-func NewService(repo userRepo.Repository, val *validator.Validator, log *logger.Logger, jwtSecret string) *Service {
+func NewService(repo Store, val *validator.Validator, log *logger.Logger, jwtSecret string) *Service {
 	return &Service{
 		repo:      repo,
 		validator: val,

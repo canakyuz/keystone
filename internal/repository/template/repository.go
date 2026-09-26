@@ -21,13 +21,6 @@ var (
 	ErrTemplateNotFound = errors.New("schema template not found")
 )
 
-// Repository defines operations for retrieving schema templates
-// Templates are plain SQL statements executed after schema provisioning
-// to materialise module tables per subscription plan.
-type Repository interface {
-	GetTemplateByPlan(ctx context.Context, plan string) (string, error)
-}
-
 // EmbeddedRepository serves the templates compiled into the binary.
 type EmbeddedRepository struct{}
 

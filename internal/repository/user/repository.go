@@ -1,65 +1,8 @@
 package user
 
 import (
-	"context"
-
 	"github.com/canakyuz/keystone/internal/domain/user"
-	auditrepo "github.com/canakyuz/keystone/internal/repository/audit"
 )
-
-// Repository defines the interface for user data operations
-type Repository interface {
-	// Create creates a new user
-	Create(ctx context.Context, u *user.User) error
-
-	// GetByID retrieves a user by ID (tenant-scoped)
-	GetByID(ctx context.Context, tenantID, userID string) (*user.User, error)
-
-	// GetByEmail retrieves a user by email (tenant-scoped)
-	GetByEmail(ctx context.Context, tenantID, email string) (*user.User, error)
-
-	// GetByEmailGlobal retrieves a user by email across all tenants (for auth)
-	GetByEmailGlobal(ctx context.Context, email string) (*user.User, error)
-
-	// List retrieves all users in a tenant with pagination
-	List(ctx context.Context, tenantID string, filters ListFilters) ([]*user.User, int64, error)
-
-	// Update updates an existing user
-	Update(ctx context.Context, u *user.User) error
-
-	// CreateAudited inserts the user and one audit entry in the same transaction.
-	CreateAudited(ctx context.Context, u *user.User, entry auditrepo.Entry) error
-
-	// UpdateAudited writes the user and one audit entry in the same transaction.
-	UpdateAudited(ctx context.Context, u *user.User, entry auditrepo.Entry) error
-
-	// Delete soft deletes a user
-	Delete(ctx context.Context, tenantID, userID string) error
-
-	// DeleteAudited soft deletes the user and records it in the same transaction.
-	DeleteAudited(ctx context.Context, tenantID, userID string, entry auditrepo.Entry) error
-
-	// ExistsByEmail checks if a user with the given email exists in tenant
-	ExistsByEmail(ctx context.Context, tenantID, email string) (bool, error)
-
-	// CountByTenant counts users in a tenant
-	CountByTenant(ctx context.Context, tenantID string) (int64, error)
-
-	// CountByRole counts users by role in a tenant
-	CountByRole(ctx context.Context, tenantID string, role user.UserRole) (int64, error)
-
-	// CountByStatus counts users by status in a tenant
-	CountByStatus(ctx context.Context, tenantID string, status user.UserStatus) (int64, error)
-
-	// UpdateLastLogin updates user's last login timestamp
-	UpdateLastLogin(ctx context.Context, tenantID, userID string) error
-
-	// GetOwner retrieves the tenant owner
-	GetOwner(ctx context.Context, tenantID string) (*user.User, error)
-
-	// GetMembership reads the role and status the tenant's record holds for a subject.
-	GetMembership(ctx context.Context, tenantID, userID string) (*user.Membership, error)
-}
 
 // ListFilters represents filters for listing users
 type ListFilters struct {

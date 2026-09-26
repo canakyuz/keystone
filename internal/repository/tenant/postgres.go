@@ -160,93 +160,9 @@ func (r *PostgresRepository) GetBySlug(ctx context.Context, slug string) (*tenan
 	return t, nil
 }
 
-// GetByEmail retrieves a tenant by email
-func (r *PostgresRepository) GetByEmail(ctx context.Context, email string) (*tenant.Tenant, error) {
-	query := `
-		SELECT
-			id, name, slug, email, phone, schema_name,
-			status, plan,
-			subscription_start, subscription_end, trial_ends_at,
-			custom_domain, custom_domain_verified, custom_domain_verified_at,
-			settings, metadata,
-			created_at, updated_at, created_by, updated_by
-		FROM tenants
-		WHERE email = $1 AND deleted_at IS NULL
-	`
 
-	t := &tenant.Tenant{}
-	var settingsJSON, metadataJSON []byte
 
-	err := r.db.QueryRowContext(ctx, query, email).Scan(
-		&t.ID, &t.Name, &t.Slug, &t.Email, nullString{&t.Phone}, &t.SchemaName,
-		&t.Status, &t.Plan,
-		&t.SubscriptionStart, &t.SubscriptionEnd, &t.TrialEndsAt,
-		nullString{&t.CustomDomain}, &t.CustomDomainVerified, &t.CustomDomainVerifiedAt,
-		&settingsJSON, &metadataJSON,
-		&t.CreatedAt, &t.UpdatedAt, nullString{&t.CreatedBy}, nullString{&t.UpdatedBy},
-	)
 
-	if err == sql.ErrNoRows {
-		return nil, tenant.ErrTenantNotFound
-	}
-	if err != nil {
-		return nil, fmt.Errorf("failed to get tenant by email: %w", err)
-	}
-
-	if err := json.Unmarshal(settingsJSON, &t.Settings); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal settings: %w", err)
-	}
-
-	if err := json.Unmarshal(metadataJSON, &t.Metadata); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal metadata: %w", err)
-	}
-
-	return t, nil
-}
-
-// GetByCustomDomain retrieves a tenant by custom domain
-func (r *PostgresRepository) GetByCustomDomain(ctx context.Context, domain string) (*tenant.Tenant, error) {
-	query := `
-		SELECT
-			id, name, slug, email, phone, schema_name,
-			status, plan,
-			subscription_start, subscription_end, trial_ends_at,
-			custom_domain, custom_domain_verified, custom_domain_verified_at,
-			settings, metadata,
-			created_at, updated_at, created_by, updated_by
-		FROM tenants
-		WHERE custom_domain = $1 AND custom_domain_verified = TRUE AND deleted_at IS NULL
-	`
-
-	t := &tenant.Tenant{}
-	var settingsJSON, metadataJSON []byte
-
-	err := r.db.QueryRowContext(ctx, query, domain).Scan(
-		&t.ID, &t.Name, &t.Slug, &t.Email, nullString{&t.Phone}, &t.SchemaName,
-		&t.Status, &t.Plan,
-		&t.SubscriptionStart, &t.SubscriptionEnd, &t.TrialEndsAt,
-		nullString{&t.CustomDomain}, &t.CustomDomainVerified, &t.CustomDomainVerifiedAt,
-		&settingsJSON, &metadataJSON,
-		&t.CreatedAt, &t.UpdatedAt, nullString{&t.CreatedBy}, nullString{&t.UpdatedBy},
-	)
-
-	if err == sql.ErrNoRows {
-		return nil, tenant.ErrTenantNotFound
-	}
-	if err != nil {
-		return nil, fmt.Errorf("failed to get tenant by custom domain: %w", err)
-	}
-
-	if err := json.Unmarshal(settingsJSON, &t.Settings); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal settings: %w", err)
-	}
-
-	if err := json.Unmarshal(metadataJSON, &t.Metadata); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal metadata: %w", err)
-	}
-
-	return t, nil
-}
 
 // List retrieves all tenants with pagination and filters
 func (r *PostgresRepository) List(ctx context.Context, filters ListFilters) ([]*tenant.Tenant, int64, error) {
@@ -387,18 +303,7 @@ func (r *PostgresRepository) Delete(ctx context.Context, id string) error {
 	return nil
 }
 
-// ExistsBySlug checks if a tenant with the given slug exists
-func (r *PostgresRepository) ExistsBySlug(ctx context.Context, slug string) (bool, error) {
-	query := `SELECT EXISTS(SELECT 1 FROM tenants WHERE slug = $1 AND deleted_at IS NULL)`
 
-	var exists bool
-	err := r.db.QueryRowContext(ctx, query, slug).Scan(&exists)
-	if err != nil {
-		return false, fmt.Errorf("failed to check tenant existence by slug: %w", err)
-	}
-
-	return exists, nil
-}
 
 // ExistsByEmail checks if a tenant with the given email exists
 func (r *PostgresRepository) ExistsByEmail(ctx context.Context, email string) (bool, error) {

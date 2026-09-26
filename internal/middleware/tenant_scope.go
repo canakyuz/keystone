@@ -1,14 +1,21 @@
 package middleware
 
 import (
+	"context"
+
 	"github.com/gofiber/fiber/v2"
 
 	"github.com/canakyuz/keystone/internal/database"
-	tenantRepo "github.com/canakyuz/keystone/internal/repository/tenant"
+	"github.com/canakyuz/keystone/internal/domain/tenant"
 )
 
+// TenantLookup reads the tenant whose schema a request is scoped to.
+type TenantLookup interface {
+	GetByID(ctx context.Context, id string) (*tenant.Tenant, error)
+}
+
 // TenantScope ensures the database session is scoped to the tenant schema before handling the request.
-func TenantScope(repo tenantRepo.Repository, manager *database.TenantManager) fiber.Handler {
+func TenantScope(repo TenantLookup, manager *database.TenantManager) fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		tenantID := GetTenantID(c)
 		if tenantID == "" {

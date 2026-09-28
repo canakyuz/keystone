@@ -322,7 +322,7 @@ in-process paths without it.
 
 Why the system is built this way, what the alternatives were, and the condition
 under which each decision becomes wrong is written under
-[docs/decisions/](docs/decisions/). There are seven decision records.
+[docs/decisions/](docs/decisions/). There are nine decision records.
 
 For the promises the system makes, along with the code and tests backing them,
 see [docs/INVARIANTS.md](docs/INVARIANTS.md). A rule with nothing behind it is
@@ -331,18 +331,22 @@ marked "not yet" there rather than being listed as a slogan.
 ## What is the control plane and what is an example
 
 ```
-internal/          the control plane          98 Go files
+internal/          the control plane          128 Go files
   domain/          tenant, operation, user, registry
-  repository/      the same, plus template
-  usecase/         tenant provisioning, users
-  handler/         auth, tenant, operation, user, registry, upload
+  repository/      the same, plus audit, outbox, platform, template, upload, webhook
+  usecase/         the rules both REST and gRPC reach: tenant, user, operation,
+                   registry, upload, webhook
+  handler/         HTTP: auth, tenant, operation, user, registry, upload, webhook, audit
+  grpc/            the typed surface, over the same usecases
   middleware/      auth, tenant context, rate limit, metrics, tracing
+  authz/           membership and the platform permission
+  database/        tenant-scoped connections
   worker/          job claiming, leases, graceful shutdown
-  grpc/            the typed surface
-pkg/               cache, ratelimit, database, metrics, tracing, authn, tenantctx
-examples/verticals/ a reference application  77 Go files
+pkg/               leaf packages, never importing internal/: cache, ratelimit,
+                   metrics, tracing, authn, tenantctx, outbound, logger, validator
+examples/verticals/ a reference application  70 Go files
+  blog, booking, lessons, payments, services, websites
 console/           the web console            Next.js, reads only through the API
-  blog, booking, lessons, payments, projects, services, websites
 ```
 
 The verticals are a reference application. They are here to show what building on top of

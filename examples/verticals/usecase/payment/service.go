@@ -145,7 +145,7 @@ func (s *Service) Complete3DSPayment(ctx context.Context, req *Complete3DSReques
 
 	// Check if payment requires 3DS
 	if !p.Requires3DSAuth() {
-		return nil, fmt.Errorf("payment does not require 3DS authentication")
+		return nil, payment.ErrPaymentNot3DS
 	}
 
 	// Complete 3DS via provider
@@ -223,12 +223,12 @@ func (s *Service) CreateRefund(ctx context.Context, tenantID, userID string, req
 
 	// Check if payment can be refunded
 	if !p.CanBeRefunded() {
-		return nil, fmt.Errorf("payment cannot be refunded (status: %s)", p.Status)
+		return nil, fmt.Errorf("%w (status: %s)", domainRefund.ErrPaymentNotRefundable, p.Status)
 	}
 
 	// Validate refund amount
 	if req.Amount > p.Amount {
-		return nil, fmt.Errorf("refund amount exceeds payment amount")
+		return nil, domainRefund.ErrRefundAmountExceeded
 	}
 
 	// Create refund entity

@@ -22,6 +22,21 @@ the entry says so under **Changed**.
 - The tenant, user and auth handlers did the same on 25 paths, and under the status meant
   for the expected failure, so an outage answered a tenant lookup with 404. Only domain
   and validation errors reach the client now; anything else is a logged, generic 500.
+- The reference application in `examples/verticals` had the same leak on 57 handler paths,
+  and its checkout.com adapter passed the provider's raw response body through to the
+  client. The payment webhook wrote its errors back to the provider and logged nothing; it
+  now logs them and answers a generic message.
+
+### Changed
+
+- Errors meant for the client are `pkg/clienterr` errors, in the control plane and in the
+  examples alike. Refusing a refund over the payment amount, or completing 3-D Secure on a
+  payment that does not need it, answers with the domain message; a database or provider
+  failure answers 500 where the payment routes used to answer 400.
+
+### Removed
+
+- The `project` module in `examples/verticals`. No route ever mounted it.
 
 ### Fixed
 

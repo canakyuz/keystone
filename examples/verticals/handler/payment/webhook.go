@@ -1,19 +1,23 @@
 package payment
 
 import (
-	"github.com/canakyuz/keystone/examples/verticals/usecase/payment"
 	"github.com/gofiber/fiber/v2"
+
+	"github.com/canakyuz/keystone/examples/verticals/usecase/payment"
+	"github.com/canakyuz/keystone/pkg/logger"
 )
 
 // WebhookHandler handles webhook HTTP requests from payment providers
 type WebhookHandler struct {
 	paymentService *payment.Service
+	log            *logger.Logger
 }
 
 // NewWebhookHandler creates a new webhook handler
-func NewWebhookHandler(paymentService *payment.Service) *WebhookHandler {
+func NewWebhookHandler(paymentService *payment.Service, log *logger.Logger) *WebhookHandler {
 	return &WebhookHandler{
 		paymentService: paymentService,
+		log:            log,
 	}
 }
 
@@ -77,12 +81,7 @@ func (h *WebhookHandler) HandleWebhook(c *fiber.Ctx) error {
 	)
 
 	if err != nil {
-		// Return 200 even on error to prevent provider retries
-		// Log the error internally
-		return c.Status(fiber.StatusOK).JSON(fiber.Map{
-			"status":  "error",
-			"message": err.Error(),
-		})
+		return h.failed(c, err)
 	}
 
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
@@ -134,10 +133,7 @@ func (h *WebhookHandler) HandleIyzicoWebhook(c *fiber.Ctx) error {
 	)
 
 	if err != nil {
-		return c.Status(fiber.StatusOK).JSON(fiber.Map{
-			"status":  "error",
-			"message": err.Error(),
-		})
+		return h.failed(c, err)
 	}
 
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
@@ -172,14 +168,27 @@ func (h *WebhookHandler) HandleCheckoutWebhook(c *fiber.Ctx) error {
 	)
 
 	if err != nil {
-		return c.Status(fiber.StatusOK).JSON(fiber.Map{
-			"status":  "error",
-			"message": err.Error(),
-		})
+		return h.failed(c, err)
 	}
 
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
 		"status": "success",
 		"data":   result,
+	})
+}
+
+// failed acknowledges a webhook that could not be processed.
+//
+// The answer is 200 so the provider does not retry a delivery that will fail again. The
+// reason is logged here: it used to be written into the response instead, which put
+// signature and database errors in the provider's delivery log and nowhere of ours.
+func (h *WebhookHandler) failed(c *fiber.Ctx, err error) error {
+	if h.log != nil {
+		h.log.WithFields(logger.Fields{"path": c.Path(), "error": err.Error()}).Error("payment webhook not processed")
+	}
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"status":  "error",
+		"message": "webhook not processed",
 	})
 }

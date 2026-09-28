@@ -1,53 +1,54 @@
 package payment
 
-import "errors"
+import "github.com/canakyuz/keystone/pkg/clienterr"
 
 // Domain-specific errors for payment operations
 var (
 	// Validation errors
-	ErrInvalidPaymentID       = errors.New("invalid payment ID")
-	ErrTenantIDRequired       = errors.New("tenant ID is required")
-	ErrInvalidAmount          = errors.New("amount must be greater than 0")
-	ErrCurrencyRequired       = errors.New("currency is required")
-	ErrInvalidProvider        = errors.New("invalid payment provider")
-	ErrInvalidPaymentStatus   = errors.New("invalid payment status")
-	ErrInvalidInstallment     = errors.New("installment must be at least 1")
-	ErrInvalidInstallmentRate = errors.New("installment rate cannot be negative")
+	ErrInvalidPaymentID       = clienterr.New("invalid payment ID")
+	ErrTenantIDRequired       = clienterr.New("tenant ID is required")
+	ErrInvalidAmount          = clienterr.New("amount must be greater than 0")
+	ErrCurrencyRequired       = clienterr.New("currency is required")
+	ErrInvalidProvider        = clienterr.New("invalid payment provider")
+	ErrInvalidPaymentStatus   = clienterr.New("invalid payment status")
+	ErrInvalidInstallment     = clienterr.New("installment must be at least 1")
+	ErrInvalidInstallmentRate = clienterr.New("installment rate cannot be negative")
 
 	// Business logic errors
-	ErrPaymentNotFound         = errors.New("payment not found")
-	ErrPaymentAlreadyExists    = errors.New("payment already exists")
-	ErrInvalidStatusTransition = errors.New("invalid payment status transition")
-	ErrPaymentNotSucceeded     = errors.New("payment has not succeeded")
-	ErrPaymentAlreadyRefunded  = errors.New("payment is already refunded")
-	ErrPaymentAlreadyCanceled  = errors.New("payment is already canceled")
+	ErrPaymentNotFound         = clienterr.New("payment not found")
+	ErrPaymentAlreadyExists    = clienterr.New("payment already exists")
+	ErrInvalidStatusTransition = clienterr.New("invalid payment status transition")
+	ErrPaymentNotSucceeded     = clienterr.New("payment has not succeeded")
+	ErrPaymentAlreadyRefunded  = clienterr.New("payment is already refunded")
+	ErrPaymentAlreadyCanceled  = clienterr.New("payment is already canceled")
 
 	// 3DS errors
-	Err3DSRequired         = errors.New("3DS authentication is required")
-	Err3DSFailed           = errors.New("3DS authentication failed")
-	Err3DSContentRequired  = errors.New("3DS HTML content is required")
-	Err3DSCallbackRequired = errors.New("3DS callback URL is required")
+	Err3DSRequired         = clienterr.New("3DS authentication is required")
+	ErrPaymentNot3DS       = clienterr.New("payment does not require 3DS authentication")
+	Err3DSFailed           = clienterr.New("3DS authentication failed")
+	Err3DSContentRequired  = clienterr.New("3DS HTML content is required")
+	Err3DSCallbackRequired = clienterr.New("3DS callback URL is required")
 
 	// Provider errors
-	ErrProviderNotConfigured   = errors.New("payment provider is not configured")
-	ErrProviderAPIError        = errors.New("payment provider API error")
-	ErrProviderTimeout         = errors.New("payment provider request timeout")
-	ErrProviderInvalidResponse = errors.New("invalid response from payment provider")
+	ErrProviderNotConfigured   = clienterr.New("payment provider is not configured")
+	ErrProviderAPIError        = clienterr.New("payment provider API error")
+	ErrProviderTimeout         = clienterr.New("payment provider request timeout")
+	ErrProviderInvalidResponse = clienterr.New("invalid response from payment provider")
 
 	// Card errors
-	ErrInvalidCardNumber = errors.New("invalid card number")
-	ErrInvalidCVV        = errors.New("invalid CVV")
-	ErrInvalidExpiry     = errors.New("invalid card expiry")
-	ErrCardDeclined      = errors.New("card was declined")
-	ErrInsufficientFunds = errors.New("insufficient funds")
-	ErrCardExpired       = errors.New("card has expired")
+	ErrInvalidCardNumber = clienterr.New("invalid card number")
+	ErrInvalidCVV        = clienterr.New("invalid CVV")
+	ErrInvalidExpiry     = clienterr.New("invalid card expiry")
+	ErrCardDeclined      = clienterr.New("card was declined")
+	ErrInsufficientFunds = clienterr.New("insufficient funds")
+	ErrCardExpired       = clienterr.New("card has expired")
 
 	// Refund errors
-	ErrRefundNotAllowed    = errors.New("refund is not allowed for this payment")
-	ErrRefundAmountInvalid = errors.New("refund amount is invalid")
-	ErrRefundFailed        = errors.New("refund operation failed")
+	ErrRefundNotAllowed    = clienterr.New("refund is not allowed for this payment")
+	ErrRefundAmountInvalid = clienterr.New("refund amount is invalid")
+	ErrRefundFailed        = clienterr.New("refund operation failed")
 
 	// Permission errors
-	ErrPaymentAccessDenied = errors.New("access denied to payment")
-	ErrCrossTenantPayment  = errors.New("cross-tenant payment access is not allowed")
+	ErrPaymentAccessDenied = clienterr.New("access denied to payment")
+	ErrCrossTenantPayment  = clienterr.New("cross-tenant payment access is not allowed")
 )

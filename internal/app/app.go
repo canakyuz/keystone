@@ -32,7 +32,6 @@ import (
 	operationRepo "github.com/canakyuz/keystone/internal/repository/operation"
 	platformRepo "github.com/canakyuz/keystone/internal/repository/platform"
 	registryRepo "github.com/canakyuz/keystone/internal/repository/registry"
-	templateRepo "github.com/canakyuz/keystone/internal/repository/template"
 	tenantRepo "github.com/canakyuz/keystone/internal/repository/tenant"
 	uploadRepo "github.com/canakyuz/keystone/internal/repository/upload"
 	userRepo "github.com/canakyuz/keystone/internal/repository/user"
@@ -283,9 +282,7 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 	tenantToolRepository := registryRepo.NewTenantToolRepository(db, trail)
 
 	// The usecase layer, holding the business rules.
-	schemaTemplateRepository := templateRepo.NewRepository()
-	tenantProvisioningService := tenantUsecase.NewProvisioningService(db, schemaTemplateRepository, appLogger)
-	tenantService := tenantUsecase.NewService(tenantRepository, appValidator, appLogger, tenantProvisioningService)
+	tenantService := tenantUsecase.NewService(tenantRepository, appValidator, appLogger, tenantSchemaCache, tenantPlanCache)
 	userService := userUsecase.NewService(userRepository, appValidator, appLogger, cfg.Auth.JWTSecret)
 
 	// Registry services.

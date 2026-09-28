@@ -27,6 +27,11 @@ the entry says so under **Changed**.
   client. The payment webhook wrote its errors back to the provider and logged nothing; it
   now logs them and answers a generic message.
 
+- Suspending or deleting a tenant did not take effect until its cached schema expired,
+  up to ten minutes with Redis: the schema cache is what refuses an inactive tenant, and
+  nothing invalidated it. A plan change likewise waited five minutes to reach the rate
+  limit. The tenant service now invalidates both caches on every status and plan change.
+
 ### Changed
 
 - Errors meant for the client are `pkg/clienterr` errors, in the control plane and in the

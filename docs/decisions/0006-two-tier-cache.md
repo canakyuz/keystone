@@ -58,6 +58,11 @@ same moment and produce a synchronized wave of misses.
   until the L1 TTL (30 seconds) expires.
 - This is acceptable for the tenant schema because the schema only changes during
   onboarding. It would not be acceptable for frequently changing data.
+- Correction, 2026-09-28: the entry carries more than the schema. The lookup resolves
+  only active and trial tenants, so the cache is what refuses a suspended one, and
+  nothing invalidated it: a suspension waited for the ten-minute Redis TTL. The tenant
+  service now invalidates on every status and plan change, which leaves the 30-second
+  window above as the bound, on other replicas only.
 
 ## When this decision becomes wrong
 

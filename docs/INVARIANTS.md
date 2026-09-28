@@ -66,8 +66,21 @@ No tenant role reaches them: an owner is nobody at that level until a row grants
   the same subject once the grant exists; `test/e2e/grpc_isolation_test.go`,
   `TestGRPC_CreateTenant_RequiresPlatformOperator`
 
-**What this does not cover:** a membership is one user row per tenant, so the same person
-in two tenants is two rows with two passwords. See
+A suspended or deleted tenant is refused on its next request. The schema cache is what
+refuses it, since it resolves only active and trial tenants, so the tenant service drops
+the tenant from that cache, and its plan from the rate limiter's, whenever the status or
+plan changes. Before that, a suspended tenant that had made one request kept access for up
+to the ten-minute Redis TTL.
+
+- Code: `internal/usecase/tenant/service.go`, `forget`; `TenantSchemaCache.Forget`,
+  `TenantPlanCache.Forget`
+- Test: `test/e2e/tenant_lifecycle_test.go`,
+  `TestSuspendedTenant_LosesAccessOnTheNextRequest`, `TestPlanChange_ReachesTheRateLimitAtOnce`
+
+**What this does not cover:** other replicas keep their in-process copy for up to its
+30-second TTL, and if Redis is unreachable when the change is made, the Redis entry lives
+out its TTL; the failure is logged. Separately, a membership is one user row per tenant, so
+the same person in two tenants is two rows with two passwords. See
 [decisions/0008-membership-is-the-tenant-user-record.md](decisions/0008-membership-is-the-tenant-user-record.md).
 
 ---

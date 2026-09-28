@@ -38,7 +38,7 @@ func unreachableDB(t *testing.T) *sql.DB {
 func currentTenant(t *testing.T, db *sql.DB, tenantID string) (int, string) {
 	t.Helper()
 
-	service := tenantUsecase.NewService(tenantRepo.NewPostgresRepository(db), validator.New(), nil, nil)
+	service := tenantUsecase.NewService(tenantRepo.NewPostgresRepository(db), validator.New(), nil)
 	h := tenantHandler.NewHandler(service)
 
 	app := fiber.New(fiber.Config{ErrorHandler: customErrorHandler})

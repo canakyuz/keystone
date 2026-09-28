@@ -95,7 +95,7 @@ func newAuthzHarness(t *testing.T) *authzHarness {
 		authHandler.NewHandler(userService),
 		auditHandler.NewHandler(auditRepo.NewReader(appDB)),
 		webhookHandler.NewHandler(webhookUsecase.NewService(webhookRepo.New(appDB, trail))),
-		tenantHandler.NewHandler(tenantUsecase.NewService(tenants, validator.New(), log, nil)),
+		tenantHandler.NewHandler(tenantUsecase.NewService(tenants, validator.New(), log)),
 		userHandler.NewHandler(userService),
 		uploadHandler.NewHandler(log, uploadUsecase.NewStorage(log, uploadRepo.New(appDB, trail))),
 		registryHandler.NewModuleCatalogHandler(registryUsecase.NewModuleCatalogService(modules)),

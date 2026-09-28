@@ -13,19 +13,40 @@ import (
 
 // Service handles tenant business logic
 type Service struct {
-	repo        Store
-	validator   *validator.Validator
-	logger      *logger.Logger
-	provisioner *ProvisioningService
+	repo      Store
+	validator *validator.Validator
+	logger    *logger.Logger
+	caches    []Forgetter
 }
 
-// NewService creates a new tenant service
-func NewService(repo Store, val *validator.Validator, log *logger.Logger, provisioner *ProvisioningService) *Service {
+// NewService creates a new tenant service. caches are told when a tenant's status or plan
+// changes; see forget.
+func NewService(repo Store, val *validator.Validator, log *logger.Logger, caches ...Forgetter) *Service {
 	return &Service{
-		repo:        repo,
-		validator:   val,
-		logger:      log,
-		provisioner: provisioner,
+		repo:      repo,
+		validator: val,
+		logger:    log,
+		caches:    caches,
+	}
+}
+
+// forget drops the tenant from the caches that decide access and quota.
+//
+// The schema cache is what refuses a suspended tenant, since it resolves only active and
+// trial tenants, and the plan cache sets the rate limit. Neither was told about a change,
+// so a suspended tenant kept access for up to the ten-minute Redis TTL, and a new plan's
+// quota waited five. Invalidation clears Redis and this process; other replicas keep their
+// in-process copy for at most its 30-second TTL.
+//
+// A failure is logged, not returned: the change is committed, and the entry still expires.
+func (s *Service) forget(ctx context.Context, tenantID string) {
+	for _, c := range s.caches {
+		if err := c.Forget(ctx, tenantID); err != nil && s.logger != nil {
+			s.logger.WithFields(logger.Fields{
+				"tenant_id": tenantID,
+				"error":     err.Error(),
+			}).Error("tenant cache invalidation failed; the change applies when the entry expires")
+		}
 	}
 }
 
@@ -154,6 +175,8 @@ func (s *Service) Suspend(ctx context.Context, id, reason string) error {
 		return fmt.Errorf("failed to suspend tenant: %w", err)
 	}
 
+	s.forget(ctx, t.ID)
+
 	s.logger.WithFields(logger.Fields{
 		"tenant_id": t.ID,
 		"reason":    reason,
@@ -177,6 +200,8 @@ func (s *Service) Activate(ctx context.Context, id string) error {
 		s.logger.ErrorWithErr(err, "failed to activate tenant")
 		return fmt.Errorf("failed to activate tenant: %w", err)
 	}
+
+	s.forget(ctx, t.ID)
 
 	s.logger.WithFields(logger.Fields{
 		"tenant_id": t.ID,
@@ -208,6 +233,8 @@ func (s *Service) UpgradePlan(ctx context.Context, id string, req *UpgradePlanRe
 		s.logger.ErrorWithErr(err, "failed to upgrade plan")
 		return nil, fmt.Errorf("failed to upgrade plan: %w", err)
 	}
+
+	s.forget(ctx, t.ID)
 
 	s.logger.WithFields(logger.Fields{
 		"tenant_id": t.ID,
@@ -288,6 +315,8 @@ func (s *Service) Delete(ctx context.Context, id string) error {
 		s.logger.ErrorWithErr(err, "failed to delete tenant")
 		return fmt.Errorf("failed to delete tenant: %w", err)
 	}
+
+	s.forget(ctx, id)
 
 	s.logger.WithFields(logger.Fields{
 		"tenant_id": id,

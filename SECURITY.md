@@ -118,6 +118,7 @@ relevant migration files.
 | The tenant scope middleware wrapped any failure to load the tenant in a 403 carrying the error text | A database failure reached the client as the driver's message, host and port included, and an outage read as a permission refusal | `internal/middleware`, `TenantScope` |
 | The tenant, user and auth handlers wrote `err.Error()` for every failure | The usecases wrap repository errors, so the same leak reached the client from 25 handler paths, under the status meant for the expected failure: an outage answered a tenant lookup with 404. Only domain and validation errors are shown now | `internal/handler/respond` |
 | The reference application's handlers wrote `err.Error()` on 57 paths, and the payment webhook wrote it back to the provider | Database errors reached clients as in the control plane, and the checkout.com adapter's `API error (status N): <body>` carried the provider's raw response to the browser. The handlers go through `internal/handler/respond`, which answers anything that is not a `clienterr.Error` with a generic 500 on its own, so the guarantee no longer depends on the application's error handler | `pkg/clienterr`, `examples/verticals` |
+| Tenant status changes never reached the schema cache | The cache resolves only active and trial tenants, so it is what refuses a suspended one; with nothing invalidating it, a suspended or deleted tenant kept access for up to the ten-minute Redis TTL | `internal/usecase/tenant`, `forget` |
 
 ## Testing it
 

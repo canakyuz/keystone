@@ -141,3 +141,9 @@ func (c *TenantSchemaCache) loadSchemaFromDB(ctx context.Context, tenantID strin
 
 	return schemaName, nil
 }
+
+// Forget drops the tenant's entry, so the next request reads its status from the
+// database. The tenant service calls it after a suspension, reactivation or deletion.
+func (c *TenantSchemaCache) Forget(ctx context.Context, tenantID string) error {
+	return c.cache.Invalidate(ctx, tenantID)
+}

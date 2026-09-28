@@ -26,3 +26,8 @@ type Store interface {
 type TemplateSource interface {
 	GetTemplateByPlan(ctx context.Context, plan string) (string, error)
 }
+
+// Forgetter drops what a cache holds for a tenant.
+type Forgetter interface {
+	Forget(ctx context.Context, tenantID string) error
+}

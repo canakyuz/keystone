@@ -120,7 +120,7 @@ echo "==> running k6"
 BASE_URL="$BASE_URL" TOKEN="$TOKEN" BURST_TOKEN="$BURST_TOKEN" TAIL_TRUSTED="$TAIL_TRUSTED" \
   RATE="${RATE:-100}" DURATION="${DURATION:-60s}" BURST_RATE="${BURST_RATE:-300}" \
   BURST_START="${BURST_START:-65s}" \
-  k6 run loadtest/tenant_read.js
+  k6 run scripts/loadtest.js
 
 echo
 echo "==> metrics after the run"

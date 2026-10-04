@@ -79,6 +79,6 @@ func Build(db *sql.DB, cfg *config.Config, log *logger.Logger) Dependencies {
 		BlogCategory: blogHandler.NewCategoryHandler(categoryService, *log),
 		BlogPost:     blogHandler.NewPostHandler(postService, *log),
 		Payment:      paymentHandler.NewHandler(paymentService),
-		Webhook:      paymentHandler.NewWebhookHandler(paymentService),
+		Webhook:      paymentHandler.NewWebhookHandler(paymentService, log),
 	}
 }

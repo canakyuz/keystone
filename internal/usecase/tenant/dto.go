@@ -23,12 +23,6 @@ type UpdateTenantRequest struct {
 	Phone string `json:"phone,omitempty" validate:"omitempty,max=20"`
 }
 
-// UpdateTenantStatusRequest represents request to update tenant status
-type UpdateTenantStatusRequest struct {
-	Status string `json:"status" validate:"required,oneof=active suspended inactive trial"`
-	Reason string `json:"reason,omitempty" validate:"omitempty,max=500"`
-}
-
 // UpgradePlanRequest represents request to upgrade subscription plan
 type UpgradePlanRequest struct {
 	Plan string `json:"plan" validate:"required,oneof=free starter pro enterprise"`

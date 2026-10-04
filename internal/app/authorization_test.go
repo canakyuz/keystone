@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/canakyuz/keystone/internal/config"
+	"github.com/canakyuz/keystone/internal/database"
 	auditHandler "github.com/canakyuz/keystone/internal/handler/audit"
 	authHandler "github.com/canakyuz/keystone/internal/handler/auth"
 	operationHandler "github.com/canakyuz/keystone/internal/handler/operation"
@@ -32,10 +33,12 @@ import (
 	uploadRepo "github.com/canakyuz/keystone/internal/repository/upload"
 	userRepo "github.com/canakyuz/keystone/internal/repository/user"
 	webhookRepo "github.com/canakyuz/keystone/internal/repository/webhook"
-	registryService "github.com/canakyuz/keystone/internal/service/registry"
+	operationUsecase "github.com/canakyuz/keystone/internal/usecase/operation"
+	registryUsecase "github.com/canakyuz/keystone/internal/usecase/registry"
 	tenantUsecase "github.com/canakyuz/keystone/internal/usecase/tenant"
+	uploadUsecase "github.com/canakyuz/keystone/internal/usecase/upload"
 	userUsecase "github.com/canakyuz/keystone/internal/usecase/user"
-	"github.com/canakyuz/keystone/pkg/database"
+	webhookUsecase "github.com/canakyuz/keystone/internal/usecase/webhook"
 	"github.com/canakyuz/keystone/pkg/logger"
 	"github.com/canakyuz/keystone/pkg/validator"
 	"github.com/canakyuz/keystone/test/helpers"
@@ -78,25 +81,25 @@ func newAuthzHarness(t *testing.T) *authzHarness {
 	tools := registryRepo.NewToolRepository(appDB)
 	tenantModules := registryRepo.NewTenantModuleRepository(appDB, trail)
 	tenantTools := registryRepo.NewTenantToolRepository(appDB, trail)
-	dependencies := registryService.NewDependencyCheckerService(appDB, modules, tools, tenantModules, tenantTools)
-	activation := registryService.NewTenantActivationService(modules, tools, tenantModules, tenantTools, dependencies)
+	dependencies := registryUsecase.NewDependencyCheckerService(appDB, modules, tools, tenantModules, tenantTools)
+	activation := registryUsecase.NewTenantActivationService(modules, tools, tenantModules, tenantTools, dependencies)
 	platformOnly := middleware.PlatformOnly(platformRepo.New(appDB))
 
 	app := fiber.New(fiber.Config{DisableStartupMessage: true, ErrorHandler: customErrorHandler})
 	planRateLimit := func(c *fiber.Ctx) error { return c.Next() }
 
 	registerOperationRoutes(app, authzSecret, membership, platformOnly,
-		operationHandler.New(operationRepo.New(appDB), log))
+		operationHandler.New(operationUsecase.NewService(operationRepo.New(appDB), platformRepo.New(appDB)), log))
 
 	setupRoutes(app, cfg,
 		authHandler.NewHandler(userService),
 		auditHandler.NewHandler(auditRepo.NewReader(appDB)),
-		webhookHandler.NewHandler(webhookRepo.New(appDB, trail)),
-		tenantHandler.NewHandler(tenantUsecase.NewService(tenants, validator.New(), log, nil)),
+		webhookHandler.NewHandler(webhookUsecase.NewService(webhookRepo.New(appDB, trail))),
+		tenantHandler.NewHandler(tenantUsecase.NewService(tenants, validator.New(), log)),
 		userHandler.NewHandler(userService),
-		uploadHandler.NewHandler(log, uploadRepo.New(appDB, trail)),
-		registryHandler.NewModuleCatalogHandler(registryService.NewModuleCatalogService(modules)),
-		registryHandler.NewToolCatalogHandler(registryService.NewToolCatalogService(tools)),
+		uploadHandler.NewHandler(log, uploadUsecase.NewStorage(log, uploadRepo.New(appDB, trail))),
+		registryHandler.NewModuleCatalogHandler(registryUsecase.NewModuleCatalogService(modules)),
+		registryHandler.NewToolCatalogHandler(registryUsecase.NewToolCatalogService(tools)),
 		registryHandler.NewActivationHandler(activation, dependencies),
 		middleware.TenantContextMiddleware(middleware.NewTenantSchemaCache(nil, appDB, nil, nil)),
 		middleware.TenantScope(tenants, database.NewTenantManager(appDB)),

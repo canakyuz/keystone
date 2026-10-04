@@ -1,47 +1,47 @@
 package tenant
 
-import "errors"
+import "github.com/canakyuz/keystone/pkg/clienterr"
 
 // Domain-specific errors for tenant operations
 var (
 	// Validation errors
-	ErrInvalidTenantID          = errors.New("invalid tenant ID")
-	ErrTenantNameRequired       = errors.New("tenant name is required")
-	ErrInvalidTenantName        = errors.New("tenant name must be between 2 and 100 characters")
-	ErrTenantSlugRequired       = errors.New("tenant slug is required")
-	ErrInvalidTenantSlug        = errors.New("tenant slug must be between 2 and 50 characters")
-	ErrTenantEmailRequired      = errors.New("tenant email is required")
-	ErrInvalidTenantStatus      = errors.New("invalid tenant status")
-	ErrInvalidSubscriptionPlan  = errors.New("invalid subscription plan")
-	ErrTenantSchemaNameRequired = errors.New("tenant schema name is required")
-	ErrInvalidTenantSchemaName  = errors.New("invalid tenant schema name")
+	ErrInvalidTenantID          = clienterr.New("invalid tenant ID")
+	ErrTenantNameRequired       = clienterr.New("tenant name is required")
+	ErrInvalidTenantName        = clienterr.New("tenant name must be between 2 and 100 characters")
+	ErrTenantSlugRequired       = clienterr.New("tenant slug is required")
+	ErrInvalidTenantSlug        = clienterr.New("tenant slug must be between 2 and 50 characters")
+	ErrTenantEmailRequired      = clienterr.New("tenant email is required")
+	ErrInvalidTenantStatus      = clienterr.New("invalid tenant status")
+	ErrInvalidSubscriptionPlan  = clienterr.New("invalid subscription plan")
+	ErrTenantSchemaNameRequired = clienterr.New("tenant schema name is required")
+	ErrInvalidTenantSchemaName  = clienterr.New("invalid tenant schema name")
 
 	// Business logic errors
-	ErrTenantNotFound         = errors.New("tenant not found")
-	ErrTenantAlreadyExists    = errors.New("tenant already exists")
-	ErrTenantSlugTaken        = errors.New("tenant slug is already taken")
-	ErrTenantEmailTaken       = errors.New("tenant email is already registered")
-	ErrTenantAlreadySuspended = errors.New("tenant is already suspended")
-	ErrTenantAlreadyActive    = errors.New("tenant is already active")
-	ErrTenantSuspended        = errors.New("tenant account is suspended")
-	ErrTenantInactive         = errors.New("tenant account is inactive")
-	ErrTrialExpired           = errors.New("trial period has expired")
+	ErrTenantNotFound         = clienterr.New("tenant not found")
+	ErrTenantAlreadyExists    = clienterr.New("tenant already exists")
+	ErrTenantSlugTaken        = clienterr.New("tenant slug is already taken")
+	ErrTenantEmailTaken       = clienterr.New("tenant email is already registered")
+	ErrTenantAlreadySuspended = clienterr.New("tenant is already suspended")
+	ErrTenantAlreadyActive    = clienterr.New("tenant is already active")
+	ErrTenantSuspended        = clienterr.New("tenant account is suspended")
+	ErrTenantInactive         = clienterr.New("tenant account is inactive")
+	ErrTrialExpired           = clienterr.New("trial period has expired")
 
 	// Subscription errors
-	ErrSameSubscriptionPlan = errors.New("tenant is already on this subscription plan")
-	ErrInvalidPlanUpgrade   = errors.New("invalid plan upgrade")
-	ErrSubscriptionExpired  = errors.New("subscription has expired")
-	ErrFeatureNotAvailable  = errors.New("feature not available in current plan")
-	ErrQuotaExceeded        = errors.New("quota exceeded for current plan")
+	ErrSameSubscriptionPlan = clienterr.New("tenant is already on this subscription plan")
+	ErrInvalidPlanUpgrade   = clienterr.New("invalid plan upgrade")
+	ErrSubscriptionExpired  = clienterr.New("subscription has expired")
+	ErrFeatureNotAvailable  = clienterr.New("feature not available in current plan")
+	ErrQuotaExceeded        = clienterr.New("quota exceeded for current plan")
 
 	// Custom domain errors
-	ErrInvalidCustomDomain         = errors.New("invalid custom domain")
-	ErrCustomDomainNotSet          = errors.New("custom domain is not set")
-	ErrCustomDomainAlreadyVerified = errors.New("custom domain is already verified")
-	ErrCustomDomainNotVerified     = errors.New("custom domain is not verified")
-	ErrCustomDomainTaken           = errors.New("custom domain is already in use")
+	ErrInvalidCustomDomain         = clienterr.New("invalid custom domain")
+	ErrCustomDomainNotSet          = clienterr.New("custom domain is not set")
+	ErrCustomDomainAlreadyVerified = clienterr.New("custom domain is already verified")
+	ErrCustomDomainNotVerified     = clienterr.New("custom domain is not verified")
+	ErrCustomDomainTaken           = clienterr.New("custom domain is already in use")
 
 	// Permission errors
-	ErrTenantAccessDenied = errors.New("access denied to tenant resources")
-	ErrCrossTenantAccess  = errors.New("cross-tenant access is not allowed")
+	ErrTenantAccessDenied = clienterr.New("access denied to tenant resources")
+	ErrCrossTenantAccess  = clienterr.New("cross-tenant access is not allowed")
 )

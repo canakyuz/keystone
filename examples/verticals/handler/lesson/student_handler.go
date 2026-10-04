@@ -3,6 +3,8 @@ package lesson
 import (
 	"strconv"
 
+	"github.com/canakyuz/keystone/internal/handler/respond"
+
 	"github.com/canakyuz/keystone/examples/verticals/domain/lesson"
 	lessonUsecase "github.com/canakyuz/keystone/examples/verticals/usecase/lesson"
 	"github.com/gofiber/fiber/v2"
@@ -41,9 +43,7 @@ func (h *StudentHandler) Create(c *fiber.Ctx) error {
 				"error": "Student with this email already exists",
 			})
 		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": err.Error(),
-		})
+		return respond.Error(c, fiber.StatusInternalServerError, err)
 	}
 
 	return c.Status(fiber.StatusCreated).JSON(student)
@@ -66,9 +66,7 @@ func (h *StudentHandler) GetByID(c *fiber.Ctx) error {
 				"error": "Student not found",
 			})
 		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": err.Error(),
-		})
+		return respond.Error(c, fiber.StatusInternalServerError, err)
 	}
 
 	return c.JSON(student)
@@ -96,9 +94,7 @@ func (h *StudentHandler) GetByEmail(c *fiber.Ctx) error {
 				"error": "Student not found",
 			})
 		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": err.Error(),
-		})
+		return respond.Error(c, fiber.StatusInternalServerError, err)
 	}
 
 	return c.JSON(student)
@@ -149,9 +145,7 @@ func (h *StudentHandler) List(c *fiber.Ctx) error {
 
 	result, err := h.service.List(c.Context(), filters)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": err.Error(),
-		})
+		return respond.Error(c, fiber.StatusInternalServerError, err)
 	}
 
 	return c.JSON(result)
@@ -183,9 +177,7 @@ func (h *StudentHandler) Update(c *fiber.Ctx) error {
 				"error": "Student not found",
 			})
 		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": err.Error(),
-		})
+		return respond.Error(c, fiber.StatusInternalServerError, err)
 	}
 
 	return c.JSON(student)
@@ -206,9 +198,7 @@ func (h *StudentHandler) Delete(c *fiber.Ctx) error {
 				"error": "Student not found",
 			})
 		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": err.Error(),
-		})
+		return respond.Error(c, fiber.StatusInternalServerError, err)
 	}
 
 	return c.SendStatus(fiber.StatusNoContent)
@@ -223,9 +213,7 @@ func (h *StudentHandler) Delete(c *fiber.Ctx) error {
 func (h *StudentHandler) GetStats(c *fiber.Ctx) error {
 	stats, err := h.service.GetStats(c.Context())
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": err.Error(),
-		})
+		return respond.Error(c, fiber.StatusInternalServerError, err)
 	}
 
 	return c.JSON(stats)

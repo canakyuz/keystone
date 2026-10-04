@@ -4,6 +4,7 @@ import (
 	"errors"
 
 	domainUser "github.com/canakyuz/keystone/internal/domain/user"
+	"github.com/canakyuz/keystone/internal/handler/respond"
 	"github.com/canakyuz/keystone/internal/middleware"
 	"github.com/canakyuz/keystone/internal/usecase/user"
 	"github.com/gofiber/fiber/v2"
@@ -86,9 +87,7 @@ func (h *Handler) GetMe(c *fiber.Ctx) error {
 
 	result, err := h.userService.GetByID(c.UserContext(), tenantID, userID)
 	if err != nil {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
-			"error": err.Error(),
-		})
+		return respond.Error(c, fiber.StatusNotFound, err)
 	}
 
 	return c.JSON(fiber.Map{

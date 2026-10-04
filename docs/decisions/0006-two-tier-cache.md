@@ -58,6 +58,11 @@ same moment and produce a synchronized wave of misses.
   until the L1 TTL (30 seconds) expires.
 - This is acceptable for the tenant schema because the schema only changes during
   onboarding. It would not be acceptable for frequently changing data.
+- Correction, 2026-09-28: the entry carries more than the schema. The lookup resolves
+  only active and trial tenants, so the cache is what refuses a suspended one, and
+  nothing invalidated it: a suspension waited for the ten-minute Redis TTL. The tenant
+  service now invalidates on every status and plan change, which leaves the 30-second
+  window above as the bound, on other replicas only.
 
 ## When this decision becomes wrong
 
@@ -72,7 +77,7 @@ A comment in the previous implementation claimed a "98-99% hit rate"; it had nev
 measured. `Stats()` was added, and the outcomes are now exported through
 `cache.Config.OnEvent` to `keystone_cache_events_total`.
 
-Measured on the load profile in `loadtest/`: 7396 L1 hits, 3 L2 hits, 1 miss, a hit rate
+Measured on the load profile in `scripts/loadtest.js`: 7396 L1 hits, 3 L2 hits, 1 miss, a hit rate
 of 99.96%. Higher than the comment claimed, which is the point: the number is now
 checkable, and the previous one was not.
 

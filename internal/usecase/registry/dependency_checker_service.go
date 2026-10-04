@@ -36,19 +36,19 @@ type DependencyCheckResult struct {
 // DependencyCheckerService handles dependency validation and resolution
 type DependencyCheckerService struct {
 	db               *sql.DB
-	moduleRepo       registry.ModuleRepository
-	toolRepo         registry.ToolRepository
-	tenantModuleRepo registry.TenantModuleRepository
-	tenantToolRepo   registry.TenantToolRepository
+	moduleRepo       ModuleRepository
+	toolRepo         ToolRepository
+	tenantModuleRepo TenantModuleRepository
+	tenantToolRepo   TenantToolRepository
 }
 
 // NewDependencyCheckerService creates a new dependency checker service
 func NewDependencyCheckerService(
 	db *sql.DB,
-	moduleRepo registry.ModuleRepository,
-	toolRepo registry.ToolRepository,
-	tenantModuleRepo registry.TenantModuleRepository,
-	tenantToolRepo registry.TenantToolRepository,
+	moduleRepo ModuleRepository,
+	toolRepo ToolRepository,
+	tenantModuleRepo TenantModuleRepository,
+	tenantToolRepo TenantToolRepository,
 ) *DependencyCheckerService {
 	return &DependencyCheckerService{
 		db:               db,
@@ -351,11 +351,4 @@ func (s *DependencyCheckerService) getToolDependencies(ctx context.Context, tool
 	}
 
 	return deps, rows.Err()
-}
-
-// GetInstallOrder returns dependencies in correct installation order
-func (s *DependencyCheckerService) GetInstallOrder(dependencies []DependencyInfo) []DependencyInfo {
-	// Dependencies are already ordered by install_order from database query
-	// But we can add topological sort here if circular dependencies need to be handled
-	return dependencies
 }

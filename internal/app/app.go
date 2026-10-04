@@ -17,6 +17,7 @@ import (
 	"github.com/redis/go-redis/v9"
 
 	"github.com/canakyuz/keystone/internal/config"
+	"github.com/canakyuz/keystone/internal/database"
 	keystonegrpc "github.com/canakyuz/keystone/internal/grpc"
 	auditHandler "github.com/canakyuz/keystone/internal/handler/audit"
 	authHandler "github.com/canakyuz/keystone/internal/handler/auth"
@@ -31,16 +32,16 @@ import (
 	operationRepo "github.com/canakyuz/keystone/internal/repository/operation"
 	platformRepo "github.com/canakyuz/keystone/internal/repository/platform"
 	registryRepo "github.com/canakyuz/keystone/internal/repository/registry"
-	templateRepo "github.com/canakyuz/keystone/internal/repository/template"
 	tenantRepo "github.com/canakyuz/keystone/internal/repository/tenant"
 	uploadRepo "github.com/canakyuz/keystone/internal/repository/upload"
 	userRepo "github.com/canakyuz/keystone/internal/repository/user"
 	webhookRepo "github.com/canakyuz/keystone/internal/repository/webhook"
-	registryService "github.com/canakyuz/keystone/internal/service/registry"
+	operationUsecase "github.com/canakyuz/keystone/internal/usecase/operation"
+	registryUsecase "github.com/canakyuz/keystone/internal/usecase/registry"
 	tenantUsecase "github.com/canakyuz/keystone/internal/usecase/tenant"
 	uploadUsecase "github.com/canakyuz/keystone/internal/usecase/upload"
 	userUsecase "github.com/canakyuz/keystone/internal/usecase/user"
-	"github.com/canakyuz/keystone/pkg/database"
+	webhookUsecase "github.com/canakyuz/keystone/internal/usecase/webhook"
 	pkgLogger "github.com/canakyuz/keystone/pkg/logger"
 	"github.com/canakyuz/keystone/pkg/metrics"
 	"github.com/canakyuz/keystone/pkg/ratelimit"
@@ -255,7 +256,8 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 	membership := middleware.Membership(userRepository)
 
 	// The permission to act across tenants, read from platform_operators; see migration 040.
-	platformOnly := middleware.PlatformOnly(platformRepo.New(db))
+	platformOperators := platformRepo.New(db)
+	platformOnly := middleware.PlatformOnly(platformOperators)
 
 	// Tenant provisioning and operation lookup endpoints.
 	//
@@ -269,10 +271,9 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 	// rather than globally. That exemption is the real constraint — the tenant does not
 	// exist yet, so resolving its schema would fail — and it survives this move.
 	operationRepository := operationRepo.New(db)
+	operationService := operationUsecase.NewService(operationRepository, platformOperators)
 	registerOperationRoutes(app, cfg.Auth.JWTSecret, membership, platformOnly,
-		operationHandler.New(operationRepository, appLogger))
-
-	// Repository for the payment module.
+		operationHandler.New(operationService, appLogger))
 
 	// Repositories for the registry module.
 	moduleRepository := registryRepo.NewModuleRepository(db)
@@ -281,16 +282,14 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 	tenantToolRepository := registryRepo.NewTenantToolRepository(db, trail)
 
 	// The usecase layer, holding the business rules.
-	schemaTemplateRepository := templateRepo.NewFileSystemRepository("templates/tenants")
-	tenantProvisioningService := tenantUsecase.NewProvisioningService(db, schemaTemplateRepository, appLogger)
-	tenantService := tenantUsecase.NewService(tenantRepository, appValidator, appLogger, tenantProvisioningService)
+	tenantService := tenantUsecase.NewService(tenantRepository, appValidator, appLogger, tenantSchemaCache, tenantPlanCache)
 	userService := userUsecase.NewService(userRepository, appValidator, appLogger, cfg.Auth.JWTSecret)
 
 	// Registry services.
-	moduleCatalogService := registryService.NewModuleCatalogService(moduleRepository)
-	toolCatalogService := registryService.NewToolCatalogService(toolRepository)
-	dependencyCheckerService := registryService.NewDependencyCheckerService(db, moduleRepository, toolRepository, tenantModuleRepository, tenantToolRepository)
-	tenantActivationService := registryService.NewTenantActivationService(moduleRepository, toolRepository, tenantModuleRepository, tenantToolRepository, dependencyCheckerService)
+	moduleCatalogService := registryUsecase.NewModuleCatalogService(moduleRepository)
+	toolCatalogService := registryUsecase.NewToolCatalogService(toolRepository)
+	dependencyCheckerService := registryUsecase.NewDependencyCheckerService(db, moduleRepository, toolRepository, tenantModuleRepository, tenantToolRepository)
+	tenantActivationService := registryUsecase.NewTenantActivationService(moduleRepository, toolRepository, tenantModuleRepository, tenantToolRepository, dependencyCheckerService)
 
 	// Tenant context middleware: tenant isolation on every request.
 	// Cache-aware: schema lookups go through the cache rather than the database.
@@ -314,13 +313,13 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 	// responses.
 	authHTTPHandler := authHandler.NewHandler(userService)
 	auditHTTPHandler := auditHandler.NewHandler(auditRepo.NewReader(db))
-	webhookHTTPHandler := webhookHandler.NewHandler(webhookRepo.New(db, trail))
+	webhookHTTPHandler := webhookHandler.NewHandler(webhookUsecase.NewService(webhookRepo.New(db, trail)))
 	tenantHTTPHandler := tenantHandler.NewHandler(tenantService)
 	userHTTPHandler := userHandler.NewHandler(userService)
 
 	uploadRecords := uploadRepo.New(db, trail)
-	uploadHTTPHandler := uploadHandler.NewHandler(appLogger, uploadRecords)
-	uploadSweeper := uploadUsecase.NewSweeper(uploadHandler.UploadBasePath, uploadRecords, cfg.Server.UploadSweepRemove, appLogger)
+	uploadHTTPHandler := uploadHandler.NewHandler(appLogger, uploadUsecase.NewStorage(appLogger, uploadRecords))
+	uploadSweeper := uploadUsecase.NewSweeper(uploadUsecase.BasePath, uploadRecords, cfg.Server.UploadSweepRemove, appLogger)
 
 	// Registry handlers.
 	moduleCatalogHTTPHandler := registryHandler.NewModuleCatalogHandler(moduleCatalogService)
@@ -345,7 +344,7 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 			},
 			tenantSchemaCache,
 			userRepository,
-			keystonegrpc.NewOperationService(operationRepository),
+			keystonegrpc.NewOperationService(operationService),
 			keystonegrpc.NewUserService(userRepository),
 			metricsRegistry,
 			appLogger,

@@ -108,30 +108,6 @@ func (c *TenantSchemaCache) GetTenantSchema(ctx context.Context, tenantID string
 	return schema, err
 }
 
-// InvalidateTenantSchema drops the tenant's cache entry.
-//
-// Warning: only this process's L1 tier is cleared immediately. Other replicas may see
-// the stale value until their own L1 TTL (defaultLocalTTL) expires.
-func (c *TenantSchemaCache) InvalidateTenantSchema(ctx context.Context, tenantID string) error {
-	if err := c.cache.Invalidate(ctx, tenantID); err != nil {
-		if c.logger != nil {
-			c.logger.WithFields(logger.Fields{
-				"tenant_id": tenantID,
-				"error":     err.Error(),
-			}).Error("cache invalidation failed")
-		}
-		return err
-	}
-
-	return nil
-}
-
-// Stats returns the cache counters.
-// A claim like "99% hit rate" can only be verified by measuring it.
-func (c *TenantSchemaCache) Stats() cache.Stats {
-	return c.cache.Stats()
-}
-
 // loadSchemaFromDB fetches the schema name from the source of truth.
 //
 // Only a tenant that is entitled to serve traffic resolves, so a suspended tenant's
@@ -164,4 +140,10 @@ func (c *TenantSchemaCache) loadSchemaFromDB(ctx context.Context, tenantID strin
 	}
 
 	return schemaName, nil
+}
+
+// Forget drops the tenant's entry, so the next request reads its status from the
+// database. The tenant service calls it after a suspension, reactivation or deletion.
+func (c *TenantSchemaCache) Forget(ctx context.Context, tenantID string) error {
+	return c.cache.Invalidate(ctx, tenantID)
 }

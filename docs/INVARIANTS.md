@@ -59,13 +59,28 @@ No tenant role reaches them: an owner is nobody at that level until a row grants
 
 - Schema: `migrations/040_create_platform_operators.up.sql`
 - Code: `internal/middleware/authorization.go`, `PlatformOnly`; `internal/authz`,
-  `IsPlatformOperator`; `internal/repository/platform`
+  `IsPlatformOperator`; `internal/repository/platform`. Tenant creation checks it again
+  in `internal/usecase/operation`, which both the REST and the gRPC port go through
 - Test: `internal/app/authorization_test.go`,
   `TestAuthorization_PlatformRoutesNeedTheGrant`, which refuses an owner and then admits
-  the same subject once the grant exists
+  the same subject once the grant exists; `test/e2e/grpc_isolation_test.go`,
+  `TestGRPC_CreateTenant_RequiresPlatformOperator`
 
-**What this does not cover:** a membership is one user row per tenant, so the same person
-in two tenants is two rows with two passwords. See
+A suspended or deleted tenant is refused on its next request. The schema cache is what
+refuses it, since it resolves only active and trial tenants, so the tenant service drops
+the tenant from that cache, and its plan from the rate limiter's, whenever the status or
+plan changes. Before that, a suspended tenant that had made one request kept access for up
+to the ten-minute Redis TTL.
+
+- Code: `internal/usecase/tenant/service.go`, `forget`; `TenantSchemaCache.Forget`,
+  `TenantPlanCache.Forget`
+- Test: `test/e2e/tenant_lifecycle_test.go`,
+  `TestSuspendedTenant_LosesAccessOnTheNextRequest`, `TestPlanChange_ReachesTheRateLimitAtOnce`
+
+**What this does not cover:** other replicas keep their in-process copy for up to its
+30-second TTL, and if Redis is unreachable when the change is made, the Redis entry lives
+out its TTL; the failure is logged. Separately, a membership is one user row per tenant, so
+the same person in two tenants is two rows with two passwords. See
 [decisions/0008-membership-is-the-tenant-user-record.md](decisions/0008-membership-is-the-tenant-user-record.md).
 
 ---
@@ -153,7 +168,7 @@ the result is the empty set: neither an error nor every row.
 - Schema: `migrations/030_harden_tenant_isolation_policies.up.sql`
 - Schema: `migrations/027_force_row_level_security.up.sql`
 - Code: `internal/repository/user/postgres.go`, reading the schema from context
-- Code: `pkg/database/tenant_connection_manager.go`, `ExecuteInTenantContext`
+- Code: `internal/database/tenant_connection_manager.go`, `ExecuteInTenantContext`
 - Tests: `test/security/rls_test.go`, `test/e2e/tenant_isolation_test.go`
 
 This rule used to be violated in four separate ways. The `USING (TRUE)` policy on

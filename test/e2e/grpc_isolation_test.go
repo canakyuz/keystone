@@ -3,6 +3,7 @@ package e2e
 import (
 	"context"
 	"net"
+	"strings"
 	"testing"
 	"time"
 
@@ -15,11 +16,14 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/grpc/test/bufconn"
 
+	"github.com/canakyuz/keystone/internal/database"
 	keystonegrpc "github.com/canakyuz/keystone/internal/grpc"
 	keystonev1 "github.com/canakyuz/keystone/internal/grpc/keystone/v1"
 	"github.com/canakyuz/keystone/internal/middleware"
+	oprepo "github.com/canakyuz/keystone/internal/repository/operation"
+	platformrepo "github.com/canakyuz/keystone/internal/repository/platform"
 	userRepo "github.com/canakyuz/keystone/internal/repository/user"
-	"github.com/canakyuz/keystone/pkg/database"
+	opuc "github.com/canakyuz/keystone/internal/usecase/operation"
 	"github.com/canakyuz/keystone/test/helpers"
 )
 
@@ -31,7 +35,8 @@ import (
 type grpcHarness struct {
 	*harness
 
-	client keystonev1.UserServiceClient
+	client     keystonev1.UserServiceClient
+	operations keystonev1.OperationServiceClient
 }
 
 // newGRPCHarness builds the same server the application builds.
@@ -51,7 +56,7 @@ func newGRPCHarness(t *testing.T) *grpcHarness {
 		keystonegrpc.Config{JWTSecret: testJWTSecret},
 		schemaCache,
 		users,
-		keystonegrpc.NewOperationService(nil),
+		keystonegrpc.NewOperationService(opuc.NewService(oprepo.New(base.appDB), platformrepo.New(base.appDB))),
 		keystonegrpc.NewUserService(users),
 		nil,
 		nil,
@@ -71,7 +76,11 @@ func newGRPCHarness(t *testing.T) *grpcHarness {
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = conn.Close() })
 
-	return &grpcHarness{harness: base, client: keystonev1.NewUserServiceClient(conn)}
+	return &grpcHarness{
+		harness:    base,
+		client:     keystonev1.NewUserServiceClient(conn),
+		operations: keystonev1.NewOperationServiceClient(conn),
+	}
 }
 
 // callAs returns a context carrying a token for the given tenant.
@@ -249,4 +258,58 @@ func TestGRPC_NonMember_IsRefused(t *testing.T) {
 
 	_, err = h.client.ListUsers(strangerCtx, &keystonev1.ListUsersRequest{})
 	assert.Equal(t, codes.PermissionDenied, status.Code(err), "a subject the tenant does not hold was let in")
+}
+
+// TestGRPC_CreateTenant_RequiresPlatformOperator verifies the gRPC port refuses tenant
+// creation to a subject without a platform_operators row, as the REST route does.
+//
+// It did not: REST checked the permission in a route middleware, and the gRPC interceptor
+// only checks membership of the caller's own tenant, so any member of any tenant, down to
+// a viewer, could create tenants whenever GRPC_ADDR was set.
+func TestGRPC_CreateTenant_RequiresPlatformOperator(t *testing.T) {
+	h := newGRPCHarness(t)
+
+	home := createTenant(t, h.harness, "e2e-grpc-home")
+
+	ctx, cancel := h.callAs(t, home)
+	defer cancel()
+
+	_, err := h.operations.CreateTenant(ctx, &keystonev1.CreateTenantRequest{
+		Name: "Intruder", Slug: "e2e-grpc-intruder", Email: "intruder@example.test",
+	})
+	assert.Equal(t, codes.PermissionDenied, status.Code(err))
+
+	var count int
+	require.NoError(t, h.admin.QueryRow(
+		`SELECT count(*) FROM tenants WHERE slug = 'e2e-grpc-intruder'`).Scan(&count))
+	assert.Zero(t, count, "a tenant was created without the platform permission")
+}
+
+// TestGRPC_CreateTenant_ValidatesLikeREST verifies the two ports share one set of input
+// rules. gRPC used to accept a name of spaces and pass an overlong idempotency key through
+// to the database, where it failed as an internal error.
+func TestGRPC_CreateTenant_ValidatesLikeREST(t *testing.T) {
+	h := newGRPCHarness(t)
+
+	home := createTenant(t, h.harness, "e2e-grpc-validate")
+
+	// An operator, so the call gets past the permission and reaches the input rules.
+	operator := helpers.CreateTestUser(t, h.admin, home, "operator@e2e-grpc-validate.test", "owner")
+	_, err := h.admin.Exec(
+		`INSERT INTO platform_operators (user_id, note) VALUES ($1, 'e2e validation test')`, operator.ID)
+	require.NoError(t, err)
+
+	ctx, cancel := withToken(signTokenAs(t, home, operator.ID, "owner"))
+	defer cancel()
+
+	for name, req := range map[string]*keystonev1.CreateTenantRequest{
+		"blank name": {Name: "   ", Slug: "e2e-grpc-blank", Email: "a@example.test"},
+		"long key": {Name: "A", Slug: "e2e-grpc-long", Email: "a@example.test",
+			IdempotencyKey: strings.Repeat("k", opuc.MaxIdempotencyKeyLength+1)},
+	} {
+		t.Run(name, func(t *testing.T) {
+			_, err := h.operations.CreateTenant(ctx, req)
+			assert.Equal(t, codes.InvalidArgument, status.Code(err))
+		})
+	}
 }

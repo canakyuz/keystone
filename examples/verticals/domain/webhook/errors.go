@@ -1,36 +1,36 @@
 package webhook
 
-import "errors"
+import "github.com/canakyuz/keystone/pkg/clienterr"
 
 // Domain-specific errors for webhook operations
 var (
 	// Validation errors
-	ErrInvalidEventID          = errors.New("invalid event ID")
-	ErrTenantIDRequired        = errors.New("tenant ID is required")
-	ErrProviderEventIDRequired = errors.New("provider event ID is required")
-	ErrInvalidProvider         = errors.New("invalid payment provider")
-	ErrInvalidEventType        = errors.New("invalid event type")
-	ErrPayloadRequired         = errors.New("event payload is required")
+	ErrInvalidEventID          = clienterr.New("invalid event ID")
+	ErrTenantIDRequired        = clienterr.New("tenant ID is required")
+	ErrProviderEventIDRequired = clienterr.New("provider event ID is required")
+	ErrInvalidProvider         = clienterr.New("invalid payment provider")
+	ErrInvalidEventType        = clienterr.New("invalid event type")
+	ErrPayloadRequired         = clienterr.New("event payload is required")
 
 	// Business logic errors
-	ErrEventNotFound         = errors.New("event not found")
-	ErrEventAlreadyProcessed = errors.New("event has already been processed")
-	ErrEventProcessingFailed = errors.New("event processing failed")
-	ErrMaxRetriesExceeded    = errors.New("maximum retry attempts exceeded")
+	ErrEventNotFound         = clienterr.New("event not found")
+	ErrEventAlreadyProcessed = clienterr.New("event has already been processed")
+	ErrEventProcessingFailed = clienterr.New("event processing failed")
+	ErrMaxRetriesExceeded    = clienterr.New("maximum retry attempts exceeded")
 
 	// Signature validation errors
-	ErrInvalidSignature    = errors.New("invalid webhook signature")
-	ErrSignatureNotFound   = errors.New("webhook signature not found")
-	ErrSignatureExpired    = errors.New("webhook signature has expired")
-	ErrInvalidSignatureAlg = errors.New("invalid signature algorithm")
+	ErrInvalidSignature    = clienterr.New("invalid webhook signature")
+	ErrSignatureNotFound   = clienterr.New("webhook signature not found")
+	ErrSignatureExpired    = clienterr.New("webhook signature has expired")
+	ErrInvalidSignatureAlg = clienterr.New("invalid signature algorithm")
 
 	// Provider-specific errors
-	ErrProviderNotConfigured   = errors.New("payment provider is not configured")
-	ErrProviderAPIError        = errors.New("payment provider API error")
-	ErrProviderInvalidResponse = errors.New("invalid response from payment provider")
-	ErrUnsupportedEventType    = errors.New("unsupported event type")
+	ErrProviderNotConfigured   = clienterr.New("payment provider is not configured")
+	ErrProviderAPIError        = clienterr.New("payment provider API error")
+	ErrProviderInvalidResponse = clienterr.New("invalid response from payment provider")
+	ErrUnsupportedEventType    = clienterr.New("unsupported event type")
 
 	// Permission errors
-	ErrEventAccessDenied = errors.New("access denied to event")
-	ErrCrossTenantEvent  = errors.New("cross-tenant event access is not allowed")
+	ErrEventAccessDenied = clienterr.New("access denied to event")
+	ErrCrossTenantEvent  = clienterr.New("cross-tenant event access is not allowed")
 )

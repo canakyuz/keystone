@@ -113,15 +113,6 @@ func (h *ProvisionHandler) Handle(ctx context.Context, job *domain.Job) error {
 	return nil
 }
 
-// MarkFailed marks the tenant 'failed' once the attempts are exhausted.
-//
-// Why it is a separate method: not every failed attempt should make the tenant
-// 'failed'. While a job will be retried, the tenant stays 'provisioning'. Only when
-// the attempts run out does it reach a terminal state.
-func (h *ProvisionHandler) MarkFailed(ctx context.Context, tenantID string) error {
-	return h.status.MarkFailed(ctx, tenantID)
-}
-
 // logStep carries the diagnostic chain.
 //
 // The chain: request_id -> operation_id -> job_id -> attempt -> worker -> migration

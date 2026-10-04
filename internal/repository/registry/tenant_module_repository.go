@@ -3,7 +3,6 @@ package registry
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -14,7 +13,8 @@ import (
 	auditrepo "github.com/canakyuz/keystone/internal/repository/audit"
 )
 
-type tenantModuleRepository struct {
+// TenantModuleRepository records a tenant's module installations, inside the tenant's scope.
+type TenantModuleRepository struct {
 	db    *sql.DB
 	trail *auditrepo.Repository
 }
@@ -24,8 +24,8 @@ type tenantModuleRepository struct {
 // Every method runs inside a transaction scoped to the tenant it is given; see inTenant.
 // Every change made to an installation goes to the trail in that same transaction, so a
 // repository built without one refuses to change anything.
-func NewTenantModuleRepository(db *sql.DB, trail *auditrepo.Repository) registry.TenantModuleRepository {
-	return &tenantModuleRepository{db: db, trail: trail}
+func NewTenantModuleRepository(db *sql.DB, trail *auditrepo.Repository) *TenantModuleRepository {
+	return &TenantModuleRepository{db: db, trail: trail}
 }
 
 // tenantModuleColumns selects an installation in the order scanTenantModule reads it, on
@@ -96,7 +96,7 @@ func scanTenantModule(row rowScanner) (*registry.TenantModule, error) {
 // Create records an installation, or returns ErrTenantModuleAlreadyInstalled when the
 // tenant already has this module. On a reinstall tenantModule.ID becomes the id of the row
 // that was brought back.
-func (r *tenantModuleRepository) Create(ctx context.Context, tenantModule *registry.TenantModule) error {
+func (r *TenantModuleRepository) Create(ctx context.Context, tenantModule *registry.TenantModule) error {
 	return inTenant(ctx, r.db, tenantModule.TenantID, func(tx *sql.Tx) error {
 		err := tx.QueryRowContext(ctx, installModuleQuery,
 			tenantModule.ID, tenantModule.TenantID, tenantModule.ModuleID, tenantModule.Status, tenantModule.IsEnabled,
@@ -115,7 +115,7 @@ func (r *tenantModuleRepository) Create(ctx context.Context, tenantModule *regis
 }
 
 // GetByTenantAndModule retrieves the tenant's live installation of a module.
-func (r *tenantModuleRepository) GetByTenantAndModule(ctx context.Context, tenantID, moduleID string) (*registry.TenantModule, error) {
+func (r *TenantModuleRepository) GetByTenantAndModule(ctx context.Context, tenantID, moduleID string) (*registry.TenantModule, error) {
 	if !isUUID(moduleID) {
 		return nil, registry.ErrTenantModuleNotFound
 	}
@@ -147,7 +147,7 @@ func getTenantModule(ctx context.Context, tx *sql.Tx, tenantID, moduleID string,
 
 // CompleteSetup marks an installation's setup done, which also activates one that was
 // waiting for it.
-func (r *tenantModuleRepository) CompleteSetup(ctx context.Context, tenantID, moduleID string) error {
+func (r *TenantModuleRepository) CompleteSetup(ctx context.Context, tenantID, moduleID string) error {
 	return r.mutate(ctx, tenantID, moduleID, "setup_completed", func(tm *registry.TenantModule) error {
 		tm.CompleteSetup()
 		return nil
@@ -182,7 +182,7 @@ func updateTenantModule(ctx context.Context, tx *sql.Tx, tm *registry.TenantModu
 // It also sets the status to inactive. The install count on modules is kept by a trigger
 // that counts active installations and never looks at deleted_at, so a row deleted while
 // active would otherwise be counted for good.
-func (r *tenantModuleRepository) Uninstall(ctx context.Context, tenantID, moduleID string) error {
+func (r *TenantModuleRepository) Uninstall(ctx context.Context, tenantID, moduleID string) error {
 	if !isUUID(moduleID) {
 		return registry.ErrTenantModuleNotFound
 	}
@@ -204,41 +204,8 @@ func (r *tenantModuleRepository) Uninstall(ctx context.Context, tenantID, module
 	})
 }
 
-// ListByTenant retrieves tenant modules with filters
-func (r *tenantModuleRepository) ListByTenant(ctx context.Context, tenantID string, filters registry.TenantModuleFilters) ([]*registry.TenantModule, error) {
-	query := "SELECT " + tenantModuleColumns + " FROM tenant_modules WHERE tenant_id = $1 AND deleted_at IS NULL"
-
-	conditions, args := r.buildFilterConditions(filters)
-	if len(conditions) > 0 {
-		query += " AND " + strings.Join(conditions, " AND ")
-	}
-
-	query += installationOrderBy(filters.SortBy, filters.SortOrder)
-	query += pageClause(filters.Limit, filters.Offset)
-
-	var tenantModules []*registry.TenantModule
-	err := inTenant(ctx, r.db, tenantID, func(tx *sql.Tx) error {
-		rows, err := tx.QueryContext(ctx, query, append([]any{tenantID}, args...)...)
-		if err != nil {
-			return err
-		}
-		defer rows.Close()
-
-		for rows.Next() {
-			tm, err := scanTenantModule(rows)
-			if err != nil {
-				return err
-			}
-			tenantModules = append(tenantModules, tm)
-		}
-		return rows.Err()
-	})
-
-	return tenantModules, err
-}
-
 // ListActivatedByTenant retrieves activated modules for a tenant
-func (r *tenantModuleRepository) ListActivatedByTenant(ctx context.Context, tenantID string) ([]*registry.TenantModule, error) {
+func (r *TenantModuleRepository) ListActivatedByTenant(ctx context.Context, tenantID string) ([]*registry.TenantModule, error) {
 	filters := registry.TenantModuleFilters{
 		Status:    tenantModuleStatusPtr(registry.TenantModuleStatusActive),
 		IsEnabled: boolPtr(true),
@@ -249,7 +216,7 @@ func (r *tenantModuleRepository) ListActivatedByTenant(ctx context.Context, tena
 }
 
 // IsModuleActivated checks if a module is activated for a tenant
-func (r *tenantModuleRepository) IsModuleActivated(ctx context.Context, tenantID, moduleID string) (bool, error) {
+func (r *TenantModuleRepository) IsModuleActivated(ctx context.Context, tenantID, moduleID string) (bool, error) {
 	if !isUUID(moduleID) {
 		return false, nil
 	}
@@ -269,7 +236,7 @@ func (r *tenantModuleRepository) IsModuleActivated(ctx context.Context, tenantID
 }
 
 // Activate activates a module for a tenant
-func (r *tenantModuleRepository) Activate(ctx context.Context, tenantID, moduleID, activatedBy string) error {
+func (r *TenantModuleRepository) Activate(ctx context.Context, tenantID, moduleID, activatedBy string) error {
 	return r.mutate(ctx, tenantID, moduleID, "activated", func(tm *registry.TenantModule) error {
 		tm.UpdatedBy = activatedBy
 		return tm.Activate(activatedBy)
@@ -277,7 +244,7 @@ func (r *tenantModuleRepository) Activate(ctx context.Context, tenantID, moduleI
 }
 
 // Deactivate deactivates a module for a tenant
-func (r *tenantModuleRepository) Deactivate(ctx context.Context, tenantID, moduleID, deactivatedBy string) error {
+func (r *TenantModuleRepository) Deactivate(ctx context.Context, tenantID, moduleID, deactivatedBy string) error {
 	return r.mutate(ctx, tenantID, moduleID, "deactivated", func(tm *registry.TenantModule) error {
 		tm.UpdatedBy = deactivatedBy
 		return tm.Deactivate(deactivatedBy)
@@ -287,7 +254,7 @@ func (r *tenantModuleRepository) Deactivate(ctx context.Context, tenantID, modul
 // mutate reads an installation under a row lock, applies change, writes it back and records
 // action, in one transaction. Two requests changing the same installation take turns,
 // instead of the later one writing back a state it read before the earlier one committed.
-func (r *tenantModuleRepository) mutate(ctx context.Context, tenantID, moduleID, action string, change func(*registry.TenantModule) error) error {
+func (r *TenantModuleRepository) mutate(ctx context.Context, tenantID, moduleID, action string, change func(*registry.TenantModule) error) error {
 	if !isUUID(moduleID) {
 		return registry.ErrTenantModuleNotFound
 	}
@@ -308,39 +275,8 @@ func (r *tenantModuleRepository) mutate(ctx context.Context, tenantID, moduleID,
 	})
 }
 
-// UpdateLastUsed updates the last used timestamp
-func (r *tenantModuleRepository) UpdateLastUsed(ctx context.Context, tenantID, moduleID string) error {
-	return inTenant(ctx, r.db, tenantID, func(tx *sql.Tx) error {
-		_, err := tx.ExecContext(ctx, `
-			UPDATE tenant_modules
-			SET last_used_at = NOW(), updated_at = NOW()
-			WHERE tenant_id = $1 AND module_id = $2 AND deleted_at IS NULL`,
-			tenantID, moduleID,
-		)
-		return err
-	})
-}
-
-// UpdateUsage updates the current usage for a module
-func (r *tenantModuleRepository) UpdateUsage(ctx context.Context, tenantID, moduleID string, usage map[string]any) error {
-	usageJSON, err := json.Marshal(usage)
-	if err != nil {
-		return fmt.Errorf("failed to marshal usage: %w", err)
-	}
-
-	return inTenant(ctx, r.db, tenantID, func(tx *sql.Tx) error {
-		_, err := tx.ExecContext(ctx, `
-			UPDATE tenant_modules
-			SET current_usage = $3, updated_at = NOW()
-			WHERE tenant_id = $1 AND module_id = $2 AND deleted_at IS NULL`,
-			tenantID, moduleID, usageJSON,
-		)
-		return err
-	})
-}
-
 // Helper functions
-func (r *tenantModuleRepository) buildFilterConditions(filters registry.TenantModuleFilters) ([]string, []any) {
+func (r *TenantModuleRepository) buildFilterConditions(filters registry.TenantModuleFilters) ([]string, []any) {
 	var conditions []string
 	var args []any
 	paramCount := 2 // Start at 2 because $1 is tenantID
@@ -374,4 +310,37 @@ func (r *tenantModuleRepository) buildFilterConditions(filters registry.TenantMo
 
 func tenantModuleStatusPtr(s registry.TenantModuleStatus) *registry.TenantModuleStatus {
 	return &s
+}
+
+// ListByTenant retrieves tenant modules with filters
+func (r *TenantModuleRepository) ListByTenant(ctx context.Context, tenantID string, filters registry.TenantModuleFilters) ([]*registry.TenantModule, error) {
+	query := "SELECT " + tenantModuleColumns + " FROM tenant_modules WHERE tenant_id = $1 AND deleted_at IS NULL"
+
+	conditions, args := r.buildFilterConditions(filters)
+	if len(conditions) > 0 {
+		query += " AND " + strings.Join(conditions, " AND ")
+	}
+
+	query += installationOrderBy(filters.SortBy, filters.SortOrder)
+	query += pageClause(filters.Limit, filters.Offset)
+
+	var tenantModules []*registry.TenantModule
+	err := inTenant(ctx, r.db, tenantID, func(tx *sql.Tx) error {
+		rows, err := tx.QueryContext(ctx, query, append([]any{tenantID}, args...)...)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+
+		for rows.Next() {
+			tm, err := scanTenantModule(rows)
+			if err != nil {
+				return err
+			}
+			tenantModules = append(tenantModules, tm)
+		}
+		return rows.Err()
+	})
+
+	return tenantModules, err
 }

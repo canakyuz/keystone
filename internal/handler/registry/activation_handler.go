@@ -4,9 +4,8 @@ import (
 	"errors"
 
 	"github.com/canakyuz/keystone/internal/domain/registry"
-	dto "github.com/canakyuz/keystone/internal/dto/registry"
 	"github.com/canakyuz/keystone/internal/middleware"
-	registryService "github.com/canakyuz/keystone/internal/service/registry"
+	registryUsecase "github.com/canakyuz/keystone/internal/usecase/registry"
 	"github.com/gofiber/fiber/v2"
 )
 
@@ -17,14 +16,14 @@ import (
 // TenantContextMiddleware filled with the tenant and the acting subject; the fasthttp
 // context carries neither.
 type ActivationHandler struct {
-	activationService *registryService.TenantActivationService
-	dependencyChecker *registryService.DependencyCheckerService
+	activationService *registryUsecase.TenantActivationService
+	dependencyChecker *registryUsecase.DependencyCheckerService
 }
 
 // NewActivationHandler builds an ActivationHandler.
 func NewActivationHandler(
-	activationService *registryService.TenantActivationService,
-	dependencyChecker *registryService.DependencyCheckerService,
+	activationService *registryUsecase.TenantActivationService,
+	dependencyChecker *registryUsecase.DependencyCheckerService,
 ) *ActivationHandler {
 	return &ActivationHandler{
 		activationService: activationService,
@@ -74,13 +73,13 @@ func (h *ActivationHandler) InstallModule(c *fiber.Ctx) error {
 	}
 
 	// Parse the request body into the DTO.
-	var req dto.InstallModuleRequest
+	var req InstallModuleRequest
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid request body"})
 	}
 
 	// Build the request for the service layer.
-	serviceReq := registryService.InstallModuleRequest{
+	serviceReq := registryUsecase.InstallModuleRequest{
 		TenantID:        tenantID,
 		ModuleID:        req.ModuleID,
 		InstalledBy:     userID,
@@ -95,9 +94,9 @@ func (h *ActivationHandler) InstallModule(c *fiber.Ctx) error {
 	}
 
 	// Turn the service result into an HTTP response.
-	response := dto.InstallModuleResponse{
-		TenantModule:         dto.ToTenantModuleResponse(result.TenantModule),
-		DependencyCheck:      dto.ToDependencyCheckDTO(result.DependencyCheckResult),
+	response := InstallModuleResponse{
+		TenantModule:         ToTenantModuleResponse(result.TenantModule),
+		DependencyCheck:      ToDependencyCheckDTO(result.DependencyCheckResult),
 		AutoInstalledModules: result.AutoInstalledModules,
 		AutoInstalledTools:   result.AutoInstalledTools,
 	}
@@ -185,13 +184,13 @@ func (h *ActivationHandler) InstallTool(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 	}
 
-	var req dto.InstallToolRequest
+	var req InstallToolRequest
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid request body"})
 	}
 
 	// Build the request for the service layer.
-	serviceReq := registryService.InstallToolRequest{
+	serviceReq := registryUsecase.InstallToolRequest{
 		TenantID:        tenantID,
 		ToolID:          req.ToolID,
 		ModuleID:        req.ModuleID,
@@ -206,9 +205,9 @@ func (h *ActivationHandler) InstallTool(c *fiber.Ctx) error {
 	}
 
 	// Turn the service result into an HTTP response.
-	response := dto.InstallToolResponse{
-		TenantTool:         dto.ToTenantToolResponse(result.TenantTool),
-		DependencyCheck:    dto.ToDependencyCheckDTO(result.DependencyCheckResult),
+	response := InstallToolResponse{
+		TenantTool:         ToTenantToolResponse(result.TenantTool),
+		DependencyCheck:    ToDependencyCheckDTO(result.DependencyCheckResult),
 		AutoInstalledTools: result.AutoInstalledTools,
 	}
 
@@ -300,9 +299,9 @@ func (h *ActivationHandler) GetActivatedModules(c *fiber.Ctx) error {
 	}
 
 	// Convert the service result into DTOs.
-	response := make([]dto.TenantModuleResponse, len(modules))
+	response := make([]TenantModuleResponse, len(modules))
 	for i, module := range modules {
-		response[i] = dto.ToTenantModuleResponse(module)
+		response[i] = ToTenantModuleResponse(module)
 	}
 
 	return c.JSON(fiber.Map{"data": response})
@@ -323,9 +322,9 @@ func (h *ActivationHandler) GetActivatedTools(c *fiber.Ctx) error {
 	}
 
 	// Convert the service result into DTOs.
-	response := make([]dto.TenantToolResponse, len(tools))
+	response := make([]TenantToolResponse, len(tools))
 	for i, tool := range tools {
-		response[i] = dto.ToTenantToolResponse(tool)
+		response[i] = ToTenantToolResponse(tool)
 	}
 
 	return c.JSON(fiber.Map{"data": response})
@@ -346,7 +345,7 @@ func (h *ActivationHandler) CheckModuleDependencies(c *fiber.Ctx) error {
 		return activationError(c, err)
 	}
 
-	response := dto.ToDependencyCheckDTO(result)
+	response := ToDependencyCheckDTO(result)
 
 	return c.JSON(fiber.Map{"data": response})
 }
@@ -366,7 +365,7 @@ func (h *ActivationHandler) CheckToolDependencies(c *fiber.Ctx) error {
 		return activationError(c, err)
 	}
 
-	response := dto.ToDependencyCheckDTO(result)
+	response := ToDependencyCheckDTO(result)
 
 	return c.JSON(fiber.Map{"data": response})
 }

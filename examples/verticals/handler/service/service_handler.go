@@ -3,6 +3,8 @@ package service
 import (
 	"strconv"
 
+	"github.com/canakyuz/keystone/internal/handler/respond"
+
 	"github.com/canakyuz/keystone/examples/verticals/domain/service"
 	serviceUsecase "github.com/canakyuz/keystone/examples/verticals/usecase/service"
 	"github.com/gofiber/fiber/v2"
@@ -26,7 +28,7 @@ func (h *ServiceHandler) Create(c *fiber.Ctx) error {
 
 	svc, err := h.service.Create(c.Context(), tenantID, &req)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return respond.Error(c, fiber.StatusInternalServerError, err)
 	}
 
 	return c.Status(fiber.StatusCreated).JSON(svc)
@@ -40,7 +42,7 @@ func (h *ServiceHandler) GetByID(c *fiber.Ctx) error {
 		if err == service.ErrServiceNotFound {
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Service not found"})
 		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return respond.Error(c, fiber.StatusInternalServerError, err)
 	}
 
 	return c.JSON(svc)
@@ -54,7 +56,7 @@ func (h *ServiceHandler) GetBySlug(c *fiber.Ctx) error {
 		if err == service.ErrServiceNotFound {
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Service not found"})
 		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return respond.Error(c, fiber.StatusInternalServerError, err)
 	}
 
 	return c.JSON(svc)
@@ -92,7 +94,7 @@ func (h *ServiceHandler) List(c *fiber.Ctx) error {
 
 	result, err := h.service.List(c.Context(), filters)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return respond.Error(c, fiber.StatusInternalServerError, err)
 	}
 
 	return c.JSON(result)
@@ -109,7 +111,7 @@ func (h *ServiceHandler) GetFeatured(c *fiber.Ctx) error {
 
 	services, err := h.service.GetFeatured(c.Context(), limit)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return respond.Error(c, fiber.StatusInternalServerError, err)
 	}
 
 	return c.JSON(services)
@@ -128,7 +130,7 @@ func (h *ServiceHandler) Update(c *fiber.Ctx) error {
 		if err == service.ErrServiceNotFound {
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Service not found"})
 		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return respond.Error(c, fiber.StatusInternalServerError, err)
 	}
 
 	return c.JSON(svc)
@@ -141,7 +143,7 @@ func (h *ServiceHandler) Delete(c *fiber.Ctx) error {
 		if err == service.ErrServiceNotFound {
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Service not found"})
 		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return respond.Error(c, fiber.StatusInternalServerError, err)
 	}
 
 	return c.SendStatus(fiber.StatusNoContent)
@@ -150,7 +152,7 @@ func (h *ServiceHandler) Delete(c *fiber.Ctx) error {
 func (h *ServiceHandler) GetStats(c *fiber.Ctx) error {
 	stats, err := h.service.GetStats(c.Context())
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return respond.Error(c, fiber.StatusInternalServerError, err)
 	}
 
 	return c.JSON(stats)

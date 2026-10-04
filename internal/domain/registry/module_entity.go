@@ -3,8 +3,6 @@ package registry
 import (
 	"encoding/json"
 	"time"
-
-	"github.com/google/uuid"
 )
 
 // ModuleStatus represents module status
@@ -97,43 +95,6 @@ type Module struct {
 	DeletedAt           *time.Time      `json:"deleted_at,omitempty"`
 	CreatedBy           string          `json:"created_by,omitempty"`
 	UpdatedBy           string          `json:"updated_by,omitempty"`
-}
-
-// NewModule creates a new module
-func NewModule(name, slug, code, displayName, description string, category ModuleCategory) (*Module, error) {
-	now := time.Now()
-
-	module := &Module{
-		ID:               uuid.New().String(),
-		Name:             name,
-		Slug:             slug,
-		Code:             code,
-		DisplayName:      displayName,
-		Description:      description,
-		Category:         category,
-		ModuleType:       ModuleTypeStandard,
-		Status:           ModuleStatusActive,
-		IsPublic:         true,
-		IsBeta:           false,
-		Version:          "1.0.0",
-		PricingModel:     PricingFree,
-		BasePrice:        0.00,
-		Currency:         "USD",
-		RequiresDatabase: true,
-		RequiresStorage:  false,
-		RequiresEmail:    false,
-		InstallCount:     0,
-		Rating:           0.00,
-		ReviewCount:      0,
-		CreatedAt:        now,
-		UpdatedAt:        now,
-	}
-
-	if err := module.Validate(); err != nil {
-		return nil, err
-	}
-
-	return module, nil
 }
 
 // Validate validates module data

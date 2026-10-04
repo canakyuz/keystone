@@ -65,9 +65,9 @@ func setupRoutes(
 
 	// /docs serves the static Swagger/OpenAPI documentation page.
 	app.Get("/docs", func(c *fiber.Ctx) error {
-		return c.SendFile("web/static/docs/index.html")
+		return c.SendFile("api/docs/index.html")
 	})
-	app.Static("/docs/", "./web/static/docs")
+	app.Static("/docs/", "./api/docs")
 	// /api/openapi.yaml serves the API definition file.
 	app.Get("/api/openapi.yaml", func(c *fiber.Ctx) error {
 		return c.SendFile("api/openapi.yaml")

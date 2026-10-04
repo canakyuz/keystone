@@ -26,6 +26,7 @@ import (
 	_ "github.com/lib/pq"
 
 	"github.com/canakyuz/keystone/internal/config"
+	"github.com/canakyuz/keystone/internal/database"
 	auditRepo "github.com/canakyuz/keystone/internal/repository/audit"
 	operationRepo "github.com/canakyuz/keystone/internal/repository/operation"
 	outboxRepo "github.com/canakyuz/keystone/internal/repository/outbox"
@@ -33,7 +34,6 @@ import (
 	tenantRepo "github.com/canakyuz/keystone/internal/repository/tenant"
 	tenantUsecase "github.com/canakyuz/keystone/internal/usecase/tenant"
 	"github.com/canakyuz/keystone/internal/worker"
-	"github.com/canakyuz/keystone/pkg/database"
 	"github.com/canakyuz/keystone/pkg/logger"
 	"github.com/canakyuz/keystone/pkg/metrics"
 	"github.com/canakyuz/keystone/pkg/tracing"
@@ -79,7 +79,7 @@ func run() error {
 	// job; see internal/repository/operation. Delivery is a separate loop below.
 	operations := operationRepo.New(db).WithOutbox(outbox).WithAudit(auditRepo.New())
 	tenants := tenantRepo.NewPostgresRepository(db)
-	provisioner := tenantUsecase.NewProvisioningService(db, templateRepo.NewFileSystemRepository("templates/tenants"), log)
+	provisioner := tenantUsecase.NewProvisioningService(db, templateRepo.NewRepository(), log)
 
 	handler := worker.NewProvisionHandler(tenants, tenants, provisioner, log)
 

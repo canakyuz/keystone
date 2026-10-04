@@ -3,7 +3,6 @@ package registry
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -14,7 +13,8 @@ import (
 	auditrepo "github.com/canakyuz/keystone/internal/repository/audit"
 )
 
-type tenantToolRepository struct {
+// TenantToolRepository records a tenant's tool installations, inside the tenant's scope.
+type TenantToolRepository struct {
 	db    *sql.DB
 	trail *auditrepo.Repository
 }
@@ -24,8 +24,8 @@ type tenantToolRepository struct {
 // Every method runs inside a transaction scoped to the tenant it is given; see inTenant.
 // Every change made to an installation goes to the trail in that same transaction, so a
 // repository built without one refuses to change anything.
-func NewTenantToolRepository(db *sql.DB, trail *auditrepo.Repository) registry.TenantToolRepository {
-	return &tenantToolRepository{db: db, trail: trail}
+func NewTenantToolRepository(db *sql.DB, trail *auditrepo.Repository) *TenantToolRepository {
+	return &TenantToolRepository{db: db, trail: trail}
 }
 
 // tenantToolColumns selects an installation in the order scanTenantTool reads it, on the
@@ -111,7 +111,7 @@ func scanTenantTool(row rowScanner) (*registry.TenantTool, error) {
 // Create records an installation, or returns ErrTenantToolAlreadyInstalled when the tenant
 // already has this tool. On a reinstall tenantTool.ID becomes the id of the row that was
 // brought back.
-func (r *tenantToolRepository) Create(ctx context.Context, tenantTool *registry.TenantTool) error {
+func (r *TenantToolRepository) Create(ctx context.Context, tenantTool *registry.TenantTool) error {
 	return inTenant(ctx, r.db, tenantTool.TenantID, func(tx *sql.Tx) error {
 		err := tx.QueryRowContext(ctx, installToolQuery,
 			tenantTool.ID, tenantTool.TenantID, tenantTool.ToolID, nullIfEmpty(tenantTool.ModuleID),
@@ -133,7 +133,7 @@ func (r *tenantToolRepository) Create(ctx context.Context, tenantTool *registry.
 }
 
 // GetByTenantAndTool retrieves the tenant's live installation of a tool.
-func (r *tenantToolRepository) GetByTenantAndTool(ctx context.Context, tenantID, toolID string) (*registry.TenantTool, error) {
+func (r *TenantToolRepository) GetByTenantAndTool(ctx context.Context, tenantID, toolID string) (*registry.TenantTool, error) {
 	if !isUUID(toolID) {
 		return nil, registry.ErrTenantToolNotFound
 	}
@@ -165,7 +165,7 @@ func getTenantTool(ctx context.Context, tx *sql.Tx, tenantID, toolID string, for
 
 // CompleteSetup marks an installation's setup done, which also activates one that was
 // waiting for it.
-func (r *tenantToolRepository) CompleteSetup(ctx context.Context, tenantID, toolID string) error {
+func (r *TenantToolRepository) CompleteSetup(ctx context.Context, tenantID, toolID string) error {
 	return r.mutate(ctx, tenantID, toolID, "setup_completed", func(tt *registry.TenantTool) error {
 		tt.CompleteSetup()
 		return nil
@@ -204,7 +204,7 @@ func updateTenantTool(ctx context.Context, tx *sql.Tx, tt *registry.TenantTool) 
 
 // Uninstall marks the tenant's installation of a tool deleted and inactive, for the reason
 // given on the module repository's Uninstall.
-func (r *tenantToolRepository) Uninstall(ctx context.Context, tenantID, toolID string) error {
+func (r *TenantToolRepository) Uninstall(ctx context.Context, tenantID, toolID string) error {
 	if !isUUID(toolID) {
 		return registry.ErrTenantToolNotFound
 	}
@@ -226,41 +226,8 @@ func (r *tenantToolRepository) Uninstall(ctx context.Context, tenantID, toolID s
 	})
 }
 
-// ListByTenant retrieves tenant tools with filters
-func (r *tenantToolRepository) ListByTenant(ctx context.Context, tenantID string, filters registry.TenantToolFilters) ([]*registry.TenantTool, error) {
-	query := "SELECT " + tenantToolColumns + " FROM tenant_tools WHERE tenant_id = $1 AND deleted_at IS NULL"
-
-	conditions, args := r.buildFilterConditions(filters)
-	if len(conditions) > 0 {
-		query += " AND " + strings.Join(conditions, " AND ")
-	}
-
-	query += installationOrderBy(filters.SortBy, filters.SortOrder)
-	query += pageClause(filters.Limit, filters.Offset)
-
-	var tenantTools []*registry.TenantTool
-	err := inTenant(ctx, r.db, tenantID, func(tx *sql.Tx) error {
-		rows, err := tx.QueryContext(ctx, query, append([]any{tenantID}, args...)...)
-		if err != nil {
-			return err
-		}
-		defer rows.Close()
-
-		for rows.Next() {
-			tt, err := scanTenantTool(rows)
-			if err != nil {
-				return err
-			}
-			tenantTools = append(tenantTools, tt)
-		}
-		return rows.Err()
-	})
-
-	return tenantTools, err
-}
-
 // ListActivatedByTenant retrieves activated tools for a tenant
-func (r *tenantToolRepository) ListActivatedByTenant(ctx context.Context, tenantID string) ([]*registry.TenantTool, error) {
+func (r *TenantToolRepository) ListActivatedByTenant(ctx context.Context, tenantID string) ([]*registry.TenantTool, error) {
 	filters := registry.TenantToolFilters{
 		Status:    tenantToolStatusPtr(registry.TenantToolStatusActive),
 		IsEnabled: boolPtr(true),
@@ -271,7 +238,7 @@ func (r *tenantToolRepository) ListActivatedByTenant(ctx context.Context, tenant
 }
 
 // IsToolActivated checks if a tool is activated for a tenant
-func (r *tenantToolRepository) IsToolActivated(ctx context.Context, tenantID, toolID string) (bool, error) {
+func (r *TenantToolRepository) IsToolActivated(ctx context.Context, tenantID, toolID string) (bool, error) {
 	if !isUUID(toolID) {
 		return false, nil
 	}
@@ -291,7 +258,7 @@ func (r *tenantToolRepository) IsToolActivated(ctx context.Context, tenantID, to
 }
 
 // Activate activates a tool for a tenant
-func (r *tenantToolRepository) Activate(ctx context.Context, tenantID, toolID, activatedBy string) error {
+func (r *TenantToolRepository) Activate(ctx context.Context, tenantID, toolID, activatedBy string) error {
 	return r.mutate(ctx, tenantID, toolID, "activated", func(tt *registry.TenantTool) error {
 		tt.UpdatedBy = activatedBy
 		return tt.Activate(activatedBy)
@@ -299,44 +266,15 @@ func (r *tenantToolRepository) Activate(ctx context.Context, tenantID, toolID, a
 }
 
 // Deactivate deactivates a tool for a tenant
-func (r *tenantToolRepository) Deactivate(ctx context.Context, tenantID, toolID, deactivatedBy string) error {
+func (r *TenantToolRepository) Deactivate(ctx context.Context, tenantID, toolID, deactivatedBy string) error {
 	return r.mutate(ctx, tenantID, toolID, "deactivated", func(tt *registry.TenantTool) error {
 		tt.UpdatedBy = deactivatedBy
 		return tt.Deactivate(deactivatedBy)
 	})
 }
 
-// VerifyIntegration marks integration as verified
-func (r *tenantToolRepository) VerifyIntegration(ctx context.Context, tenantID, toolID string) error {
-	return r.mutate(ctx, tenantID, toolID, "integration_verified", func(tt *registry.TenantTool) error {
-		tt.VerifyIntegration()
-		return nil
-	})
-}
-
-// UpdateIntegrationStatus updates the integration status
-func (r *tenantToolRepository) UpdateIntegrationStatus(ctx context.Context, tenantID, toolID string, status registry.IntegrationStatus) error {
-	return inTenant(ctx, r.db, tenantID, func(tx *sql.Tx) error {
-		_, err := tx.ExecContext(ctx, `
-			UPDATE tenant_tools
-			SET integration_status = $3, updated_at = NOW()
-			WHERE tenant_id = $1 AND tool_id = $2 AND deleted_at IS NULL`,
-			tenantID, toolID, nullIfEmpty(string(status)),
-		)
-		return err
-	})
-}
-
-// UpdateHealthStatus updates the health status
-func (r *tenantToolRepository) UpdateHealthStatus(ctx context.Context, tenantID, toolID string, status registry.HealthStatus) error {
-	return r.mutate(ctx, tenantID, toolID, "", func(tt *registry.TenantTool) error {
-		tt.SetHealthStatus(status)
-		return nil
-	})
-}
-
 // RecordError records an error for a tool
-func (r *tenantToolRepository) RecordError(ctx context.Context, tenantID, toolID, errorMsg string) error {
+func (r *TenantToolRepository) RecordError(ctx context.Context, tenantID, toolID, errorMsg string) error {
 	return r.mutate(ctx, tenantID, toolID, "", func(tt *registry.TenantTool) error {
 		tt.RecordError(errorMsg)
 		return nil
@@ -349,7 +287,7 @@ func (r *tenantToolRepository) RecordError(ctx context.Context, tenantID, toolID
 // An empty action records nothing. Health and error counts are the platform observing a
 // provider rather than a change somebody made, and a trail that logs every health probe
 // buries the changes it exists to show.
-func (r *tenantToolRepository) mutate(ctx context.Context, tenantID, toolID, action string, change func(*registry.TenantTool) error) error {
+func (r *TenantToolRepository) mutate(ctx context.Context, tenantID, toolID, action string, change func(*registry.TenantTool) error) error {
 	if !isUUID(toolID) {
 		return registry.ErrTenantToolNotFound
 	}
@@ -373,39 +311,8 @@ func (r *tenantToolRepository) mutate(ctx context.Context, tenantID, toolID, act
 	})
 }
 
-// UpdateLastUsed updates the last used timestamp
-func (r *tenantToolRepository) UpdateLastUsed(ctx context.Context, tenantID, toolID string) error {
-	return inTenant(ctx, r.db, tenantID, func(tx *sql.Tx) error {
-		_, err := tx.ExecContext(ctx, `
-			UPDATE tenant_tools
-			SET last_used_at = NOW(), updated_at = NOW()
-			WHERE tenant_id = $1 AND tool_id = $2 AND deleted_at IS NULL`,
-			tenantID, toolID,
-		)
-		return err
-	})
-}
-
-// UpdateUsage updates the current usage for a tool
-func (r *tenantToolRepository) UpdateUsage(ctx context.Context, tenantID, toolID string, usage map[string]any) error {
-	usageJSON, err := json.Marshal(usage)
-	if err != nil {
-		return fmt.Errorf("failed to marshal usage: %w", err)
-	}
-
-	return inTenant(ctx, r.db, tenantID, func(tx *sql.Tx) error {
-		_, err := tx.ExecContext(ctx, `
-			UPDATE tenant_tools
-			SET current_usage = $3, updated_at = NOW()
-			WHERE tenant_id = $1 AND tool_id = $2 AND deleted_at IS NULL`,
-			tenantID, toolID, usageJSON,
-		)
-		return err
-	})
-}
-
 // Helper functions
-func (r *tenantToolRepository) buildFilterConditions(filters registry.TenantToolFilters) ([]string, []any) {
+func (r *TenantToolRepository) buildFilterConditions(filters registry.TenantToolFilters) ([]string, []any) {
 	var conditions []string
 	var args []any
 	paramCount := 2 // Start at 2 because $1 is tenantID
@@ -451,4 +358,37 @@ func (r *tenantToolRepository) buildFilterConditions(filters registry.TenantTool
 
 func tenantToolStatusPtr(s registry.TenantToolStatus) *registry.TenantToolStatus {
 	return &s
+}
+
+// ListByTenant retrieves tenant tools with filters
+func (r *TenantToolRepository) ListByTenant(ctx context.Context, tenantID string, filters registry.TenantToolFilters) ([]*registry.TenantTool, error) {
+	query := "SELECT " + tenantToolColumns + " FROM tenant_tools WHERE tenant_id = $1 AND deleted_at IS NULL"
+
+	conditions, args := r.buildFilterConditions(filters)
+	if len(conditions) > 0 {
+		query += " AND " + strings.Join(conditions, " AND ")
+	}
+
+	query += installationOrderBy(filters.SortBy, filters.SortOrder)
+	query += pageClause(filters.Limit, filters.Offset)
+
+	var tenantTools []*registry.TenantTool
+	err := inTenant(ctx, r.db, tenantID, func(tx *sql.Tx) error {
+		rows, err := tx.QueryContext(ctx, query, append([]any{tenantID}, args...)...)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+
+		for rows.Next() {
+			tt, err := scanTenantTool(rows)
+			if err != nil {
+				return err
+			}
+			tenantTools = append(tenantTools, tt)
+		}
+		return rows.Err()
+	})
+
+	return tenantTools, err
 }

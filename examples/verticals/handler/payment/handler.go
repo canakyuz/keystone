@@ -3,6 +3,8 @@ package payment
 import (
 	"strconv"
 
+	"github.com/canakyuz/keystone/internal/handler/respond"
+
 	"github.com/canakyuz/keystone/examples/verticals/usecase/payment"
 	"github.com/canakyuz/keystone/internal/middleware"
 	"github.com/gofiber/fiber/v2"
@@ -43,9 +45,7 @@ func (h *Handler) CreatePayment(c *fiber.Ctx) error {
 
 	result, err := h.paymentService.CreatePayment(c.Context(), tenantID, userID, tenantSettings, &req)
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": err.Error(),
-		})
+		return respond.Error(c, fiber.StatusBadRequest, err)
 	}
 
 	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
@@ -65,9 +65,7 @@ func (h *Handler) Complete3DSPayment(c *fiber.Ctx) error {
 
 	result, err := h.paymentService.Complete3DSPayment(c.Context(), &req)
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": err.Error(),
-		})
+		return respond.Error(c, fiber.StatusBadRequest, err)
 	}
 
 	return c.JSON(fiber.Map{
@@ -82,9 +80,7 @@ func (h *Handler) GetPayment(c *fiber.Ctx) error {
 
 	result, err := h.paymentService.GetPayment(c.Context(), paymentID)
 	if err != nil {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
-			"error": err.Error(),
-		})
+		return respond.Error(c, fiber.StatusNotFound, err)
 	}
 
 	return c.JSON(fiber.Map{
@@ -107,9 +103,7 @@ func (h *Handler) ListPayments(c *fiber.Ctx) error {
 
 	results, err := h.paymentService.ListPayments(c.Context(), tenantID, req)
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": err.Error(),
-		})
+		return respond.Error(c, fiber.StatusBadRequest, err)
 	}
 
 	return c.JSON(fiber.Map{
@@ -135,9 +129,7 @@ func (h *Handler) CreateRefund(c *fiber.Ctx) error {
 
 	result, err := h.paymentService.CreateRefund(c.Context(), tenantID, userID, &req)
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": err.Error(),
-		})
+		return respond.Error(c, fiber.StatusBadRequest, err)
 	}
 
 	return c.Status(fiber.StatusCreated).JSON(fiber.Map{

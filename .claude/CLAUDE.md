@@ -37,6 +37,15 @@ Dependencies point inward only. An inner layer must never import an outer one. I
 the repository layer needs something from HTTP middleware, the shared piece belongs
 in a leaf package — see `pkg/tenantctx`.
 
+A rule lives in a usecase, so REST and gRPC reach the same one. Tenant creation once
+checked its permission only in a REST route middleware, and the gRPC port had none. A
+transport may call a repository directly only for a read with no rule of its own; see
+ADR-0009.
+
+Interfaces are declared by their consumer and name only the methods it calls.
+Repositories return concrete types. `pkg/` never imports `internal/`; the architecture
+test enforces it.
+
 Two processes: `cmd/server` serves HTTP, `cmd/worker` drains the provisioning queue.
 They share the management schema; see ADR-0001 for why, and what that costs.
 
@@ -210,13 +219,18 @@ keystone/
 │   ├── usecase/         # business logic
 │   ├── repository/      # data access
 │   ├── handler/         # HTTP handlers
+│   ├── grpc/            # gRPC services, same usecases as handler/
 │   ├── middleware/      # auth, tenant context, rate limit
+│   ├── authz/           # membership and platform permission
+│   ├── database/        # tenant-scoped connections
 │   └── worker/          # job claiming, leases, shutdown
-├── pkg/                 # cache, ratelimit, database, tenantctx
+├── pkg/                 # leaf packages: cache, ratelimit, tenantctx, outbound
+├── api/                 # OpenAPI contract and the docs page
 ├── console/             # web console (Next.js); reads only through the API
 ├── migrations/          # the single source of truth for the schema
 ├── docs/decisions/      # architecture decision records
-└── scripts/seed/        # development seed data only
+├── examples/verticals/  # reference application built on the control plane
+└── scripts/             # seed data, migrations runner, load test
 ```
 
 ---

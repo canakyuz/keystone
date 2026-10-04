@@ -5,18 +5,17 @@ import (
 	"strconv"
 
 	"github.com/canakyuz/keystone/internal/domain/registry"
-	dto "github.com/canakyuz/keystone/internal/dto/registry"
-	registryService "github.com/canakyuz/keystone/internal/service/registry"
+	registryUsecase "github.com/canakyuz/keystone/internal/usecase/registry"
 	"github.com/gofiber/fiber/v2"
 )
 
 // ModuleCatalogHandler handles module catalog HTTP requests
 type ModuleCatalogHandler struct {
-	catalogService *registryService.ModuleCatalogService
+	catalogService *registryUsecase.ModuleCatalogService
 }
 
 // NewModuleCatalogHandler creates a new module catalog handler
-func NewModuleCatalogHandler(catalogService *registryService.ModuleCatalogService) *ModuleCatalogHandler {
+func NewModuleCatalogHandler(catalogService *registryUsecase.ModuleCatalogService) *ModuleCatalogHandler {
 	return &ModuleCatalogHandler{
 		catalogService: catalogService,
 	}
@@ -25,7 +24,7 @@ func NewModuleCatalogHandler(catalogService *registryService.ModuleCatalogServic
 // ListPublicModules retrieves public modules for marketplace
 // GET /api/v1/registry/modules
 func (h *ModuleCatalogHandler) ListPublicModules(c *fiber.Ctx) error {
-	var req dto.ModuleListRequest
+	var req ModuleListRequest
 	if err := c.QueryParser(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "Invalid query parameters",
@@ -49,14 +48,14 @@ func (h *ModuleCatalogHandler) ListPublicModules(c *fiber.Ctx) error {
 	}
 
 	// Convert to response
-	response := make([]dto.ModuleResponse, len(modules))
+	response := make([]ModuleResponse, len(modules))
 	for i, module := range modules {
-		response[i] = dto.ToModuleResponse(module)
+		response[i] = ToModuleResponse(module)
 	}
 
 	return c.JSON(fiber.Map{
 		"data": response,
-		"pagination": dto.PaginationMeta{
+		"pagination": PaginationMeta{
 			Page:       req.Page,
 			PerPage:    req.PerPage,
 			TotalItems: len(response),
@@ -68,7 +67,7 @@ func (h *ModuleCatalogHandler) ListPublicModules(c *fiber.Ctx) error {
 // SearchModules searches modules in marketplace
 // GET /api/v1/registry/modules/search
 func (h *ModuleCatalogHandler) SearchModules(c *fiber.Ctx) error {
-	var req dto.ModuleSearchRequest
+	var req ModuleSearchRequest
 	if err := c.QueryParser(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "Invalid query parameters",
@@ -113,14 +112,14 @@ func (h *ModuleCatalogHandler) SearchModules(c *fiber.Ctx) error {
 	}
 
 	// Convert to response
-	response := make([]dto.ModuleResponse, len(modules))
+	response := make([]ModuleResponse, len(modules))
 	for i, module := range modules {
-		response[i] = dto.ToModuleResponse(module)
+		response[i] = ToModuleResponse(module)
 	}
 
 	return c.JSON(fiber.Map{
 		"data": response,
-		"pagination": dto.PaginationMeta{
+		"pagination": PaginationMeta{
 			Page:       req.Page,
 			PerPage:    req.PerPage,
 			TotalItems: len(response),
@@ -144,7 +143,7 @@ func (h *ModuleCatalogHandler) GetModuleByID(c *fiber.Ctx) error {
 		return err
 	}
 
-	response := dto.ToModuleDetailResponse(module)
+	response := ToModuleDetailResponse(module)
 
 	return c.JSON(fiber.Map{
 		"data": response,
@@ -166,7 +165,7 @@ func (h *ModuleCatalogHandler) GetModuleBySlug(c *fiber.Ctx) error {
 		return err
 	}
 
-	response := dto.ToModuleDetailResponse(module)
+	response := ToModuleDetailResponse(module)
 
 	return c.JSON(fiber.Map{
 		"data": response,
@@ -189,9 +188,9 @@ func (h *ModuleCatalogHandler) GetPopularModules(c *fiber.Ctx) error {
 	}
 
 	// Convert to response
-	response := make([]dto.ModuleResponse, len(modules))
+	response := make([]ModuleResponse, len(modules))
 	for i, module := range modules {
-		response[i] = dto.ToModuleResponse(module)
+		response[i] = ToModuleResponse(module)
 	}
 
 	return c.JSON(fiber.Map{
@@ -215,9 +214,9 @@ func (h *ModuleCatalogHandler) GetTopRatedModules(c *fiber.Ctx) error {
 	}
 
 	// Convert to response
-	response := make([]dto.ModuleResponse, len(modules))
+	response := make([]ModuleResponse, len(modules))
 	for i, module := range modules {
-		response[i] = dto.ToModuleResponse(module)
+		response[i] = ToModuleResponse(module)
 	}
 
 	return c.JSON(fiber.Map{
@@ -231,7 +230,7 @@ func (h *ModuleCatalogHandler) GetModulesByCategory(c *fiber.Ctx) error {
 	categoryParam := c.Params("category")
 	category := registry.ModuleCategory(categoryParam)
 
-	var req dto.ModuleListRequest
+	var req ModuleListRequest
 	if err := c.QueryParser(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "Invalid query parameters",
@@ -254,14 +253,14 @@ func (h *ModuleCatalogHandler) GetModulesByCategory(c *fiber.Ctx) error {
 	}
 
 	// Convert to response
-	response := make([]dto.ModuleResponse, len(modules))
+	response := make([]ModuleResponse, len(modules))
 	for i, module := range modules {
-		response[i] = dto.ToModuleResponse(module)
+		response[i] = ToModuleResponse(module)
 	}
 
 	return c.JSON(fiber.Map{
 		"data": response,
-		"pagination": dto.PaginationMeta{
+		"pagination": PaginationMeta{
 			Page:       req.Page,
 			PerPage:    req.PerPage,
 			TotalItems: len(response),
@@ -273,7 +272,7 @@ func (h *ModuleCatalogHandler) GetModulesByCategory(c *fiber.Ctx) error {
 // GetFreeModules retrieves free modules
 // GET /api/v1/registry/modules/free
 func (h *ModuleCatalogHandler) GetFreeModules(c *fiber.Ctx) error {
-	var req dto.ModuleListRequest
+	var req ModuleListRequest
 	if err := c.QueryParser(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "Invalid query parameters",
@@ -296,14 +295,14 @@ func (h *ModuleCatalogHandler) GetFreeModules(c *fiber.Ctx) error {
 	}
 
 	// Convert to response
-	response := make([]dto.ModuleResponse, len(modules))
+	response := make([]ModuleResponse, len(modules))
 	for i, module := range modules {
-		response[i] = dto.ToModuleResponse(module)
+		response[i] = ToModuleResponse(module)
 	}
 
 	return c.JSON(fiber.Map{
 		"data": response,
-		"pagination": dto.PaginationMeta{
+		"pagination": PaginationMeta{
 			Page:       req.Page,
 			PerPage:    req.PerPage,
 			TotalItems: len(response),
@@ -328,9 +327,9 @@ func (h *ModuleCatalogHandler) GetNewModules(c *fiber.Ctx) error {
 	}
 
 	// Convert to response
-	response := make([]dto.ModuleResponse, len(modules))
+	response := make([]ModuleResponse, len(modules))
 	for i, module := range modules {
-		response[i] = dto.ToModuleResponse(module)
+		response[i] = ToModuleResponse(module)
 	}
 
 	return c.JSON(fiber.Map{
@@ -339,7 +338,7 @@ func (h *ModuleCatalogHandler) GetNewModules(c *fiber.Ctx) error {
 }
 
 // Helper function to build module filters from request
-func buildModuleFilters(req dto.ModuleListRequest) registry.ModuleFilters {
+func buildModuleFilters(req ModuleListRequest) registry.ModuleFilters {
 	filters := registry.ModuleFilters{
 		SortBy:    req.SortBy,
 		SortOrder: req.SortOrder,

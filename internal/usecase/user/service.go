@@ -15,14 +15,14 @@ import (
 
 // Service handles user business logic
 type Service struct {
-	repo      userRepo.Repository
+	repo      Store
 	validator *validator.Validator
 	logger    *logger.Logger
 	jwtSecret string
 }
 
 // NewService creates a new user service
-func NewService(repo userRepo.Repository, val *validator.Validator, log *logger.Logger, jwtSecret string) *Service {
+func NewService(repo Store, val *validator.Validator, log *logger.Logger, jwtSecret string) *Service {
 	return &Service{
 		repo:      repo,
 		validator: val,
@@ -140,16 +140,6 @@ func (s *Service) Create(ctx context.Context, tenantID string, req *CreateUserRe
 // GetByID retrieves a user by ID
 func (s *Service) GetByID(ctx context.Context, tenantID, userID string) (*UserResponse, error) {
 	u, err := s.repo.GetByID(ctx, tenantID, userID)
-	if err != nil {
-		return nil, err
-	}
-
-	return ToResponse(u), nil
-}
-
-// GetByEmail retrieves a user by email
-func (s *Service) GetByEmail(ctx context.Context, tenantID, email string) (*UserResponse, error) {
-	u, err := s.repo.GetByEmail(ctx, tenantID, email)
 	if err != nil {
 		return nil, err
 	}

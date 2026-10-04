@@ -10,7 +10,50 @@ the entry says so under **Changed**.
 
 ## [Unreleased]
 
+### Security
+
+- Creating a tenant over gRPC did not require the platform permission. The REST route
+  checked it in a middleware, and the gRPC interceptor checks only membership of the
+  caller's own tenant, so with `GRPC_ADDR` set any member of any tenant, a viewer included,
+  could create tenants. The check now sits in the operation usecase that both ports call.
+- The tenant routes answered a failure to load the tenant with a 403 carrying the error
+  text, so a database outage showed the client the driver's message, host and port
+  included. It is now logged and answered with a generic 500.
+- The tenant, user and auth handlers did the same on 25 paths, and under the status meant
+  for the expected failure, so an outage answered a tenant lookup with 404. Only domain
+  and validation errors reach the client now; anything else is a logged, generic 500.
+- The reference application in `examples/verticals` had the same leak on 57 handler paths,
+  and its checkout.com adapter passed the provider's raw response body through to the
+  client. The payment webhook wrote its errors back to the provider and logged nothing; it
+  now logs them and answers a generic message.
+
+- Suspending or deleting a tenant did not take effect until its cached schema expired,
+  up to ten minutes with Redis: the schema cache is what refuses an inactive tenant, and
+  nothing invalidated it. A plan change likewise waited five minutes to reach the rate
+  limit. The tenant service now invalidates both caches on every status and plan change.
+
+### Changed
+
+- Errors meant for the client are `pkg/clienterr` errors, in the control plane and in the
+  examples alike. Refusing a refund over the payment amount, or completing 3-D Secure on a
+  payment that does not need it, answers with the domain message; a database or provider
+  failure answers 500 where the payment routes used to answer 400.
+
+### Removed
+
+- The `project` module in `examples/verticals`. No route ever mounted it.
+
 ### Fixed
+
+- The gRPC `CreateTenant` accepted a name, slug or email of spaces and passed an
+  idempotency key longer than its 255-character column to the database, where it failed as
+  an internal error. REST refused both. The two ports now share one set of input rules.
+
+- Tenant schema templates were read from `templates/tenants` relative to the working
+  directory, and the container image never copied that directory. The shipped templates
+  hold only comments, so nothing was lost yet, but the first template with real SQL would
+  have been skipped in every container with only a debug line to say so. The templates
+  are now embedded in the binary.
 
 - The console set its theme with an inline script in the root layout, which React 19 reports
   as an error on every page and which could only run after the page had begun to paint. The

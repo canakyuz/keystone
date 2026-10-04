@@ -14,19 +14,19 @@ import (
 // installation tables keeps them, counting active installations; bumping them from the
 // service as well counted every installation twice.
 type TenantActivationService struct {
-	moduleRepo        registry.ModuleRepository
-	toolRepo          registry.ToolRepository
-	tenantModuleRepo  registry.TenantModuleRepository
-	tenantToolRepo    registry.TenantToolRepository
+	moduleRepo        ModuleRepository
+	toolRepo          ToolRepository
+	tenantModuleRepo  TenantModuleRepository
+	tenantToolRepo    TenantToolRepository
 	dependencyChecker *DependencyCheckerService
 }
 
 // NewTenantActivationService creates a new tenant activation service
 func NewTenantActivationService(
-	moduleRepo registry.ModuleRepository,
-	toolRepo registry.ToolRepository,
-	tenantModuleRepo registry.TenantModuleRepository,
-	tenantToolRepo registry.TenantToolRepository,
+	moduleRepo ModuleRepository,
+	toolRepo ToolRepository,
+	tenantModuleRepo TenantModuleRepository,
+	tenantToolRepo TenantToolRepository,
 	dependencyChecker *DependencyCheckerService,
 ) *TenantActivationService {
 	return &TenantActivationService{

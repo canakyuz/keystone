@@ -13,89 +13,41 @@ import (
 
 // Service handles tenant business logic
 type Service struct {
-	repo        tenantRepo.Repository
-	validator   *validator.Validator
-	logger      *logger.Logger
-	provisioner *ProvisioningService
+	repo      Store
+	validator *validator.Validator
+	logger    *logger.Logger
+	caches    []Forgetter
 }
 
-// NewService creates a new tenant service
-func NewService(repo tenantRepo.Repository, val *validator.Validator, log *logger.Logger, provisioner *ProvisioningService) *Service {
+// NewService creates a new tenant service. caches are told when a tenant's status or plan
+// changes; see forget.
+func NewService(repo Store, val *validator.Validator, log *logger.Logger, caches ...Forgetter) *Service {
 	return &Service{
-		repo:        repo,
-		validator:   val,
-		logger:      log,
-		provisioner: provisioner,
+		repo:      repo,
+		validator: val,
+		logger:    log,
+		caches:    caches,
 	}
 }
 
-// Create creates a new tenant
-func (s *Service) Create(ctx context.Context, req *CreateTenantRequest) (*TenantResponse, error) {
-	// Validate request
-	if err := s.validator.Validate(req); err != nil {
-		return nil, err
+// forget drops the tenant from the caches that decide access and quota.
+//
+// The schema cache is what refuses a suspended tenant, since it resolves only active and
+// trial tenants, and the plan cache sets the rate limit. Neither was told about a change,
+// so a suspended tenant kept access for up to the ten-minute Redis TTL, and a new plan's
+// quota waited five. Invalidation clears Redis and this process; other replicas keep their
+// in-process copy for at most its 30-second TTL.
+//
+// A failure is logged, not returned: the change is committed, and the entry still expires.
+func (s *Service) forget(ctx context.Context, tenantID string) {
+	for _, c := range s.caches {
+		if err := c.Forget(ctx, tenantID); err != nil && s.logger != nil {
+			s.logger.WithFields(logger.Fields{
+				"tenant_id": tenantID,
+				"error":     err.Error(),
+			}).Error("tenant cache invalidation failed; the change applies when the entry expires")
+		}
 	}
-
-	// TODO: build the tenant's module list and payment rules here, based on the SaaS plan.
-	// Check if slug already exists
-	exists, err := s.repo.ExistsBySlug(ctx, req.Slug)
-	if err != nil {
-		s.logger.ErrorWithErr(err, "failed to check tenant slug existence")
-		return nil, fmt.Errorf("failed to check tenant existence: %w", err)
-	}
-	if exists {
-		return nil, tenant.ErrTenantSlugTaken
-	}
-
-	// Check if email already exists
-	exists, err = s.repo.ExistsByEmail(ctx, req.Email)
-	if err != nil {
-		s.logger.ErrorWithErr(err, "failed to check tenant email existence")
-		return nil, fmt.Errorf("failed to check tenant existence: %w", err)
-	}
-	if exists {
-		return nil, tenant.ErrTenantEmailTaken
-	}
-
-	// Create tenant domain entity
-	t, err := tenant.New(req.Name, req.Slug, req.Email, tenant.SubscriptionPlan(req.Plan))
-	if err != nil {
-		return nil, err
-	}
-
-	if s.provisioner == nil {
-		return nil, fmt.Errorf("tenant provisioning service is not configured")
-	}
-
-	schemaName, err := s.provisioner.GenerateSchemaName(ctx, req.Slug)
-	if err != nil {
-		s.logger.ErrorWithErr(err, "failed to generate tenant schema name")
-		return nil, fmt.Errorf("failed to generate tenant schema: %w", err)
-	}
-
-	if err := t.SetSchemaName(schemaName); err != nil {
-		return nil, err
-	}
-
-	// Save to repository
-	if err := s.repo.Create(ctx, t); err != nil {
-		s.logger.ErrorWithErr(err, "failed to create tenant")
-		return nil, fmt.Errorf("failed to create tenant: %w", err)
-	}
-
-	if err := s.provisioner.ProvisionTenantSchema(ctx, t); err != nil {
-		s.logger.ErrorWithErr(err, "failed to provision tenant schema")
-		_ = s.repo.Delete(ctx, t.ID)
-		return nil, fmt.Errorf("failed to provision tenant schema: %w", err)
-	}
-
-	s.logger.WithFields(logger.Fields{
-		"tenant_id": t.ID,
-		"slug":      t.Slug,
-		"plan":      t.Plan,
-	}).Info("Tenant created successfully")
-
-	return ToResponse(t), nil
 }
 
 // GetByID retrieves a tenant by ID
@@ -111,16 +63,6 @@ func (s *Service) GetByID(ctx context.Context, id string) (*TenantResponse, erro
 // GetBySlug retrieves a tenant by slug
 func (s *Service) GetBySlug(ctx context.Context, slug string) (*TenantResponse, error) {
 	t, err := s.repo.GetBySlug(ctx, slug)
-	if err != nil {
-		return nil, err
-	}
-
-	return ToResponse(t), nil
-}
-
-// GetByEmail retrieves a tenant by email
-func (s *Service) GetByEmail(ctx context.Context, email string) (*TenantResponse, error) {
-	t, err := s.repo.GetByEmail(ctx, email)
 	if err != nil {
 		return nil, err
 	}
@@ -233,6 +175,8 @@ func (s *Service) Suspend(ctx context.Context, id, reason string) error {
 		return fmt.Errorf("failed to suspend tenant: %w", err)
 	}
 
+	s.forget(ctx, t.ID)
+
 	s.logger.WithFields(logger.Fields{
 		"tenant_id": t.ID,
 		"reason":    reason,
@@ -256,6 +200,8 @@ func (s *Service) Activate(ctx context.Context, id string) error {
 		s.logger.ErrorWithErr(err, "failed to activate tenant")
 		return fmt.Errorf("failed to activate tenant: %w", err)
 	}
+
+	s.forget(ctx, t.ID)
 
 	s.logger.WithFields(logger.Fields{
 		"tenant_id": t.ID,
@@ -287,6 +233,8 @@ func (s *Service) UpgradePlan(ctx context.Context, id string, req *UpgradePlanRe
 		s.logger.ErrorWithErr(err, "failed to upgrade plan")
 		return nil, fmt.Errorf("failed to upgrade plan: %w", err)
 	}
+
+	s.forget(ctx, t.ID)
 
 	s.logger.WithFields(logger.Fields{
 		"tenant_id": t.ID,
@@ -367,6 +315,8 @@ func (s *Service) Delete(ctx context.Context, id string) error {
 		s.logger.ErrorWithErr(err, "failed to delete tenant")
 		return fmt.Errorf("failed to delete tenant: %w", err)
 	}
+
+	s.forget(ctx, id)
 
 	s.logger.WithFields(logger.Fields{
 		"tenant_id": id,

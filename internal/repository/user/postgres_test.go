@@ -9,8 +9,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/canakyuz/keystone/internal/database"
 	"github.com/canakyuz/keystone/internal/domain/user"
-	"github.com/canakyuz/keystone/pkg/database"
 	"github.com/canakyuz/keystone/test/helpers"
 )
 

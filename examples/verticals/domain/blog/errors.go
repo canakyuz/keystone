@@ -1,9 +1,9 @@
 package blog
 
-import "errors"
+import "github.com/canakyuz/keystone/pkg/clienterr"
 
 var (
-	ErrPostNotFound     = errors.New("post not found")
-	ErrCategoryNotFound = errors.New("category not found")
-	ErrSlugExists       = errors.New("slug already exists")
+	ErrPostNotFound     = clienterr.New("post not found")
+	ErrCategoryNotFound = clienterr.New("category not found")
+	ErrSlugExists       = clienterr.New("slug already exists")
 )

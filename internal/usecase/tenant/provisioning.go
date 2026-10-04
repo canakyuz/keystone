@@ -17,12 +17,12 @@ import (
 // ProvisioningService is responsible for provisioning schema-per-tenant resources.
 type ProvisioningService struct {
 	db        *sql.DB
-	templates templateRepo.Repository
+	templates TemplateSource
 	logger    *logger.Logger
 }
 
 // NewProvisioningService creates a new provisioning service instance.
-func NewProvisioningService(db *sql.DB, templates templateRepo.Repository, log *logger.Logger) *ProvisioningService {
+func NewProvisioningService(db *sql.DB, templates TemplateSource, log *logger.Logger) *ProvisioningService {
 	return &ProvisioningService{
 		db:        db,
 		templates: templates,

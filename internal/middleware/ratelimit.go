@@ -267,12 +267,13 @@ func (c *TenantPlanCache) GetPlan(ctx context.Context, tenantID string) (string,
 	return plan, err
 }
 
-// Invalidate must be called when a plan changes.
-func (c *TenantPlanCache) Invalidate(ctx context.Context, tenantID string) error {
+// loadPlanFromDB fetches the plan from the source of truth.
+// Forget drops the tenant's plan, so the next request is limited by the plan now in the
+// database. The tenant service calls it after a plan change.
+func (c *TenantPlanCache) Forget(ctx context.Context, tenantID string) error {
 	return c.cache.Invalidate(ctx, tenantID)
 }
 
-// loadPlanFromDB fetches the plan from the source of truth.
 func (c *TenantPlanCache) loadPlanFromDB(ctx context.Context, tenantID string) (string, error) {
 	const query = `SELECT plan FROM tenants WHERE id = $1 AND deleted_at IS NULL`
 

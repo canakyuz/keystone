@@ -11,29 +11,30 @@ import (
 	domain "github.com/canakyuz/keystone/internal/domain/operation"
 	keystonev1 "github.com/canakyuz/keystone/internal/grpc/keystone/v1"
 	oprepo "github.com/canakyuz/keystone/internal/repository/operation"
+	opuc "github.com/canakyuz/keystone/internal/usecase/operation"
 	"github.com/canakyuz/keystone/pkg/tracing"
 )
 
-// OperationStore is the storage behaviour this service needs.
+// Operations is what this service needs from the operation usecase.
 //
-// Declared here, on the consumer side, and identical to the one the HTTP handler
-// declares. Both point at the same repository: the guarantees live there, and this file
-// is a translation layer between protobuf and the domain, nothing more.
-type OperationStore interface {
-	CreateTenantProvision(ctx context.Context, req oprepo.ProvisionRequest) (*oprepo.ProvisionResult, error)
-	GetOperation(ctx context.Context, id, subject string) (*domain.Operation, error)
+// The REST handler goes through the same usecase, so the validation and the idempotency
+// scope are one rule, not two copies of it. This file translates between protobuf and the
+// usecase, nothing more.
+type Operations interface {
+	ProvisionTenant(ctx context.Context, in opuc.ProvisionInput) (*oprepo.ProvisionResult, error)
+	Get(ctx context.Context, id, subject string) (*domain.Operation, error)
 }
 
 // OperationService serves keystone.v1.OperationService.
 type OperationService struct {
 	keystonev1.UnimplementedOperationServiceServer
 
-	store OperationStore
+	ops Operations
 }
 
 // NewOperationService builds the service.
-func NewOperationService(store OperationStore) *OperationService {
-	return &OperationService{store: store}
+func NewOperationService(ops Operations) *OperationService {
+	return &OperationService{ops: ops}
 }
 
 // CreateTenant accepts the provisioning work.
@@ -45,25 +46,16 @@ func NewOperationService(store OperationStore) *OperationService {
 func (s *OperationService) CreateTenant(
 	ctx context.Context, req *keystonev1.CreateTenantRequest,
 ) (*keystonev1.CreateTenantResponse, error) {
-	if req.GetName() == "" || req.GetSlug() == "" || req.GetEmail() == "" {
-		return nil, status.Error(codes.InvalidArgument, "name, slug and email are required")
-	}
-
-	subject := SubjectFrom(ctx)
-
-	result, err := s.store.CreateTenantProvision(ctx, oprepo.ProvisionRequest{
-		Name:      req.GetName(),
-		Slug:      req.GetSlug(),
-		Email:     req.GetEmail(),
-		Plan:      req.GetPlan(),
-		CreatedBy: subject,
-		// The scope binds the key to the subject, so one customer's key cannot match
-		// another's request. Same rule as the REST surface, and it has to be, or a key
-		// would mean different things depending on which port it arrived on.
-		Scope:          "subject:" + subject,
-		IdempotencyKey: req.GetIdempotencyKey(),
-		RequestBody:    []byte(req.GetName() + "|" + req.GetSlug() + "|" + req.GetEmail() + "|" + req.GetPlan()),
+	result, err := s.ops.ProvisionTenant(ctx, opuc.ProvisionInput{
+		Name:           req.GetName(),
+		Slug:           req.GetSlug(),
+		Email:          req.GetEmail(),
+		Plan:           req.GetPlan(),
+		Subject:        SubjectFrom(ctx),
 		TraceContext:   tracing.Marshal(ctx),
+		IdempotencyKey: req.GetIdempotencyKey(),
+		// There is no raw body on this port, so the fingerprint is taken over the fields.
+		Body: []byte(req.GetName() + "|" + req.GetSlug() + "|" + req.GetEmail() + "|" + req.GetPlan()),
 	})
 	if err != nil {
 		return nil, mapCreateError(err)
@@ -80,12 +72,12 @@ func (s *OperationService) CreateTenant(
 func (s *OperationService) GetOperation(
 	ctx context.Context, req *keystonev1.GetOperationRequest,
 ) (*keystonev1.GetOperationResponse, error) {
-	if req.GetId() == "" {
-		return nil, status.Error(codes.InvalidArgument, "id is required")
-	}
-
-	op, err := s.store.GetOperation(ctx, req.GetId(), SubjectFrom(ctx))
+	op, err := s.ops.Get(ctx, req.GetId(), SubjectFrom(ctx))
 	if err != nil {
+		var invalid *opuc.ValidationError
+		if errors.As(err, &invalid) {
+			return nil, status.Error(codes.InvalidArgument, invalid.Message)
+		}
 		if errors.Is(err, domain.ErrNotFound) {
 			return nil, status.Error(codes.NotFound, "operation not found")
 		}
@@ -102,7 +94,12 @@ func (s *OperationService) GetOperation(
 // conflict on both surfaces. A client that reads the code should not have to know which
 // port it used.
 func mapCreateError(err error) error {
+	var invalid *opuc.ValidationError
 	switch {
+	case errors.As(err, &invalid):
+		return status.Error(codes.InvalidArgument, invalid.Message)
+	case errors.Is(err, opuc.ErrNotPlatformOperator):
+		return status.Error(codes.PermissionDenied, "permission denied")
 	case errors.Is(err, domain.ErrIdempotencyConflict):
 		return status.Error(codes.AlreadyExists, "this idempotency key was used with a different request")
 	case errors.Is(err, oprepo.ErrSlugTaken):

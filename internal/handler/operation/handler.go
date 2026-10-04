@@ -11,40 +11,33 @@ package operation
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net/http"
-	"strings"
 
 	"github.com/gofiber/fiber/v2"
 
 	domain "github.com/canakyuz/keystone/internal/domain/operation"
 	oprepo "github.com/canakyuz/keystone/internal/repository/operation"
+	opuc "github.com/canakyuz/keystone/internal/usecase/operation"
 	"github.com/canakyuz/keystone/pkg/logger"
 	"github.com/canakyuz/keystone/pkg/tracing"
 )
 
-// maxIdempotencyKeyLength caps the key.
-// The schema holds 255 characters; the limit is enforced here too so the caller gets
-// a legible validation error instead of a database error.
-const maxIdempotencyKeyLength = 255
-
-// Store defines the behaviours the handler needs.
-// The interface sits on the consumer side: the handler knows only the two methods it
-// uses, not the whole repository.
-type Store interface {
-	CreateTenantProvision(ctx context.Context, req oprepo.ProvisionRequest) (*oprepo.ProvisionResult, error)
-	GetOperation(ctx context.Context, id, subject string) (*domain.Operation, error)
+// Service is what the handler needs from the operation usecase. The interface sits on the
+// consumer side.
+type Service interface {
+	ProvisionTenant(ctx context.Context, in opuc.ProvisionInput) (*oprepo.ProvisionResult, error)
+	Get(ctx context.Context, id, subject string) (*domain.Operation, error)
 }
 
 // Handler serves the operation and tenant provisioning endpoints.
 type Handler struct {
-	store Store
-	log   *logger.Logger
+	svc Service
+	log *logger.Logger
 }
 
 // New creates the handler.
-func New(store Store, log *logger.Logger) *Handler {
-	return &Handler{store: store, log: log}
+func New(svc Service, log *logger.Logger) *Handler {
+	return &Handler{svc: svc, log: log}
 }
 
 // CreateTenantRequest is a provisioning request.
@@ -80,31 +73,18 @@ func (h *Handler) CreateTenant(c *fiber.Ctx) error {
 		return problem(c, http.StatusBadRequest, "invalid_body", "could not read request body")
 	}
 
-	if msg := validateCreate(req); msg != "" {
-		return problem(c, http.StatusBadRequest, "validation_failed", msg)
-	}
-
-	key := strings.TrimSpace(c.Get("Idempotency-Key"))
-	if len(key) > maxIdempotencyKeyLength {
-		return problem(c, http.StatusBadRequest, "idempotency_key_too_long",
-			fmt.Sprintf("Idempotency-Key may be at most %d characters", maxIdempotencyKeyLength))
-	}
-
-	result, err := h.store.CreateTenantProvision(c.UserContext(), oprepo.ProvisionRequest{
+	result, err := h.svc.ProvisionTenant(c.UserContext(), opuc.ProvisionInput{
 		Name:      req.Name,
 		Slug:      req.Slug,
 		Email:     req.Email,
 		Plan:      req.Plan,
-		CreatedBy: subjectID(c),
+		Subject:   subjectID(c),
 		RequestID: requestID(c),
-		// Captured here rather than in the repository: this is the last point where the
-		// request's own span is still current.
-		TraceContext: tracing.Marshal(c.UserContext()),
-		// The scope is bound to the subject making the request. One customer's key must not
-		// match another customer's request.
-		Scope:          "subject:" + subjectID(c),
-		IdempotencyKey: key,
-		RequestBody:    c.Body(),
+		// Captured here rather than further in: this is the last point where the request's
+		// own span is still current.
+		TraceContext:   tracing.Marshal(c.UserContext()),
+		IdempotencyKey: c.Get("Idempotency-Key"),
+		Body:           c.Body(),
 	})
 	if err != nil {
 		return h.mapCreateError(c, err)
@@ -127,9 +107,12 @@ func (h *Handler) CreateTenant(c *fiber.Ctx) error {
 
 // GetOperation returns the operation status.
 func (h *Handler) GetOperation(c *fiber.Ctx) error {
-	op, err := h.store.GetOperation(c.UserContext(), c.Params("id"), subjectID(c))
+	op, err := h.svc.Get(c.UserContext(), c.Params("id"), subjectID(c))
 
+	var invalid *opuc.ValidationError
 	switch {
+	case errors.As(err, &invalid):
+		return problem(c, http.StatusBadRequest, invalid.Code, invalid.Message)
 	case errors.Is(err, domain.ErrNotFound):
 		return problem(c, http.StatusNotFound, "operation_not_found", "operation not found")
 	case err != nil:
@@ -141,7 +124,14 @@ func (h *Handler) GetOperation(c *fiber.Ctx) error {
 
 // mapCreateError turns domain errors into HTTP statuses.
 func (h *Handler) mapCreateError(c *fiber.Ctx, err error) error {
+	var invalid *opuc.ValidationError
 	switch {
+	case errors.As(err, &invalid):
+		return problem(c, http.StatusBadRequest, invalid.Code, invalid.Message)
+
+	case errors.Is(err, opuc.ErrNotPlatformOperator):
+		return problem(c, http.StatusForbidden, "platform_permission_required", "requires a platform permission")
+
 	case errors.Is(err, domain.ErrIdempotencyConflict):
 		// 409: same key, different body. Silently returning the old result would make
 		// the client believe a request it never sent had been processed.
@@ -167,20 +157,6 @@ func (h *Handler) internal(c *fiber.Ctx, err error) error {
 	}
 
 	return problem(c, http.StatusInternalServerError, "internal_error", "request failed")
-}
-
-// validateCreate checks the required fields.
-func validateCreate(req CreateTenantRequest) string {
-	switch {
-	case strings.TrimSpace(req.Name) == "":
-		return "name is required"
-	case strings.TrimSpace(req.Slug) == "":
-		return "slug is required"
-	case strings.TrimSpace(req.Email) == "":
-		return "email is required"
-	}
-
-	return ""
 }
 
 // requestID returns the correlation id the logging middleware assigned to this request.

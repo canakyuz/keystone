@@ -3,6 +3,8 @@ package booking
 import (
 	"strconv"
 
+	"github.com/canakyuz/keystone/internal/handler/respond"
+
 	"github.com/canakyuz/keystone/examples/verticals/domain/booking"
 	bookingUsecase "github.com/canakyuz/keystone/examples/verticals/usecase/booking"
 	"github.com/gofiber/fiber/v2"
@@ -26,7 +28,7 @@ func (h *AppointmentHandler) Create(c *fiber.Ctx) error {
 
 	appointment, err := h.service.Create(c.Context(), tenantID, &req)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return respond.Error(c, fiber.StatusInternalServerError, err)
 	}
 
 	return c.Status(fiber.StatusCreated).JSON(appointment)
@@ -40,7 +42,7 @@ func (h *AppointmentHandler) GetByID(c *fiber.Ctx) error {
 		if err == booking.ErrAppointmentNotFound {
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Appointment not found"})
 		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return respond.Error(c, fiber.StatusInternalServerError, err)
 	}
 
 	return c.JSON(appointment)
@@ -81,7 +83,7 @@ func (h *AppointmentHandler) List(c *fiber.Ctx) error {
 
 	result, err := h.service.List(c.Context(), filters)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return respond.Error(c, fiber.StatusInternalServerError, err)
 	}
 
 	return c.JSON(result)
@@ -106,7 +108,7 @@ func (h *AppointmentHandler) GetByUser(c *fiber.Ctx) error {
 
 	result, err := h.service.GetByUser(c.Context(), userID, limit, offset)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return respond.Error(c, fiber.StatusInternalServerError, err)
 	}
 
 	return c.JSON(result)
@@ -135,7 +137,7 @@ func (h *AppointmentHandler) GetByClient(c *fiber.Ctx) error {
 
 	result, err := h.service.GetByClient(c.Context(), clientEmail, limit, offset)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return respond.Error(c, fiber.StatusInternalServerError, err)
 	}
 
 	return c.JSON(result)
@@ -152,7 +154,7 @@ func (h *AppointmentHandler) GetUpcoming(c *fiber.Ctx) error {
 
 	appointments, err := h.service.GetUpcoming(c.Context(), limit)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return respond.Error(c, fiber.StatusInternalServerError, err)
 	}
 
 	return c.JSON(appointments)
@@ -168,7 +170,7 @@ func (h *AppointmentHandler) GetByDateRange(c *fiber.Ctx) error {
 
 	appointments, err := h.service.GetByDateRange(c.Context(), startDate, endDate)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return respond.Error(c, fiber.StatusInternalServerError, err)
 	}
 
 	return c.JSON(appointments)
@@ -187,7 +189,7 @@ func (h *AppointmentHandler) Update(c *fiber.Ctx) error {
 		if err == booking.ErrAppointmentNotFound {
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Appointment not found"})
 		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return respond.Error(c, fiber.StatusInternalServerError, err)
 	}
 
 	return c.JSON(appointment)
@@ -201,7 +203,7 @@ func (h *AppointmentHandler) Confirm(c *fiber.Ctx) error {
 		if err == booking.ErrAppointmentNotFound {
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Appointment not found"})
 		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return respond.Error(c, fiber.StatusInternalServerError, err)
 	}
 
 	return c.JSON(appointment)
@@ -222,7 +224,7 @@ func (h *AppointmentHandler) Cancel(c *fiber.Ctx) error {
 		if err == booking.ErrAppointmentNotFound {
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Appointment not found"})
 		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return respond.Error(c, fiber.StatusInternalServerError, err)
 	}
 
 	return c.JSON(appointment)
@@ -236,7 +238,7 @@ func (h *AppointmentHandler) Complete(c *fiber.Ctx) error {
 		if err == booking.ErrAppointmentNotFound {
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Appointment not found"})
 		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return respond.Error(c, fiber.StatusInternalServerError, err)
 	}
 
 	return c.JSON(appointment)
@@ -249,7 +251,7 @@ func (h *AppointmentHandler) Delete(c *fiber.Ctx) error {
 		if err == booking.ErrAppointmentNotFound {
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Appointment not found"})
 		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return respond.Error(c, fiber.StatusInternalServerError, err)
 	}
 
 	return c.SendStatus(fiber.StatusNoContent)
@@ -258,7 +260,7 @@ func (h *AppointmentHandler) Delete(c *fiber.Ctx) error {
 func (h *AppointmentHandler) GetStats(c *fiber.Ctx) error {
 	stats, err := h.service.GetStats(c.Context())
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return respond.Error(c, fiber.StatusInternalServerError, err)
 	}
 
 	return c.JSON(stats)

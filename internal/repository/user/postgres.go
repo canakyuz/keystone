@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/canakyuz/keystone/internal/database"
 	"github.com/canakyuz/keystone/internal/domain/user"
 	auditrepo "github.com/canakyuz/keystone/internal/repository/audit"
-	"github.com/canakyuz/keystone/pkg/database"
 	"github.com/canakyuz/keystone/pkg/tenantctx"
 )
 

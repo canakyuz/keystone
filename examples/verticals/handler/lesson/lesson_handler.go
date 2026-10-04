@@ -3,6 +3,8 @@ package lesson
 import (
 	"strconv"
 
+	"github.com/canakyuz/keystone/internal/handler/respond"
+
 	"github.com/canakyuz/keystone/examples/verticals/domain/lesson"
 	lessonUsecase "github.com/canakyuz/keystone/examples/verticals/usecase/lesson"
 	"github.com/gofiber/fiber/v2"
@@ -36,9 +38,7 @@ func (h *LessonHandler) Create(c *fiber.Ctx) error {
 
 	lessonRes, err := h.service.Create(c.Context(), tenantID, &req)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": err.Error(),
-		})
+		return respond.Error(c, fiber.StatusInternalServerError, err)
 	}
 
 	return c.Status(fiber.StatusCreated).JSON(lessonRes)
@@ -61,9 +61,7 @@ func (h *LessonHandler) GetByID(c *fiber.Ctx) error {
 				"error": "Lesson not found",
 			})
 		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": err.Error(),
-		})
+		return respond.Error(c, fiber.StatusInternalServerError, err)
 	}
 
 	return c.JSON(lessonRes)
@@ -108,9 +106,7 @@ func (h *LessonHandler) List(c *fiber.Ctx) error {
 
 	result, err := h.service.List(c.Context(), filters)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": err.Error(),
-		})
+		return respond.Error(c, fiber.StatusInternalServerError, err)
 	}
 
 	return c.JSON(result)
@@ -144,9 +140,7 @@ func (h *LessonHandler) GetByStudent(c *fiber.Ctx) error {
 
 	result, err := h.service.GetByStudent(c.Context(), studentID, limit, offset)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": err.Error(),
-		})
+		return respond.Error(c, fiber.StatusInternalServerError, err)
 	}
 
 	return c.JSON(result)
@@ -170,9 +164,7 @@ func (h *LessonHandler) GetUpcoming(c *fiber.Ctx) error {
 
 	lessons, err := h.service.GetUpcoming(c.Context(), limit)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": err.Error(),
-		})
+		return respond.Error(c, fiber.StatusInternalServerError, err)
 	}
 
 	return c.JSON(lessons)
@@ -204,9 +196,7 @@ func (h *LessonHandler) Update(c *fiber.Ctx) error {
 				"error": "Lesson not found",
 			})
 		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": err.Error(),
-		})
+		return respond.Error(c, fiber.StatusInternalServerError, err)
 	}
 
 	return c.JSON(lessonRes)
@@ -227,9 +217,7 @@ func (h *LessonHandler) Delete(c *fiber.Ctx) error {
 				"error": "Lesson not found",
 			})
 		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": err.Error(),
-		})
+		return respond.Error(c, fiber.StatusInternalServerError, err)
 	}
 
 	return c.SendStatus(fiber.StatusNoContent)
@@ -244,9 +232,7 @@ func (h *LessonHandler) Delete(c *fiber.Ctx) error {
 func (h *LessonHandler) GetStats(c *fiber.Ctx) error {
 	stats, err := h.service.GetStats(c.Context())
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": err.Error(),
-		})
+		return respond.Error(c, fiber.StatusInternalServerError, err)
 	}
 
 	return c.JSON(stats)

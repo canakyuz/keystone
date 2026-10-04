@@ -1,67 +1,67 @@
 package lesson
 
-import "errors"
+import "github.com/canakyuz/keystone/pkg/clienterr"
 
 // Student errors
 var (
 	// Validation errors
-	ErrInvalidStudentID  = errors.New("invalid student ID")
-	ErrTenantIDRequired  = errors.New("tenant ID is required")
-	ErrFirstNameRequired = errors.New("first name is required")
-	ErrLastNameRequired  = errors.New("last name is required")
-	ErrEmailRequired     = errors.New("email is required")
-	ErrInvalidLevel      = errors.New("invalid student level")
-	ErrInvalidStatus     = errors.New("invalid status")
+	ErrInvalidStudentID  = clienterr.New("invalid student ID")
+	ErrTenantIDRequired  = clienterr.New("tenant ID is required")
+	ErrFirstNameRequired = clienterr.New("first name is required")
+	ErrLastNameRequired  = clienterr.New("last name is required")
+	ErrEmailRequired     = clienterr.New("email is required")
+	ErrInvalidLevel      = clienterr.New("invalid student level")
+	ErrInvalidStatus     = clienterr.New("invalid status")
 
 	// Business logic errors
-	ErrStudentNotFound         = errors.New("student not found")
-	ErrStudentAlreadyExists    = errors.New("student already exists")
-	ErrStudentAlreadyActive    = errors.New("student is already active")
-	ErrStudentAlreadySuspended = errors.New("student is already suspended")
-	ErrStudentAlreadyGraduated = errors.New("student is already graduated")
+	ErrStudentNotFound         = clienterr.New("student not found")
+	ErrStudentAlreadyExists    = clienterr.New("student already exists")
+	ErrStudentAlreadyActive    = clienterr.New("student is already active")
+	ErrStudentAlreadySuspended = clienterr.New("student is already suspended")
+	ErrStudentAlreadyGraduated = clienterr.New("student is already graduated")
 )
 
 // Lesson errors
 var (
 	// Validation errors
-	ErrInvalidLessonID   = errors.New("invalid lesson ID")
-	ErrStudentIDRequired = errors.New("student ID is required")
-	ErrTitleRequired     = errors.New("title is required")
-	ErrSubjectRequired   = errors.New("subject is required")
-	ErrInvalidDuration   = errors.New("invalid duration")
-	ErrInvalidLessonType = errors.New("invalid lesson type")
+	ErrInvalidLessonID   = clienterr.New("invalid lesson ID")
+	ErrStudentIDRequired = clienterr.New("student ID is required")
+	ErrTitleRequired     = clienterr.New("title is required")
+	ErrSubjectRequired   = clienterr.New("subject is required")
+	ErrInvalidDuration   = clienterr.New("invalid duration")
+	ErrInvalidLessonType = clienterr.New("invalid lesson type")
 
 	// Business logic errors
-	ErrLessonNotFound                  = errors.New("lesson not found")
-	ErrLessonNotScheduled              = errors.New("lesson is not scheduled")
-	ErrLessonAlreadyCompleted          = errors.New("lesson is already completed")
-	ErrLessonAlreadyCancelled          = errors.New("lesson is already cancelled")
-	ErrCannotCancelCompletedLesson     = errors.New("cannot cancel completed lesson")
-	ErrCannotMarkCompletedLessonNoShow = errors.New("cannot mark completed lesson as no-show")
+	ErrLessonNotFound                  = clienterr.New("lesson not found")
+	ErrLessonNotScheduled              = clienterr.New("lesson is not scheduled")
+	ErrLessonAlreadyCompleted          = clienterr.New("lesson is already completed")
+	ErrLessonAlreadyCancelled          = clienterr.New("lesson is already cancelled")
+	ErrCannotCancelCompletedLesson     = clienterr.New("cannot cancel completed lesson")
+	ErrCannotMarkCompletedLessonNoShow = clienterr.New("cannot mark completed lesson as no-show")
 )
 
 // Assignment errors
 var (
 	// Validation errors
-	ErrInvalidAssignmentID = errors.New("invalid assignment ID")
-	ErrDescriptionRequired = errors.New("description is required")
-	ErrInvalidDueDate      = errors.New("invalid due date")
+	ErrInvalidAssignmentID = clienterr.New("invalid assignment ID")
+	ErrDescriptionRequired = clienterr.New("description is required")
+	ErrInvalidDueDate      = clienterr.New("invalid due date")
 
 	// Business logic errors
-	ErrAssignmentNotFound         = errors.New("assignment not found")
-	ErrAssignmentAlreadySubmitted = errors.New("assignment is already submitted")
-	ErrAssignmentAlreadyGraded    = errors.New("assignment is already graded")
-	ErrAssignmentNotSubmitted     = errors.New("assignment not submitted yet")
+	ErrAssignmentNotFound         = clienterr.New("assignment not found")
+	ErrAssignmentAlreadySubmitted = clienterr.New("assignment is already submitted")
+	ErrAssignmentAlreadyGraded    = clienterr.New("assignment is already graded")
+	ErrAssignmentNotSubmitted     = clienterr.New("assignment not submitted yet")
 )
 
 // Multi-tenant errors
 var (
-	ErrCrossTenantAccess = errors.New("cross-tenant access is not allowed")
-	ErrTenantMismatch    = errors.New("tenant ID mismatch")
+	ErrCrossTenantAccess = clienterr.New("cross-tenant access is not allowed")
+	ErrTenantMismatch    = clienterr.New("tenant ID mismatch")
 )
 
 // Permission errors
 var (
-	ErrUnauthorized            = errors.New("unauthorized access")
-	ErrInsufficientPermissions = errors.New("insufficient permissions")
+	ErrUnauthorized            = clienterr.New("unauthorized access")
+	ErrInsufficientPermissions = clienterr.New("insufficient permissions")
 )
